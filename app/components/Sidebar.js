@@ -16,7 +16,7 @@ export default function Sidebar({ active, setActive }) {
   }, [])
 
   // Define full list
-  const allItems = ['Stock', 'Customers', 'Suppliers', 'Inventory', 'Employees', 'Profile', 'Settings']
+  const allItems = ['Stock', 'Categories', 'Customers', 'Suppliers', 'Inventory', 'Employees', 'Profile', 'Settings']
 
   // Filter out 'Employees' if user is not Admin
   const items = userType === 'Employee' ? allItems.filter(item => item !== 'Employees') : allItems

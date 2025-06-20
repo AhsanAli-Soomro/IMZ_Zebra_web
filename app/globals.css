@@ -1,2 +1,18 @@
 @import "tailwindcss";
 
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  #invoice-area, #invoice-area * {
+    visibility: visible !important;
+  }
+
+  #invoice-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+}

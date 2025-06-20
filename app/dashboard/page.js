@@ -8,6 +8,7 @@ import Customers from '../components/Customers'
 import Suppliers from '../components/Suppliers'
 import Inventory from '../components/Inventory'
 import Employees from '../components/Employees'
+import Categories from '../components/Categories'
 // import Profile from '../components/Profile'
 // import Settings from '../components/Settings'
 
@@ -40,6 +41,7 @@ export default function ZebraDashboardPage() {
       case 'Inventory': return <Inventory />
       case 'Customers': return <Customers />
       case 'Suppliers': return <Suppliers />
+      case 'Categories': return <Categories />
       case 'Employees': return <Employees />
       case 'Profile': return <Profile />
       case 'Settings': return <Settings />
