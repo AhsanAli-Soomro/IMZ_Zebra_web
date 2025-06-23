@@ -18,7 +18,13 @@ export default function BillingPage() {
   const [netPay, setNetPay] = useState(0)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isInvoiceSaved, setIsInvoiceSaved] = useState(false)
+  const [amountPaid, setAmountPaid] = useState(0);
   const [currentTime, setCurrentTime] = useState({ date: '', time: '' })
+
+  const formatDateForMySQL = (date) => {
+    return date.toISOString().slice(0, 19).replace('T', ' ');
+  };
+
 
   useEffect(() => {
     const now = new Date()
@@ -63,8 +69,10 @@ export default function BillingPage() {
 
   useEffect(() => {
     const total = cart.reduce((acc, item) => acc + (item.selling_price * item.qty), 0)
+    const net = total - total * discount
     setBillAmount(total)
-    setNetPay(total - total * discount)
+    setNetPay(net)
+    setAmountPaid(net) // default full paid unless overridden
   }, [cart, discount])
 
   const addToCart = (product) => {
@@ -105,16 +113,15 @@ export default function BillingPage() {
       alert('Please add items to cart')
       return
     }
+
     try {
       setIsGenerating(true)
-
       const { data } = await axios.get('/api/invoices/last')
       if (data.lastInvoice >= invoiceNo) {
         alert('Invoice already exists.')
         return
       }
 
-      // ✅ Now the DOM is ready, we can safely use it
       const invoiceHTML = document.getElementById('invoice-area')?.outerHTML
       if (!invoiceHTML) {
         alert('Invoice content not found')
@@ -127,21 +134,11 @@ export default function BillingPage() {
           <style>
             @page { margin: 0; }
             body { margin: 1cm; font-family: monospace; font-size: 12px; }
-
-            .text-center { text-align: center; }
-            .text-right { text-align: right; }
-            .font-bold { font-weight: bold; }
-            .border { border: 1px solid #000; }
-            .border-b { border-bottom: 1px solid #000; }
-            .border-t { border-top: 1px solid #000; }
-            .bg-gray-100 { background-color: #f3f3f3; }
             table { width: 100%; border-collapse: collapse; }
             th, td { padding: 2px; border: 1px solid #000; }
           </style>
         </head>
-        <body>
-          ${invoiceHTML}
-        </body>
+        <body>${invoiceHTML}</body>
       </html>
     `
 
@@ -155,6 +152,8 @@ export default function BillingPage() {
         discount_percent: discount,
         discount_amount: billAmount * discount,
         net_total: netPay,
+        amount_paid: amountPaid,
+        payment_date: new Date(),
         html
       })
 
@@ -162,6 +161,27 @@ export default function BillingPage() {
         alert('Invoice Generated & Saved')
         setIsInvoiceSaved(true)
         await updateStockAfterSale()
+
+        // ✅ Add billing history
+        const customer_id = selectedCustomer !== 'manual'
+          ? selectedCustomer
+          : customers.find(c => c.phone === customerInfo.contact)?.id || null
+
+        if (customer_id) {
+await axios.post('/api/history', {
+  customer_id,
+  invoice_no: invoiceNo,
+  total_amount: billAmount,
+  discount_amount: billAmount * discount,
+  net_total: netPay,
+  amount_paid: amountPaid,
+  bill_date: formatDateForMySQL(new Date()),
+  payment_date: formatDateForMySQL(new Date())
+});
+
+
+
+        }
       } else {
         alert('Failed to save invoice')
       }
@@ -172,6 +192,7 @@ export default function BillingPage() {
       setIsGenerating(false)
     }
   }
+
 
   const printInvoice = async () => {
     if (customerInfo.name === '' || customerInfo.contact === '' || customerInfo.address === '') {
@@ -201,37 +222,28 @@ export default function BillingPage() {
         return
       }
 
-      // ✅ If already saved, just print
-      if (last >= invoiceNo) {
-        window.print()
-        setIsInvoicePrinted(true)
-        return
-      }
-
-      // ✅ Save and then print
       const html = `
       <html>
         <head>
           <style>
             @page { margin: 0; }
             body { margin: 1cm; font-family: monospace; font-size: 12px; }
-            .text-center { text-align: center; }
-            .text-right { text-align: right; }
-            .font-bold { font-weight: bold; }
-            .border { border: 1px solid #000; }
-            .border-b { border-bottom: 1px solid #000; }
-            .border-t { border-top: 1px solid #000; }
-            .bg-gray-100 { background-color: #f3f3f3; }
             table { width: 100%; border-collapse: collapse; }
             th, td { padding: 2px; border: 1px solid #000; }
           </style>
         </head>
-        <body>
-          ${invoiceHTML}
-        </body>
+        <body>${invoiceHTML}</body>
       </html>
     `
 
+      // If already saved
+      if (last >= invoiceNo) {
+        window.print()
+        setIsInvoicePrinted(true)
+        return
+      }
+
+      // Save invoice
       const response = await axios.post('/api/invoices/save', {
         invoice_no: invoiceNo,
         customer_name: customerInfo.name,
@@ -242,15 +254,36 @@ export default function BillingPage() {
         discount_percent: discount,
         discount_amount: billAmount * discount,
         net_total: netPay,
+        amount_paid: amountPaid,
+        payment_date: new Date(),
         html
       })
 
       if (response.data.success) {
         alert('Invoice saved, now printing...')
         setIsInvoiceSaved(true)
-
-        // ✅ Only now update stock
         await updateStockAfterSale()
+
+        // ✅ Add billing history
+        const customer_id = selectedCustomer !== 'manual'
+          ? selectedCustomer
+          : customers.find(c => c.phone === customerInfo.contact)?.id || null
+
+        if (customer_id) {
+await axios.post('/api/history', {
+  customer_id,
+  invoice_no: invoiceNo,
+  total_amount: billAmount,
+  discount_amount: billAmount * discount,
+  net_total: netPay,
+  amount_paid: amountPaid,
+  bill_date: formatDateForMySQL(new Date()),
+  payment_date: formatDateForMySQL(new Date())
+});
+
+
+
+        }
 
         window.print()
         setIsInvoicePrinted(true)
@@ -266,6 +299,7 @@ export default function BillingPage() {
     }
   }
 
+
   const clearCart = async () => {
     setCart([])
     setIsInvoiceSaved(false)
@@ -280,6 +314,45 @@ export default function BillingPage() {
       console.error('Failed to refresh products:', err)
     }
   }
+
+
+  const handleAddManualCustomer = async () => {
+    if (!customerInfo.name || !customerInfo.contact) {
+      alert('Name and Contact are required')
+      return
+    }
+
+    try {
+      const res = await axios.post('/api/customers', {
+        name: customerInfo.name,
+        email: '', // optional
+        phone: customerInfo.contact,
+        address: customerInfo.address,
+        status: 'Active'
+      })
+
+      if (res.data.success) {
+        alert('Customer added successfully')
+
+        // Refresh customer list
+        const refreshed = await axios.get('/api/customers')
+        setCustomers(refreshed.data.data)
+
+        // Optionally, auto-select the added customer
+        const newCustomer = refreshed.data.data.find(c => c.phone === customerInfo.contact)
+        if (newCustomer) {
+          setSelectedCustomer(newCustomer.id)
+        }
+      } else {
+        alert('Failed to add customer')
+      }
+    } catch (err) {
+      console.error('Error adding customer:', err)
+      alert('Error while adding customer')
+    }
+  }
+  const actualRemaining = billAmount - amountPaid; // Without subtracting discount
+
 
   const filteredProducts =
     selectedCategory === 'all'
@@ -320,7 +393,6 @@ export default function BillingPage() {
                 <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
               ))}
             </select>
-
             {selectedCustomer === 'manual' && (
               <>
                 <input
@@ -337,12 +409,19 @@ export default function BillingPage() {
                 />
                 <input
                   placeholder="Address"
-                  className="border px-3 py-2 w-full rounded"
+                  className="border px-3 py-2 w-full rounded mb-2"
                   value={customerInfo.address}
                   onChange={e => setCustomerInfo({ ...customerInfo, address: e.target.value })}
                 />
+                <button
+                  onClick={handleAddManualCustomer}
+                  className="bg-indigo-600 text-white w-full py-2 rounded hover:bg-indigo-700 text-sm"
+                >
+                  Add to Customer List
+                </button>
               </>
             )}
+
           </div>
 
           {/* Cart Items */}
@@ -369,7 +448,7 @@ export default function BillingPage() {
           <div className="border-t pt-2 text-sm">
             <p className="flex justify-between"><span>Total Qty:</span> <span>{cart.reduce((a, b) => a + b.qty, 0)}</span></p>
             <p className="flex justify-between"><span>Subtotal:</span> <span>Rs {billAmount.toFixed(2)}</span></p>
-            <p className="flex justify-between"><span>Discount (5%):</span> <span>- Rs {(billAmount * discount).toFixed(2)}</span></p>
+            {/* <p className="flex justify-between"><span>Discount (5%):</span> <span>- Rs {(billAmount * discount).toFixed(2)}</span></p> */}
             <p className="flex justify-between font-bold mt-2"><span>Net Pay:</span> <span>Rs {netPay.toFixed(2)}</span></p>
           </div>
 
@@ -417,6 +496,31 @@ export default function BillingPage() {
           </div>
         </main>
       </div>
+      <div className="flex flex-col w-40 mx-4 mt-2">
+        <label className="text-sm font-medium mb-1">Discount (%)</label>
+        <input
+          type="number"
+          min="0"
+          max="100"
+          value={discount * 100}
+          onChange={(e) => {
+            const val = parseFloat(e.target.value);
+            setDiscount(isNaN(val) ? 0 : val / 100);
+          }}
+          className="border px-2 py-1 rounded"
+        />
+      </div>
+
+      <div className="flex flex-col w-40 mx-4">
+        <label className="text-sm font-medium mb-1">Amount Paid</label>
+        <input
+          type="number"
+          className="border px-2 py-1 rounded"
+          value={amountPaid}
+          onChange={(e) => setAmountPaid(Number(e.target.value))}
+        />
+      </div>
+
 
       {/* Bottom Action Bar */}
       <footer className="bg-white border-t p-3 flex justify-between px-6 shadow-inner">
@@ -450,8 +554,10 @@ export default function BillingPage() {
 
 
       {/* Hidden Invoice for Print/Save */}
-      <div id="invoice-area" className="hidden">
-        <div className="bg-white text-black text-[12px] w-[290px] p-4 border mx-auto font-mono">
+      <div id="invoice-area" className="hidden print:block print:static print:bg-white print:text-black">
+        <div className="mx-auto max-w-[700px] border border-black p-6 shadow text-[13px] font-mono bg-white">
+
+
           <div className="text-center">
             <h2 className="font-bold text-base mb-1">Sales Invoice</h2>
             <p className="font-semibold">Manan Agency</p>
@@ -474,16 +580,17 @@ export default function BillingPage() {
             <p><b>Address:</b> {customerInfo.address}</p>
           </div>
 
-          <table className="w-full border text-[11px] mb-2">
-            <thead>
-              <tr className="border-t border-b border-black bg-gray-100">
-                <th className="text-left">#</th>
-                <th className="text-left">Item</th>
-                <th className="text-right">Qty</th>
-                <th className="text-right">Rate</th>
-                <th className="text-right">Amt</th>
+          <table className="w-full border border-black border-collapse text-[12px] mb-3">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="border border-black px-2 py-1 text-left">#</th>
+                <th className="border border-black px-2 py-1 text-left">Item</th>
+                <th className="border border-black px-2 py-1 text-right">Qty</th>
+                <th className="border border-black px-2 py-1 text-right">Rate</th>
+                <th className="border border-black px-2 py-1 text-right">Amt</th>
               </tr>
             </thead>
+
             <tbody>
               {cart.map((item, i) => (
                 <tr key={i} className="border-b">
@@ -497,19 +604,26 @@ export default function BillingPage() {
             </tbody>
           </table>
 
-          <div className="text-right text-sm mb-1">
-            <p>Total Qty: {cart.reduce((sum, item) => sum + item.qty, 0)}</p>
-            <p>Gross Amount: Rs:{billAmount.toFixed(2)}</p>
-            <p>Discount (5%): Rs:{(billAmount * discount).toFixed(2)}</p>
-            <p className="font-bold">Net Amount: Rs:{netPay.toFixed(2)}</p>
+          <div className="text-right text-sm mb-2 space-y-1">
+            <p><b>Gross Amount:</b> Rs {billAmount.toFixed(2)}</p>
+            <p><b>Discount ({(discount * 100).toFixed(1)}%):</b> Rs {(billAmount * discount).toFixed(2)}</p>
+            <p><b>Net Amount (Payable):</b> Rs {netPay.toFixed(2)}</p>
+            <p><b>Advance Paid:</b> Rs {amountPaid.toFixed(2)}</p>
+            <p><b>Gross Remaining:</b> Rs {(billAmount - amountPaid).toFixed(2)}</p>
+            <p><b>Remaining (After Discount):</b> Rs {(netPay - amountPaid).toFixed(2)}</p>
+
           </div>
+
+
 
           <hr className="my-2 border-black" />
 
-          <div className="text-sm">
-            <p><b>Advance:</b> Rs:{netPay.toFixed(2)}</p>
-            <p><b>Balance:</b> Rs:0.00</p>
+          <div className="text-sm mb-2">
+            <p><b>Advance Paid:</b> Rs: {amountPaid.toFixed(2)}</p>
+            <p><b>Balance:</b> Rs: {(netPay - amountPaid).toFixed(2)}</p>
+            <p><b>Payment Date:</b> {currentTime.date} {currentTime.time}</p>
           </div>
+
 
           <hr className="my-2 border-black" />
 

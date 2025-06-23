@@ -15,31 +15,32 @@ export async function POST(req) {
     discount_percent,
     discount_amount,
     net_total,
+    amount_paid,
+    payment_date,
     html
   } = await req.json()
 
-  try {
-    // 1. Save invoice data to the database
-    await db.query(`
-      INSERT INTO bills (
-        invoice_no, customer_name, contact, address,
-        items, subtotal, discount_percent, discount_amount, net_total, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-    `, [
-      invoice_no,
-      customer_name,
-      contact,
-      address,
-      JSON.stringify(items),
-      subtotal,
-      discount_percent,
-      discount_amount,
-      net_total
-    ])
+  // ✅ Basic validation
+  if (!invoice_no || !customer_name || !contact || !items || !html) {
+    return NextResponse.json({
+      success: false,
+      message: 'Missing required invoice data.'
+    }, { status: 400 })
+  }
 
-    // 2. Generate invoice PDF using Puppeteer
+  // ✅ Safe parsing of numbers
+  const parsedSubtotal = parseFloat(subtotal ?? 0)
+  const parsedDiscountPercent = parseFloat(discount_percent ?? 0)
+  const parsedDiscountAmount = parseFloat(discount_amount ?? 0)
+  const parsedNetTotal = parseFloat(net_total ?? 0)
+  const parsedPaidAmount = parseFloat(amount_paid ?? parsedNetTotal)
+  const parsedBalance = parseFloat((parsedNetTotal - parsedPaidAmount).toFixed(2))
+  const parsedPaymentDate = payment_date ? new Date(payment_date) : new Date()
+
+  try {
+    // ✅ 1. Generate invoice PDF using Puppeteer
     const browser = await puppeteer.launch({
-      headless: 'new', // Use 'new' for Puppeteer v20+
+      headless: 'new',
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     })
 
@@ -60,6 +61,29 @@ export async function POST(req) {
 
     await browser.close()
 
+    // ✅ 2. Save to database
+    await db.query(`
+  INSERT INTO bills (
+    invoice_no, customer_name, contact, address,
+    items, subtotal, discount_percent, discount_amount, net_total,
+    amount_paid, payment_date, pdf_path, created_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+`, [
+      invoice_no,
+      customer_name,
+      contact,
+      address,
+      JSON.stringify(items),
+      parsedSubtotal,
+      parsedDiscountPercent,
+      parsedDiscountAmount,
+      parsedNetTotal,
+      parsedPaidAmount,
+      parsedPaymentDate,
+      `/bills/${filename}`
+    ])
+
+
     return NextResponse.json({
       success: true,
       message: 'Invoice saved successfully',
@@ -71,7 +95,7 @@ export async function POST(req) {
     console.error('Invoice save error:', error)
     return NextResponse.json({
       success: false,
-      message: 'Server error. Failed to save invoice.'
+      message: error.message  // Return the real error
     }, { status: 500 })
   }
 }
