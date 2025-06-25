@@ -2,8 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 
-
-export default function HistoryPage() {
+function History() {
     const [history, setHistory] = useState([]);
     const [expandedCustomerId, setExpandedCustomerId] = useState(null);
     const [activeDropdown, setActiveDropdown] = useState(null);
@@ -12,6 +11,16 @@ export default function HistoryPage() {
     };
     const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [showModal, setShowModal] = useState(false);
+    useEffect(() => {
+        if (showModal) {
+            document.body.style.overflow = 'hidden'
+        } else {
+            document.body.style.overflow = ''
+        }
+        return () => {
+            document.body.style.overflow = ''
+        }
+    }, [showModal])
 
 
     useEffect(() => {
@@ -31,6 +40,23 @@ export default function HistoryPage() {
         setExpandedCustomerId(prev => (prev === id ? null : id));
     };
 
+    const exportCSV = async () => {
+        try {
+            const res = await axios.get('/api/history/export')
+            const blob = new Blob([res.data], { type: 'text/csv' })
+            const url = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = 'invoice-history.csv'
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+        } catch (err) {
+            alert('Failed to export CSV')
+            console.error(err)
+        }
+    }
+
     const generatePDF = async (cust) => {
         const html2pdf = (await import('html2pdf.js')).default;
 
@@ -43,8 +69,8 @@ export default function HistoryPage() {
         const totalRemaining = totalNet - totalPaid;
 
         const htmlContent = `
-    <div style="font-family: sans-serif; padding: 20px; max-width: 800px;">
-      <h2 style="color: #2c3e50; border-bottom: 2px solid #3498db;">${cust.customer_name} - Billing Summary</h2>
+    <div style="font-family: sans-serif; padding: 20px; max-width: 800px; lineHeight: 10;">
+      <h2 style="color: #2c3e50; font-size: 18px; font-weight: bold; line-height: 3; border-bottom: 2px solid #3498db;">${cust.customer_name} - Billing Summary</h2>
       <p><strong>Phone:</strong> ${cust.phone}</p>
       <p><strong>Address:</strong> ${cust.address || '—'}</p>
 
@@ -75,7 +101,8 @@ export default function HistoryPage() {
                     Rs ${remaining.toFixed(2)}
                 </td>
 
-                <td style="border: 1px solid #ddd; padding: 8px;">${new Date(bill.payment_date).toLocaleDateString()}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${bill.payment_date ? new Date(bill.payment_date).toLocaleDateString() : '—'
+                }</td>
               </tr>
             `;
         }).join('')}
@@ -181,14 +208,21 @@ export default function HistoryPage() {
         <div className="p-6 bg-gray-50 min-h-screen">
             <h2 className="text-3xl font-bold mb-6 text-gray-800">Customer Billing History</h2>
 
-            <div className="flex justify-end mb-4">
+            <div className="flex justify-end mb-4 gap-2">
                 <button
                     onClick={generateAllPDFs}
                     className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-2 rounded-md shadow hover:from-blue-600 hover:to-indigo-700 transition"
                 >
                     Download Full Histories (PDF)
                 </button>
+            <button
+                onClick={exportCSV}
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+            >
+                Export CSV
+            </button>
             </div>
+
 
             <div className="overflow-x-auto">
                 <table className="w-full text-sm bg-white shadow-lg rounded-lg overflow-hidden">
@@ -231,19 +265,20 @@ export default function HistoryPage() {
                                         </td>
                                         <td className="p-3">{cust.last_payment_date ? new Date(cust.last_payment_date).toLocaleDateString() : '—'}</td>
                                         <td className="p-3 text-right">
-
-
-
-                                            <button
-                                                onClick={() => {
-                                                    generatePDF(cust);
-                                                    setActiveDropdown(null);
-                                                }}
-                                                className="hover:bg-white p-2 rounded-2xl text-sm text-green-600 text-right"
-                                            >
-                                                Download PDF
-                                            </button>
+                                            <div className="flex justify-end items-center">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        generatePDF(cust);
+                                                        setActiveDropdown(null);
+                                                    }}
+                                                    className="hover:bg-green-50 px-3 py-1 rounded-md text-sm text-green-600 border border-green-100 transition"
+                                                >
+                                                    Download PDF
+                                                </button>
+                                            </div>
                                         </td>
+
                                     </tr>
 
 
@@ -290,7 +325,7 @@ export default function HistoryPage() {
                                     </thead>
                                     <tbody>
                                         {selectedCustomer.bills.map((bill, idx) => {
-                                            const net = bill.calculated_net ?? (bill.total_amount - (bill.discount_amount || 0));
+                                            const net = bill.net_total ?? (bill.total_amount - (bill.discount_amount || 0));
                                             const remaining = net - bill.amount_paid;
                                             return (
                                                 <tr key={idx} className="hover:bg-gray-50 transition">
@@ -322,3 +357,5 @@ export default function HistoryPage() {
 
     );
 }
+
+export default History;

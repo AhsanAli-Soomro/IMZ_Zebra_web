@@ -130,8 +130,8 @@ export default function Customers() {
           </tr>
         </thead>
         <tbody>
-          {customers.map(cus => (
-            <tr key={cus.id}>
+          {customers.map((cus, idx) => (
+            <tr key={idx}>
               <td className="border px-2 py-1">{cus.name}</td>
               <td className="border px-2 py-1">{cus.email}</td>
               <td className="border px-2 py-1">{cus.phone}</td>

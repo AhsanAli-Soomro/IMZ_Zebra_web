@@ -88,8 +88,8 @@ export default function Categories() {
           </tr>
         </thead>
         <tbody>
-          {categories.map(cat => (
-            <tr key={cat.id}>
+          {categories.map(( cat, i)  => (
+            <tr key={i}>
               <td className="border px-2 py-1">{cat.name}</td>
               <td className="border px-2 py-1">{cat.status}</td>
               <td className="border px-2 py-1 space-x-2">

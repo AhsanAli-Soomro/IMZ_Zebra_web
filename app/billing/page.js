@@ -14,7 +14,7 @@ export default function BillingPage() {
   const [customerInfo, setCustomerInfo] = useState({ name: '', contact: '', address: '' })
   const [invoiceNo, setInvoiceNo] = useState(null)
   const [billAmount, setBillAmount] = useState(0)
-  const [discount, setDiscount] = useState(0.05)
+  const [discount, setDiscount] = useState(0)
   const [netPay, setNetPay] = useState(0)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isInvoiceSaved, setIsInvoiceSaved] = useState(false)
@@ -72,7 +72,7 @@ export default function BillingPage() {
     const net = total - total * discount
     setBillAmount(total)
     setNetPay(net)
-    setAmountPaid(net) // default full paid unless overridden
+    setAmountPaid(net)
   }, [cart, discount])
 
   const addToCart = (product) => {
@@ -168,16 +168,16 @@ export default function BillingPage() {
           : customers.find(c => c.phone === customerInfo.contact)?.id || null
 
         if (customer_id) {
-await axios.post('/api/history', {
-  customer_id,
-  invoice_no: invoiceNo,
-  total_amount: billAmount,
-  discount_amount: billAmount * discount,
-  net_total: netPay,
-  amount_paid: amountPaid,
-  bill_date: formatDateForMySQL(new Date()),
-  payment_date: formatDateForMySQL(new Date())
-});
+          await axios.post('/api/history', {
+            customer_id,
+            invoice_no: invoiceNo,
+            total_amount: billAmount,
+            discount_amount: billAmount * discount,
+            net_total: netPay,
+            amount_paid: amountPaid,
+            bill_date: formatDateForMySQL(new Date()),
+            payment_date: formatDateForMySQL(new Date())
+          });
 
 
 
@@ -270,16 +270,16 @@ await axios.post('/api/history', {
           : customers.find(c => c.phone === customerInfo.contact)?.id || null
 
         if (customer_id) {
-await axios.post('/api/history', {
-  customer_id,
-  invoice_no: invoiceNo,
-  total_amount: billAmount,
-  discount_amount: billAmount * discount,
-  net_total: netPay,
-  amount_paid: amountPaid,
-  bill_date: formatDateForMySQL(new Date()),
-  payment_date: formatDateForMySQL(new Date())
-});
+          await axios.post('/api/history', {
+            customer_id,
+            invoice_no: invoiceNo,
+            total_amount: billAmount,
+            discount_amount: billAmount * discount,
+            net_total: netPay,
+            amount_paid: amountPaid,
+            bill_date: formatDateForMySQL(new Date()),
+            payment_date: formatDateForMySQL(new Date())
+          });
 
 
 
@@ -360,16 +360,16 @@ await axios.post('/api/history', {
       : products.filter(prod => prod.category === selectedCategory);
 
   return (
-    <div className="h-screen bg-gray-100 font-sans flex flex-col">
+    <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col">
+
 
       <div className="flex flex-1 overflow-hidden">
 
         {/* Left: Order Summary and Customer Info */}
-        <aside className="w-[320px] bg-white border-r shadow p-4 overflow-y-auto">
-
-          {/* Customer Info */}
-          <div className="mb-4">
-            <h2 className="font-semibold text-lg mb-2">Customer</h2>
+        <aside className="w-[350px] bg-white border-r p-6 shadow-lg space-y-6 overflow-y-auto">
+          {/* Section Headings */}
+          <div className="border-b pb-3">
+            <h2 className="text-xl font-semibold text-gray-700 mb-2">Customer Details</h2>
             <select
               value={selectedCustomer}
               onChange={(e) => {
@@ -386,7 +386,7 @@ await axios.post('/api/history', {
                   setCustomerInfo({ name: '', contact: '', address: '' })
                 }
               }}
-              className="border px-3 py-2 w-full mb-2 rounded"
+              className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             >
               <option value="manual">Manual Entry</option>
               {customers.map(c => (
@@ -397,19 +397,19 @@ await axios.post('/api/history', {
               <>
                 <input
                   placeholder="Name"
-                  className="border px-3 py-2 w-full mb-2 rounded"
+                  className="border px-3 py-2 w-full rounded shadow-sm focus:ring-2 focus:ring-indigo-400 focus:outline-none"
                   value={customerInfo.name}
                   onChange={e => setCustomerInfo({ ...customerInfo, name: e.target.value })}
                 />
                 <input
                   placeholder="Contact"
-                  className="border px-3 py-2 w-full mb-2 rounded"
+                  className="border px-3 py-2 w-full rounded shadow-sm focus:ring-2 focus:ring-indigo-400 focus:outline-none"
                   value={customerInfo.contact}
                   onChange={e => setCustomerInfo({ ...customerInfo, contact: e.target.value })}
                 />
                 <input
                   placeholder="Address"
-                  className="border px-3 py-2 w-full rounded mb-2"
+                  className="border px-3 py-2 w-full rounded shadow-sm focus:ring-2 focus:ring-indigo-400 focus:outline-none"
                   value={customerInfo.address}
                   onChange={e => setCustomerInfo({ ...customerInfo, address: e.target.value })}
                 />
@@ -427,9 +427,14 @@ await axios.post('/api/history', {
           {/* Cart Items */}
           <div className="mb-4">
             <h2 className="font-semibold text-lg mb-2">Cart</h2>
-            <div className="max-h-60 overflow-y-auto border rounded p-2">
+
+            {/* Scrollable container */}
+            <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
               {cart.map(item => (
-                <div key={item.id} className="flex justify-between items-center mb-2 text-sm">
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between p-2 border rounded hover:bg-gray-50 transition"
+                >
                   <div className="flex-1">{item.item_name}</div>
                   <input
                     type="number"
@@ -444,14 +449,38 @@ await axios.post('/api/history', {
             </div>
           </div>
 
+
           {/* Billing Summary */}
-          <div className="border-t pt-2 text-sm">
+          <div className="border-t pt-4 space-y-2 text-sm text-gray-700 bg-gray-50 p-3 rounded shadow-inner">
             <p className="flex justify-between"><span>Total Qty:</span> <span>{cart.reduce((a, b) => a + b.qty, 0)}</span></p>
             <p className="flex justify-between"><span>Subtotal:</span> <span>Rs {billAmount.toFixed(2)}</span></p>
             {/* <p className="flex justify-between"><span>Discount (5%):</span> <span>- Rs {(billAmount * discount).toFixed(2)}</span></p> */}
             <p className="flex justify-between font-bold mt-2"><span>Net Pay:</span> <span>Rs {netPay.toFixed(2)}</span></p>
           </div>
+          <div className="flex flex-row justify-between items-center mt-2">
+            <label className="text-sm font-medium mb-1">Discount (%)</label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={discount * 100}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                setDiscount(isNaN(val) ? 0 : val / 100);
+              }}
+              className="border px-2 py-1 rounded w-24 text-right focus:ring-2 focus:ring-indigo-400 transition"
+            />
+          </div>
 
+          <div className="flex flex-row justify-between items-center mt-2">
+            <label className="text-sm font-medium mb-1">Amount Paid</label>
+            <input
+              type="number"
+              className="border px-2 py-1 rounded w-24 text-right focus:ring-2 focus:ring-indigo-400 transition"
+              value={amountPaid}
+              onChange={(e) => setAmountPaid(Number(e.target.value))}
+            />
+          </div>
         </aside>
 
 
@@ -477,84 +506,62 @@ await axios.post('/api/history', {
 
 
           {/* Product Grid */}
-          <div className="grid grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5">
             {filteredProducts.map(prod => (
               <div
                 key={prod.id}
                 onClick={() => addToCart(prod)}
-                className="bg-white rounded shadow hover:shadow-lg cursor-pointer p-2 flex flex-col items-center"
+                className="bg-white rounded-lg shadow-md p-4 hover:shadow-xl transition cursor-pointer flex flex-col items-center"
               >
                 {prod.image_path ? (
-                  <img src={prod.image_path} alt={prod.item_name} className="h-10 w-10 object-cover" />
+                  <img src={prod.image_path} alt={prod.item_name} className="h-14 w-14 mb-2 object-cover rounded" />
                 ) : (
                   'No Image'
                 )}
-                <span className="font-medium text-center text-sm">{prod.item_name} Qty:({prod.quantity})</span>
-                <span className="text-sm text-gray-600">Rs {prod.selling_price}</span>
+                <h3 className="text-sm font-medium text-center">{prod.item_name}</h3>
+                <p className="text-xs text-gray-500">Stock: {prod.quantity}</p>
+                <p className="text-sm font-semibold text-indigo-600 mt-1">Rs {prod.selling_price}</p>
               </div>
             ))}
           </div>
-        </main>
-      </div>
-      <div className="flex flex-col w-40 mx-4 mt-2">
-        <label className="text-sm font-medium mb-1">Discount (%)</label>
-        <input
-          type="number"
-          min="0"
-          max="100"
-          value={discount * 100}
-          onChange={(e) => {
-            const val = parseFloat(e.target.value);
-            setDiscount(isNaN(val) ? 0 : val / 100);
-          }}
-          className="border px-2 py-1 rounded"
-        />
-      </div>
 
-      <div className="flex flex-col w-40 mx-4">
-        <label className="text-sm font-medium mb-1">Amount Paid</label>
-        <input
-          type="number"
-          className="border px-2 py-1 rounded"
-          value={amountPaid}
-          onChange={(e) => setAmountPaid(Number(e.target.value))}
-        />
-      </div>
+        </main>
+      </div >
 
 
       {/* Bottom Action Bar */}
-      <footer className="bg-white border-t p-3 flex justify-between px-6 shadow-inner">
-        <div className="flex gap-4">
+      <footer className="bg-white border-t px-6 py-4 flex justify-between items-center shadow-md">
+        <div className="space-x-4">
           <button
             onClick={generateInvoice}
             disabled={isGenerating || isInvoiceSaved}
-            className="bg-green-600 text-white px-5 py-2 rounded hover:bg-green-700"
+            className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded transition shadow-sm"
           >
             {isInvoiceSaved ? 'Generated' : 'Generate'}
           </button>
           <button
             onClick={printInvoice}
-            className="bg-blue-600 text-white px-5 py-2 rounded hover:bg-blue-700"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded transition shadow-sm"
           >
             Print
           </button>
           {isInvoiceSaved && (
-            <button onClick={clearCart} className="bg-gray-500 text-white px-5 py-2 rounded hover:bg-gray-600">
+            <button onClick={clearCart} className="bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 rounded transition shadow-sm">
               Clear
             </button>
           )}
         </div>
 
-        <div className="flex gap-4 text-sm text-gray-600 items-center">
-          <button>Settings</button>
-          <button>Help</button>
+        <div className="text-sm text-gray-500 space-x-4">
+          <button className="hover:text-indigo-500 transition">Settings</button>
+          <button className="hover:text-indigo-500 transition">Help</button>
         </div>
-      </footer>
+      </footer >
 
 
 
       {/* Hidden Invoice for Print/Save */}
-      <div id="invoice-area" className="hidden print:block print:static print:bg-white print:text-black">
+      < div id="invoice-area" className="hidden mx-auto max-w-[700px] border border-black p-6 shadow text-[13px] font-mono bg-white print:shadow-none print:border-0 print:text-b">
         <div className="mx-auto max-w-[700px] border border-black p-6 shadow text-[13px] font-mono bg-white">
 
 
@@ -634,9 +641,9 @@ await axios.post('/api/history', {
             <p>CGST 2.5% & SGST 2.5% on Rs:{(netPay / 1.05).toFixed(2)}</p>
           </div>
         </div>
-      </div>
+      </div >
 
-    </div>
+    </div >
 
 
   )
