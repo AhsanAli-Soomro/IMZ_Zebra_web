@@ -2,22 +2,27 @@
 import React, { useEffect, useState } from 'react'
 import DBmanagement from '../components/DBmanagement'
 import Navbar from '../components/Navbar'
+import NotFound from '../components/404'
 
 export default function Page() {
   const [isAuth, setIsAuth] = useState(false)
+  const [userType, setUserType] = useState(null)
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken')
-    if (!token) {
-      console.log('No token found')
+    const user = JSON.parse(localStorage.getItem('user'))
+    if (!user) {
+      console.log('No user found')
       window.location.href = '/login'
     } else {
       setIsAuth(true)
     }
+    if(user.user_type){
+      setUserType(user.user_type)
+    }
   }, [])
 
-  if (!isAuth) return null
-
+  if (!isAuth ) return <NotFound />
+  if (userType === 'Employee') return <NotFound />
   return (
 <div className="min-h-screen bg-gray-100">
   {/* ✅ Persistent Top Navbar */}

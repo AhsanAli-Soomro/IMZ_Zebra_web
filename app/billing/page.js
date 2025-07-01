@@ -1,6 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import axios from 'axios'
+import Navbar from '../components/Navbar'
+import { toast } from 'react-toastify'
 
 export default function BillingPage() {
   const [products, setProducts] = useState([])
@@ -20,6 +22,7 @@ export default function BillingPage() {
   const [isInvoiceSaved, setIsInvoiceSaved] = useState(false)
   const [amountPaid, setAmountPaid] = useState(0);
   const [currentTime, setCurrentTime] = useState({ date: '', time: '' })
+  const [companyInfo, setCompanyInfo] = useState(null);
 
   const formatDateForMySQL = (date) => {
     return date.toISOString().slice(0, 19).replace('T', ' ');
@@ -32,6 +35,20 @@ export default function BillingPage() {
       date: now.toLocaleDateString('en-GB'),
       time: now.toLocaleTimeString('en-GB')
     })
+  }, [])
+
+  const fetchCompanyInfo = async () => {
+    try {
+      const res = await axios.get('/api/company-profile')
+      console.log("company info", res.data)
+      setCompanyInfo(res.data)
+    } catch (err) {
+      console.error('Failed to fetch company info:', err)
+    }
+  }
+
+  useEffect(() => {
+    fetchCompanyInfo()
   }, [])
 
   useEffect(() => {
@@ -100,17 +117,18 @@ export default function BillingPage() {
       console.log('Stock updated successfully')
     } catch (err) {
       console.error('Failed to update stock:', err)
-      alert('Stock update failed')
+      toast.error('Stock update failed')
     }
   }
 
   const generateInvoice = async () => {
-    if (customerInfo.name === '' || customerInfo.contact === '' || customerInfo.address === '') {
-      alert('Please enter customer info')
+    if (!customerInfo.name || !customerInfo.contact || !customerInfo.address) {
+      toast.error('Please enter customer info')
       return
     }
+
     if (cart.length === 0) {
-      alert('Please add items to cart')
+      toast.error('Please add items to cart')
       return
     }
 
@@ -118,13 +136,14 @@ export default function BillingPage() {
       setIsGenerating(true)
       const { data } = await axios.get('/api/invoices/last')
       if (data.lastInvoice >= invoiceNo) {
-        alert('Invoice already exists.')
+        toast.info('Invoice already exists.')
         return
       }
 
       const invoiceHTML = document.getElementById('invoice-area')?.outerHTML
+
       if (!invoiceHTML) {
-        alert('Invoice content not found')
+        toast.error('Invoice content not found')
         return
       }
 
@@ -158,7 +177,7 @@ export default function BillingPage() {
       })
 
       if (response.data.success) {
-        alert('Invoice Generated & Saved')
+        toast.success('Invoice saved successfully')
         setIsInvoiceSaved(true)
         await updateStockAfterSale()
 
@@ -183,11 +202,11 @@ export default function BillingPage() {
 
         }
       } else {
-        alert('Failed to save invoice')
+        toast.error('Failed to save invoice')
       }
     } catch (err) {
       console.error('Generate error:', err)
-      alert('Error generating invoice')
+      toast.error('Error generating invoice')
     } finally {
       setIsGenerating(false)
     }
@@ -195,12 +214,13 @@ export default function BillingPage() {
 
 
   const printInvoice = async () => {
-    if (customerInfo.name === '' || customerInfo.contact === '' || customerInfo.address === '') {
-      alert('Please enter customer info')
+    if (!customerInfo.name || !customerInfo.contact || !customerInfo.address) {
+      toast.error('Please enter customer info')
       return
     }
+
     if (cart.length === 0) {
-      alert('Please add items to cart')
+      toast.error('Please add items to cart')
       return
     }
 
@@ -209,7 +229,7 @@ export default function BillingPage() {
 
       const printerConnected = true
       if (!printerConnected) {
-        alert('Printer not connected')
+        toast.error('Printer not connected')
         return
       }
 
@@ -218,23 +238,11 @@ export default function BillingPage() {
 
       const invoiceHTML = document.getElementById('invoice-area')?.outerHTML
       if (!invoiceHTML) {
-        alert('Invoice content not found')
+        toast.error('Invoice content not found')
         return
       }
 
-      const html = `
-      <html>
-        <head>
-          <style>
-            @page { margin: 0; }
-            body { margin: 1cm; font-family: monospace; font-size: 12px; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { padding: 2px; border: 1px solid #000; }
-          </style>
-        </head>
-        <body>${invoiceHTML}</body>
-      </html>
-    `
+      const html = invoiceHTML
 
       // If already saved
       if (last >= invoiceNo) {
@@ -260,7 +268,7 @@ export default function BillingPage() {
       })
 
       if (response.data.success) {
-        alert('Invoice saved, now printing...')
+        toast.success('Invoice saved, now printing...')
         setIsInvoiceSaved(true)
         await updateStockAfterSale()
 
@@ -288,12 +296,12 @@ export default function BillingPage() {
         window.print()
         setIsInvoicePrinted(true)
       } else {
-        alert('Failed to save invoice')
+        toast.error('Failed to save invoice')
       }
 
     } catch (err) {
       console.error('Print error:', err)
-      alert('Error during print process')
+      toast.error('Error during print process')
     } finally {
       setIsPrinting(false)
     }
@@ -318,7 +326,7 @@ export default function BillingPage() {
 
   const handleAddManualCustomer = async () => {
     if (!customerInfo.name || !customerInfo.contact) {
-      alert('Name and Contact are required')
+      toast.info('Name and Contact are required')
       return
     }
 
@@ -332,7 +340,7 @@ export default function BillingPage() {
       })
 
       if (res.data.success) {
-        alert('Customer added successfully')
+        toast.success('Customer added successfully')
 
         // Refresh customer list
         const refreshed = await axios.get('/api/customers')
@@ -344,11 +352,11 @@ export default function BillingPage() {
           setSelectedCustomer(newCustomer.id)
         }
       } else {
-        alert('Failed to add customer')
+        toast.error('Failed to add customer')
       }
     } catch (err) {
       console.error('Error adding customer:', err)
-      alert('Error while adding customer')
+      toast.error('Error while adding customer')
     }
   }
   const actualRemaining = billAmount - amountPaid; // Without subtracting discount
@@ -362,7 +370,7 @@ export default function BillingPage() {
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col">
 
-
+      <Navbar />
       <div className="flex flex-1 overflow-hidden">
 
         {/* Left: Order Summary and Customer Info */}
@@ -386,7 +394,7 @@ export default function BillingPage() {
                   setCustomerInfo({ name: '', contact: '', address: '' })
                 }
               }}
-              className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              className="border px-3 py-2 w-full rounded shadow-sm bg-white focus:ring-2 focus:ring-indigo-500"
             >
               <option value="manual">Manual Entry</option>
               {customers.map(c => (
@@ -438,11 +446,12 @@ export default function BillingPage() {
                   <div className="flex-1">{item.item_name}</div>
                   <input
                     type="number"
-                    min="0"
+                    min="1"
                     className="w-14 text-right border rounded px-1 py-0.5 ml-2"
                     value={item.qty}
-                    onChange={e => updateQty(item.id, parseInt(e.target.value))}
+                    onChange={(e) => updateQty(item.id, Math.max(1, parseInt(e.target.value) || 1))}
                   />
+
                   <div className="ml-2">Rs {item.qty * item.selling_price}</div>
                 </div>
               ))}
@@ -457,29 +466,31 @@ export default function BillingPage() {
             {/* <p className="flex justify-between"><span>Discount (5%):</span> <span>- Rs {(billAmount * discount).toFixed(2)}</span></p> */}
             <p className="flex justify-between font-bold mt-2"><span>Net Pay:</span> <span>Rs {netPay.toFixed(2)}</span></p>
           </div>
-          <div className="flex flex-row justify-between items-center mt-2">
-            <label className="text-sm font-medium mb-1">Discount (%)</label>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              value={discount * 100}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value);
-                setDiscount(isNaN(val) ? 0 : val / 100);
-              }}
-              className="border px-2 py-1 rounded w-24 text-right focus:ring-2 focus:ring-indigo-400 transition"
-            />
-          </div>
+          <div className="flex flex-col space-y-2">
+            <div className="flex justify-between items-center">
+              <label className="text-sm font-medium">Discount (%)</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={discount * 100}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  setDiscount(isNaN(val) ? 0 : val / 100);
+                }}
+                className="w-24 text-right border px-2 py-1 rounded focus:ring-indigo-400"
+              />
+            </div>
 
-          <div className="flex flex-row justify-between items-center mt-2">
-            <label className="text-sm font-medium mb-1">Amount Paid</label>
-            <input
-              type="number"
-              className="border px-2 py-1 rounded w-24 text-right focus:ring-2 focus:ring-indigo-400 transition"
-              value={amountPaid}
-              onChange={(e) => setAmountPaid(Number(e.target.value))}
-            />
+            <div className="flex justify-between items-center">
+              <label className="text-sm font-medium">Amount Paid</label>
+              <input
+                type="number"
+                className="w-24 text-right border px-2 py-1 rounded focus:ring-indigo-400"
+                value={amountPaid}
+                onChange={(e) => setAmountPaid(Number(e.target.value))}
+              />
+            </div>
           </div>
         </aside>
 
@@ -516,10 +527,16 @@ export default function BillingPage() {
                 {prod.image_path ? (
                   <img src={prod.image_path} alt={prod.item_name} className="h-14 w-14 mb-2 object-cover rounded" />
                 ) : (
-                  'No Image'
+                  <div className="h-14 w-14 mb-2 flex items-center justify-center bg-gray-100 rounded text-xs text-gray-500">
+                    No Image
+                  </div>
+
                 )}
                 <h3 className="text-sm font-medium text-center">{prod.item_name}</h3>
-                <p className="text-xs text-gray-500">Stock: {prod.quantity}</p>
+                <p className={`text-xs ${prod.quantity < 5 ? 'text-red-500 font-semibold' : 'text-gray-500'}`}>
+                  Stock: {prod.quantity}
+                </p>
+
                 <p className="text-sm font-semibold text-indigo-600 mt-1">Rs {prod.selling_price}</p>
               </div>
             ))}
@@ -561,18 +578,25 @@ export default function BillingPage() {
 
 
       {/* Hidden Invoice for Print/Save */}
-      < div id="invoice-area" className="hidden mx-auto max-w-[700px] border border-black p-6 shadow text-[13px] font-mono bg-white print:shadow-none print:border-0 print:text-b">
+      < div id="invoice-area" className="print:block hidden mx-auto max-w-[700px] border border-black p-6 shadow text-[13px] font-mono bg-white print:shadow-none print:border-0 print:text-b">
         <div className="mx-auto max-w-[700px] border border-black p-6 shadow text-[13px] font-mono bg-white">
 
 
           <div className="text-center">
             <h2 className="font-bold text-base mb-1">Sales Invoice</h2>
-            <p className="font-semibold">Manan Agency</p>
-            <p>A/12, Shrenik Park, Opp. Jain Temple, Akota, Vadodara</p>
-            <p>Ph: 9727955514</p>
-            <p>Email: softwareketan@gmail.com</p>
-            <p className="font-semibold">GSTIN: 24AKPPP1343N1ZR</p>
+            {companyInfo ? (
+              <>
+                <p className="font-semibold">{companyInfo?.company_name || ''}</p>
+                <p>{companyInfo?.address || ''}</p>
+                <p>Ph: {companyInfo?.contact || ''}</p>
+                <p>Email: {companyInfo?.company_email || ''}</p>
+                <p className="font-semibold">GSTIN: {companyInfo?.company_code || ''}</p>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500 italic">Loading company info...</p>
+            )}
           </div>
+
 
           <hr className="my-2 border-black" />
 

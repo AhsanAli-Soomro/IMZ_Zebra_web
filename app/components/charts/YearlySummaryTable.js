@@ -2,26 +2,29 @@
 
 export default function YearlySummaryTable({ data }) {
   return (
-    <div className="bg-white p-4 rounded shadow overflow-x-auto">
-      <h2 className="font-semibold mb-2">📆 Yearly Sales Summary</h2>
-      <table className="w-full text-left text-sm table-fixed">
-        <thead className="bg-gray-100 text-xs uppercase">
+    <div className="bg-white p-4 rounded-lg shadow-lg overflow-x-auto">
+      <h2 className="text-lg font-semibold mb-4">📆 Yearly Sales Summary</h2>
+      <table className="w-full text-sm bg-white rounded overflow-hidden">
+        <thead className="bg-indigo-600 text-white">
           <tr>
-            <th className="p-3 w-1/4">Year</th>
-            <th className="p-3 w-1/4">Invoices</th>
-            <th className="p-3 w-1/4">Revenue</th>
-            <th className="p-3 w-1/4">Profit</th>
+            <th className="p-3 text-left">Year</th>
+            <th className="p-3 text-left">Invoices</th>
+            <th className="p-3 text-left">Revenue</th>
+            <th className="p-3 text-left">Profit</th>
           </tr>
         </thead>
         <tbody>
-          {data.map(row => (
-            <tr key={row.year} className="border-t hover:bg-gray-50">
+          {data.map((row, i) => (
+            <tr
+              key={row.year}
+              className={`transition duration-200 cursor-pointer hover:bg-indigo-50 ${
+                i % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+              }`}
+            >
               <td className="p-3 font-medium">{row.year}</td>
               <td className="p-3">{row.invoices}</td>
-              <td className="p-3">Rs {Number(row.revenue).toLocaleString()}</td>
-              <td className="p-3 text-green-600 font-semibold">
-                Rs {Number(row.profit).toLocaleString()}
-              </td>
+              <td className="p-3 text-blue-700 font-semibold">Rs {Number(row.revenue).toLocaleString()}</td>
+              <td className="p-3 text-green-700 font-semibold">Rs {Number(row.profit).toLocaleString()}</td>
             </tr>
           ))}
         </tbody>

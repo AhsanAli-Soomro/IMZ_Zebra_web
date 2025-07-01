@@ -20,6 +20,7 @@ export async function POST(req) {
     quantity: formData.get('quantity'),
     purchase_price: formData.get('purchase_price'),
     selling_price: formData.get('selling_price'),
+    expire_date: formData.get('expire_date'),
     supplier_name: formData.get('supplier_name'),
     purchase_date: formData.get('purchase_date'),
     status: formData.get('status'),
@@ -27,7 +28,7 @@ export async function POST(req) {
   }
 
   await db.query(`
-    INSERT INTO stocks (item_code, item_name, category, quantity, purchase_price, selling_price, supplier_name, purchase_date, status, image_path)
+    INSERT INTO stocks (item_code, item_name, category, quantity, purchase_price, selling_price, expire_date, supplier_name, purchase_date, status, image_path)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, Object.values(stock))
 
@@ -51,6 +52,7 @@ export async function PUT(req) {
     category: formData.get('category'),
     quantity: formData.get('quantity'),
     purchase_price: formData.get('purchase_price'),
+    expire_date: formData.get('expire_date'),
     selling_price: formData.get('selling_price'),
     supplier_name: formData.get('supplier_name'),
     purchase_date: formData.get('purchase_date'),
@@ -59,11 +61,11 @@ export async function PUT(req) {
   }
 
   await db.query(`
-    UPDATE stocks SET item_code=?, item_name=?, category=?, quantity=?, purchase_price=?, selling_price=?, supplier_name=?, purchase_date=?, status=?, image_path=?
+    UPDATE stocks SET item_code=?, item_name=?, category=?, quantity=?, purchase_price=?, selling_price=?, expire_date=?, supplier_name=?, purchase_date=?, status=?, image_path=?
     WHERE id=?
   `, [
     stock.item_code, stock.item_name, stock.category, stock.quantity,
-    stock.purchase_price, stock.selling_price, stock.supplier_name,
+    stock.purchase_price, stock.selling_price, stock.expire_date, stock.supplier_name,
     stock.purchase_date, stock.status, stock.image_path, stock.id
   ])
 

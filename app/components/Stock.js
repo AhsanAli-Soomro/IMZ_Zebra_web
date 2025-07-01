@@ -13,6 +13,7 @@ export default function Stocks() {
     quantity: '',
     purchase_price: '',
     selling_price: '',
+    expire_date: '',
     supplier_name: '',
     purchase_date: '',
     status: 'Active',
@@ -87,12 +88,21 @@ export default function Stocks() {
 
     setForm({
       id: null, item_code: '', item_name: '', category: '', quantity: '',
-      purchase_price: '', selling_price: '', supplier_name: '',
+      purchase_price: '', selling_price: '', expire_date: '', supplier_name: '',
       purchase_date: '', status: 'Active', existing_image: ''
     })
     setImageFile(null)
     fetchStocks()
   }
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // month is 0-based
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
 
   const handleEdit = (stock) => {
     setForm({
@@ -103,13 +113,15 @@ export default function Stocks() {
       quantity: stock.quantity,
       purchase_price: stock.purchase_price,
       selling_price: stock.selling_price,
+      expire_date: stock.expire_date ? formatDate(stock.expire_date) : '',
       supplier_name: stock.supplier_name,
-      purchase_date: stock.purchase_date ? stock.purchase_date.slice(0, 10) : '',
+      purchase_date: stock.purchase_date ? formatDate(stock.purchase_date) : '',
       status: stock.status,
       existing_image: stock.image_path || ''
-    })
-    setImageFile(null)
-  }
+    });
+    setImageFile(null);
+  };
+
 
   const handleDelete = async (id) => {
     await axios.delete('/api/stocks', { data: { id } })
@@ -118,7 +130,7 @@ export default function Stocks() {
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      <h1 className="text-2xl font-bold text-gray-800 mb-2">📦 Stock Management</h1>
+      <h1 className="text-2xl font-bold text-indigo-700 mb-6">📦 Stock Management</h1>
 
       <form onSubmit={handleSubmit} encType="multipart/form-data" className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-6 rounded-lg shadow mb-4">
         <input type="hidden" name="existing_image" value={form.existing_image} />
@@ -129,7 +141,7 @@ export default function Stocks() {
             value={form.item_code}
             onChange={(e) => setForm({ ...form, item_code: e.target.value })}
             required
-            className="border-gray-300 rounded-md p-2 w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+            className="border border-gray-300 p-2 rounded-md w-full"
           />
         </div>
 
@@ -139,7 +151,7 @@ export default function Stocks() {
             value={form.item_name}
             onChange={(e) => setForm({ ...form, item_name: e.target.value })}
             required
-            className="border-gray-300 rounded-md p-2 w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+            className="border border-gray-300 p-2 rounded-md w-full"
           />
         </div>
 
@@ -149,7 +161,7 @@ export default function Stocks() {
             value={form.category}
             onChange={(e) => setForm({ ...form, category: e.target.value })}
             required
-            className="border-gray-300 rounded-md p-2 w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+            className="border border-gray-300 p-2 rounded-md w-full"
           >
             <option value="">Select Category</option>
             {categories.map((cat, index) => (
@@ -165,7 +177,7 @@ export default function Stocks() {
             value={form.quantity}
             onChange={(e) => setForm({ ...form, quantity: e.target.value })}
             required
-            className="border-gray-300 rounded-md p-2 w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+            className="border border-gray-300 p-2 rounded-md w-full"
           />
         </div>
 
@@ -176,7 +188,7 @@ export default function Stocks() {
             value={form.purchase_price}
             onChange={(e) => setForm({ ...form, purchase_price: e.target.value })}
             required
-            className="border-gray-300 rounded-md p-2 w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+            className="border border-gray-300 p-2 rounded-md w-full"
           />
         </div>
 
@@ -187,16 +199,24 @@ export default function Stocks() {
             value={form.selling_price}
             onChange={(e) => setForm({ ...form, selling_price: e.target.value })}
             required
-            className="border-gray-300 rounded-md p-2 w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+            className="border border-gray-300 p-2 rounded-md w-full"
           />
         </div>
-
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Expire Date</label>
+          <input
+            type="date"
+            value={form.expire_date}
+            onChange={(e) => setForm({ ...form, expire_date: e.target.value })}
+            className="border border-gray-300 p-2 rounded-md w-full"
+          />
+        </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
           <select
             value={form.supplier_name}
             onChange={(e) => setForm({ ...form, supplier_name: e.target.value })}
-            className="border-gray-300 rounded-md p-2 w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+            className="border border-gray-300 p-2 rounded-md w-full"
           >
             <option value="">Select Supplier</option>
             {suppliers.map((sup, index) => (
@@ -213,7 +233,7 @@ export default function Stocks() {
             type="date"
             value={form.purchase_date}
             onChange={(e) => setForm({ ...form, purchase_date: e.target.value })}
-            className="border-gray-300 rounded-md p-2 w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+            className="border border-gray-300 p-2 rounded-md w-full"
           />
         </div>
 
@@ -222,7 +242,7 @@ export default function Stocks() {
           <select
             value={form.status}
             onChange={(e) => setForm({ ...form, status: e.target.value })}
-            className="border-gray-300 rounded-md p-2 w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+            className="border border-gray-300 p-2 rounded-md w-full"
           >
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
@@ -235,7 +255,7 @@ export default function Stocks() {
             type="file"
             accept="image/*"
             onChange={(e) => setImageFile(e.target.files[0])}
-            className="border-gray-300 rounded-md p-2 w-full shadow-sm file:mr-4 file:py-1 file:px-2 file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+            className="file:mr-4 file:py-1 file:px-2 file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 cursor-pointer"
           />
         </div>
 
@@ -251,15 +271,15 @@ export default function Stocks() {
 
 
       {/* Table Section */}
-      <div className="overflow-x-auto bg-white p-4 rounded-lg shadow">
+      <div className="overflow-x-auto bg-white p-4 rounded-lg shadow-lg">
         <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
           <input
             type="text"
             placeholder="Search by name or code"
             value={searchTerm}
             onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
+              setSearchTerm(e.target.value)
+              setCurrentPage(1)
             }}
             className="border p-2 rounded-md w-full"
           />
@@ -267,90 +287,125 @@ export default function Stocks() {
           <select
             value={searchCategory}
             onChange={(e) => {
-              setSearchCategory(e.target.value);
-              setCurrentPage(1);
+              setSearchCategory(e.target.value)
+              setCurrentPage(1)
             }}
             className="border p-2 rounded-md w-full"
           >
             <option value="">All Categories</option>
-            {categories.map(cat => (
-              <option key={cat.id} value={cat.name}>{cat.name}</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.name}>
+                {cat.name}
+              </option>
             ))}
           </select>
 
           <select
             value={searchSupplier}
             onChange={(e) => {
-              setSearchSupplier(e.target.value);
-              setCurrentPage(1);
+              setSearchSupplier(e.target.value)
+              setCurrentPage(1)
             }}
             className="border p-2 rounded-md w-full"
           >
             <option value="">All Suppliers</option>
-            {suppliers.map(sup => (
-              <option key={sup.id} value={sup.name}>{sup.name}</option>
+            {suppliers.map((sup) => (
+              <option key={sup.id} value={sup.name}>
+                {sup.name}
+              </option>
             ))}
           </select>
         </div>
-        <table className="w-full table-auto text-sm text-left border-collapse">
-          <thead className="bg-gray-200 text-gray-700">
-            <tr>
-              <th className="px-3 py-2 border">Image</th>
-              <th className="px-3 py-2 border">Code</th>
-              <th className="px-3 py-2 border">Name</th>
-              <th className="px-3 py-2 border">Category</th>
-              <th className="px-3 py-2 border">Qty</th>
-              <th className="px-3 py-2 border">Purchase</th>
-              <th className="px-3 py-2 border">Selling</th>
-              <th className="px-3 py-2 border">Status</th>
-              <th className="px-3 py-2 border text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedStocks.map(stock => (
-              <tr key={stock.id} className="hover:bg-gray-50">
-                <td className="px-3 py-2 border">
-                  {stock.image_path ? (
-                    <img src={stock.image_path} alt="Item" className="h-10 w-10 rounded object-cover border" />
-                  ) : (
-                    <span className="text-gray-400">No Image</span>
-                  )}
-                </td>
-                <td className="px-3 py-2 border">{stock.item_code}</td>
-                <td className="px-3 py-2 border">{stock.item_name}</td>
-                <td className="px-3 py-2 border">{stock.category}</td>
-                <td className="px-3 py-2 border">{stock.quantity}</td>
-                <td className="px-3 py-2 border">Rs {stock.purchase_price}</td>
-                <td className="px-3 py-2 border">Rs {stock.selling_price}</td>
-                <td className={`px-3 py-2 border font-semibold ${stock.status === 'Active' ? 'text-green-600' : 'text-red-600'}`}>
-                  {stock.status}
-                </td>
-                <td className="px-3 py-2 border text-center space-x-2">
-                  <button onClick={() => handleEdit(stock)} className="text-indigo-600 hover:underline">Edit</button>
-                  <button onClick={() => handleDelete(stock.id)} className="text-red-600 hover:underline">Delete</button>
-                </td>
+
+        <div className="overflow-auto rounded-md border border-gray-200">
+          <table className="min-w-full text-sm text-left">
+            <thead className="bg-indigo-600 text-white">
+              <tr>
+                <th className="p-3">Image</th>
+                <th className="p-3">Code</th>
+                <th className="p-3">Name</th>
+                <th className="p-3">Category</th>
+                <th className="p-3">Qty</th>
+                <th className="p-3">Purchase</th>
+                <th className="p-3">Selling</th>
+                <th className="p-3">Expire Date</th>
+                <th className="p-3">Status</th>
+                <th className="p-3 text-center">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="flex justify-between items-center mt-4">
-          <p className="text-sm text-gray-600">
+            </thead>
+            <tbody>
+              {paginatedStocks.map((stock, i) => (
+                <tr
+                  key={stock.id}
+                  className={`hover:bg-indigo-50 transition duration-200 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    }`}
+                >
+                  <td className="p-3">
+                    {stock.image_path ? (
+                      <img
+                        src={stock.image_path}
+                        alt="Item"
+                        className="h-10 w-10 rounded object-cover border"
+                      />
+                    ) : (
+                      <span className="text-gray-400">No Image</span>
+                    )}
+                  </td>
+                  <td className="p-3">{stock.item_code}</td>
+                  <td className="p-3 font-medium">{stock.item_name}</td>
+                  <td className="p-3">{stock.category}</td>
+                  <td className="p-3">{stock.quantity}</td>
+                  <td className="p-3 text-blue-700 font-semibold">
+                    Rs {Number(stock.purchase_price).toLocaleString()}
+                  </td>
+                  <td className="p-3 text-blue-700 font-semibold">
+                    Rs {Number(stock.selling_price).toLocaleString()}
+                  </td>
+                  <td className="p-3">{new Date(stock.expire_date).toLocaleDateString()}</td>
+                  <td
+                    className={`p-3 font-semibold ${stock.status === 'Active' ? 'text-green-600' : 'text-red-600'
+                      }`}
+                  >
+                    {stock.status}
+                  </td>
+                  <td className="p-3 text-center space-x-2">
+                    <button
+                      onClick={() => handleEdit(stock)}
+                      className="text-indigo-600 hover:underline"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(stock.id)}
+                      className="text-red-600 hover:underline"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex justify-between items-center mt-6 text-sm text-gray-600">
+          <p>
             Showing {filteredStocks.length ? (currentPage - 1) * itemsPerPage + 1 : 0}–
             {Math.min(currentPage * itemsPerPage, filteredStocks.length)} of {filteredStocks.length}
           </p>
 
           <div className="space-x-2">
             <button
-              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className="px-3 py-1 rounded border disabled:opacity-50"
+              className="px-4 py-2 rounded border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-50"
             >
               Prev
             </button>
             <button
-              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
-              className="px-3 py-1 rounded border disabled:opacity-50"
+              className="px-4 py-2 rounded border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-50"
             >
               Next
             </button>
@@ -358,6 +413,7 @@ export default function Stocks() {
         </div>
 
       </div>
+
     </div>
 
   )

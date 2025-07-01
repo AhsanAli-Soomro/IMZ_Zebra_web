@@ -1,5 +1,5 @@
 'use client'
-import { React, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 const ITEMS_PER_PAGE = 20
 
@@ -8,6 +8,7 @@ export default function Inventory() {
   const [currentPage, setCurrentPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [showLowStockOnly, setShowLowStockOnly] = useState(false)
+  const [showExpiringSoonOnly, setShowExpiringSoonOnly] = useState(false)
 
   useEffect(() => {
     const fetchStocks = async () => {
@@ -27,10 +28,30 @@ export default function Inventory() {
     fetchStocks()
   }, [])
 
-  // Filter logic
-  const filteredStocks = showLowStockOnly
-    ? stocks.filter((s) => s.quantity <= 5)
-    : stocks
+  const isExpiringSoon = (dateStr) => {
+    const today = new Date()
+    const expiry = new Date(dateStr)
+    const diffDays = (expiry - today) / (1000 * 60 * 60 * 24)
+    return diffDays >= 0 && diffDays <= 7
+  }
+
+  const isLowStock = (quantity) => Number(quantity) <= 5
+
+  const filteredStocks = stocks
+    .filter((stock) => {
+      const lowStock = isLowStock(stock.quantity)
+      const expiringSoon = isExpiringSoon(stock.expire_date)
+
+      if (showLowStockOnly && !lowStock) return false
+      if (showExpiringSoonOnly && !expiringSoon) return false
+
+      return true
+    })
+    .sort((a, b) => {
+      const aExp = new Date(a.expire_date)
+      const bExp = new Date(b.expire_date)
+      return aExp - bExp
+    })
 
   const totalPages = Math.ceil(filteredStocks.length / ITEMS_PER_PAGE)
   const start = (currentPage - 1) * ITEMS_PER_PAGE
@@ -45,100 +66,138 @@ export default function Inventory() {
     if (currentPage > 1) setCurrentPage(currentPage - 1)
   }
 
-  const handleFilterChange = () => {
-    setShowLowStockOnly(!showLowStockOnly)
-    setCurrentPage(1) // Reset to first page when filter changes
-  }
-
   if (loading) return <p>Loading stock...</p>
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Inventory</h1>
-        <a href="/dashboard?view=stock" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-          Add Stock
+    <div className="p-6 bg-white rounded-lg shadow-lg">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-indigo-700">📦 Inventory</h1>
+        <a
+          href="/dashboard?view=stock"
+          className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-md"
+        >
+          + Add Stock
         </a>
       </div>
 
-      <div className="flex items-center justify-between mb-4">
-        <label className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            checked={showLowStockOnly}
-            onChange={handleFilterChange}
-            className="form-checkbox h-4 w-4"
-          />
-          <span>Show Low Stock Only</span>
-        </label>
-        <span className="text-gray-600">Total Items: {filteredStocks.length}</span>
+      {/* Legend & Filters */}
+      <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
+        <div className="flex items-center gap-6 flex-wrap">
+          <div className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={showExpiringSoonOnly}
+              onChange={() => {
+                setShowExpiringSoonOnly(!showExpiringSoonOnly)
+                setCurrentPage(1)
+              }}
+              className="form-checkbox h-4 w-4 text-yellow-500"
+            />
+            <div className="w-4 h-4 bg-yellow-200 border border-yellow-400 rounded" />
+            <span>Expiring in 7 days</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={showLowStockOnly}
+              onChange={() => {
+                setShowLowStockOnly(!showLowStockOnly)
+                setCurrentPage(1)
+              }}
+              className="form-checkbox h-4 w-4 text-red-500"
+            />
+            <div className="w-4 h-4 bg-red-200 border border-red-400 rounded" />
+            <span>Low Stock (≤ 5)</span>
+          </div>
+        </div>
       </div>
 
-      <div className="overflow-auto">
-        <table className="min-w-full border border-gray-300">
-          <thead className="bg-gray-100">
+      <div className="overflow-auto rounded-md border border-gray-200">
+        <table className="min-w-full text-sm text-left">
+          <thead className="bg-indigo-600 text-white">
             <tr>
-              <th className="p-2 border">Image</th>
-              <th className="p-2 border">Item Code</th>
-              <th className="p-2 border">Item Name</th>
-              <th className="p-2 border">Category</th>
-              <th className="p-2 border">Quantity</th>
-              <th className="p-2 border">Purchase Price</th>
-              <th className="p-2 border">Selling Price</th>
-              <th className="p-2 border">Supplier</th>
-              <th className="p-2 border">Purchase Date</th>
-              <th className="p-2 border">Status</th>
+              <th className="p-3">Image</th>
+              <th className="p-3">Item Code</th>
+              <th className="p-3">Item Name</th>
+              <th className="p-3">Category</th>
+              <th className="p-3">Quantity</th>
+              <th className="p-3">Purchase Price</th>
+              <th className="p-3">Selling Price</th>
+              <th className="p-3">Expire Date</th>
+              <th className="p-3">Supplier</th>
+              <th className="p-3">Purchase Date</th>
+              <th className="p-3">Status</th>
             </tr>
           </thead>
           <tbody>
-            {paginatedStocks.map((stock) => (
-              <tr
-                key={stock.id}
-                className={stock.quantity <= 5 ? 'bg-red-100' : ''}
-              >
-                <td className="p-2 border">
-                  {stock.image_path ? (
-                    <img
-                      src={stock.image_path}
-                      alt={stock.item_name}
-                      className="w-12 h-12 object-cover"
-                    />
-                  ) : (
-                    'No image'
-                  )}
-                </td>
-                <td className="p-2 border">{stock.item_code}</td>
-                <td className="p-2 border">{stock.item_name}</td>
-                <td className="p-2 border">{stock.category}</td>
-                <td className="p-2 border">{stock.quantity}</td>
-                <td className="p-2 border">{stock.purchase_price}</td>
-                <td className="p-2 border">{stock.selling_price}</td>
-                <td className="p-2 border">{stock.supplier_name}</td>
-                <td className="p-2 border">
-                  {new Date(stock.purchase_date).toLocaleDateString()}
-                </td>
-                <td className="p-2 border">{stock.status}</td>
-              </tr>
-            ))}
+            {paginatedStocks.map((stock, i) => {
+              const isLow = isLowStock(stock.quantity)
+              const isExpSoon = isExpiringSoon(stock.expire_date)
+
+              let rowClass = ''
+              if (isExpSoon) rowClass = 'bg-yellow-100'
+              else if (isLow) rowClass = 'bg-red-100'
+              else rowClass = i % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+
+              return (
+                <tr
+                  key={stock.id}
+                  className={`transition duration-200 ${rowClass} hover:bg-indigo-50`}
+                >
+                  <td className="p-3">
+                    {stock.image_path ? (
+                      <img
+                        src={stock.image_path}
+                        alt={stock.item_name}
+                        className="w-12 h-12 object-cover rounded border"
+                      />
+                    ) : (
+                      <span className="text-gray-400">No image</span>
+                    )}
+                  </td>
+                  <td className="p-3">{stock.item_code}</td>
+                  <td className="p-3 font-medium">{stock.item_name}</td>
+                  <td className="p-3">{stock.category}</td>
+                  <td className="p-3 font-semibold">{stock.quantity}</td>
+                  <td className="p-3 text-blue-700 font-semibold">
+                    Rs {Number(stock.purchase_price).toLocaleString()}
+                  </td>
+                  <td className="p-3 text-blue-700 font-semibold">
+                    Rs {Number(stock.selling_price).toLocaleString()}
+                  </td>
+                  <td className="p-3">{new Date(stock.expire_date).toLocaleDateString()}</td>
+                  <td className="p-3">{stock.supplier_name}</td>
+                  <td className="p-3">{new Date(stock.purchase_date).toLocaleDateString()}</td>
+                  <td
+                    className={`p-3 font-medium ${stock.status === 'Active' ? 'text-green-600' : 'text-red-600'
+                      }`}
+                  >
+                    {stock.status}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
 
-      <div className="mt-4 flex justify-between items-center">
+      <div className="mt-6 flex justify-between items-center">
         <button
           onClick={prevPage}
           disabled={currentPage === 1}
-          className="px-4 py-2 bg-gray-200 hover:bg-gray-300 disabled:opacity-50"
+          className="px-4 py-2 rounded-md bg-gray-100 hover:bg-gray-200 text-sm disabled:opacity-50"
         >
           Previous
         </button>
-        <span>
+
+        <span className="text-sm text-gray-700">
           Page {currentPage} of {totalPages}
         </span>
+
         <button
           onClick={nextPage}
           disabled={currentPage === totalPages || totalPages === 0}
-          className="px-4 py-2 bg-gray-200 hover:bg-gray-300 disabled:opacity-50"
+          className="px-4 py-2 rounded-md bg-gray-100 hover:bg-gray-200 text-sm disabled:opacity-50"
         >
           Next
         </button>

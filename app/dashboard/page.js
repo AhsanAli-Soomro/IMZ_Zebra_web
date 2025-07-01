@@ -12,6 +12,7 @@ import Categories from '../components/Categories'
 import CompanyProfilePage from '../components/Profile'
 import History from '../components/History'
 import DashboardPage from '../components/Dashboard'
+import NotFound from '../components/404'
 
 export default function ZebraDashboardPage() {
   const router = useRouter()
@@ -20,15 +21,19 @@ export default function ZebraDashboardPage() {
   const [active, setActive] = useState(null)
   const [isAuth, setIsAuth] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [sidebarOpen, setSidebarOpen] = useState(true) // 🔑 Toggle Sidebar
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [userType, setUserType] = useState(null)
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken')
-    if (!token) {
-      console.log('No token found',token)
+    const user = JSON.parse(localStorage.getItem('user'))
+    console.log(user)
+    if (!user) {
       window.location.href = '/login'
     } else {
       setIsAuth(true)
+    }
+    if(user.user_type){
+      setUserType(user.user_type)
     }
     setLoading(false)
   }, [])
@@ -58,7 +63,9 @@ export default function ZebraDashboardPage() {
       case 'customers': return <Customers />
       case 'suppliers': return <Suppliers />
       case 'categories': return <Categories />
-      case 'employees': return <Employees />
+      case 'employees': return(
+        userType === 'Employee' ? <NotFound /> : <Employees />
+      ) 
       case 'billing history': return <History />
       case 'profile': return <CompanyProfilePage />
       default: return <DashboardPage />

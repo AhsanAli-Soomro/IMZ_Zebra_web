@@ -8,10 +8,10 @@ function formatMonthLabel(isoMonth) {
 
 export default function MonthlySummaryTable({ data }) {
   return (
-    <div className="bg-white p-4 rounded shadow overflow-x-auto">
-      <h2 className="font-semibold mb-2">📅 Monthly Sales Summary</h2>
-      <table className="w-full text-left text-sm table-fixed">
-        <thead className="bg-gray-100 text-xs uppercase">
+    <div className="bg-white p-4 rounded-lg shadow-lg overflow-x-auto">
+      <h2 className="text-lg font-semibold mb-4">📅 Monthly Sales Summary</h2>
+      <table className="w-full text-sm bg-white rounded overflow-hidden">
+        <thead className="bg-indigo-600 text-white text-left">
           <tr>
             <th className="p-3 w-1/4">Month</th>
             <th className="p-3 w-1/4">Invoices</th>
@@ -20,14 +20,17 @@ export default function MonthlySummaryTable({ data }) {
           </tr>
         </thead>
         <tbody>
-          {data.map(row => (
-            <tr key={row.month} className="border-t hover:bg-gray-50">
-              <td className="p-3">{formatMonthLabel(row.month)}</td>
+          {data.map((row, i) => (
+            <tr
+              key={row.month}
+              className={`transition duration-200 cursor-pointer hover:bg-indigo-50 ${
+                i % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+              }`}
+            >
+              <td className="p-3 font-medium">{formatMonthLabel(row.month)}</td>
               <td className="p-3">{row.invoices}</td>
-              <td className="p-3">Rs {Number(row.revenue).toLocaleString()}</td>
-              <td className="p-3 text-green-600 font-medium">
-                Rs {Number(row.profit).toLocaleString()}
-              </td>
+              <td className="p-3 text-blue-700 font-semibold">Rs {Number(row.revenue).toLocaleString()}</td>
+              <td className="p-3 text-green-700 font-semibold">Rs {Number(row.profit).toLocaleString()}</td>
             </tr>
           ))}
         </tbody>

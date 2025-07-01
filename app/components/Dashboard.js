@@ -93,7 +93,7 @@ export default function DashboardPage() {
                 </ChartBox>
             </div>
 
-            <ChartBox title="🔥 Top 5 Selling Products">
+            <ChartBox title="🔥 Top Selling Products">
                 <TopProductsChart data={topProducts} />
             </ChartBox>
 
