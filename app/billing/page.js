@@ -24,6 +24,8 @@ export default function BillingPage() {
   const [currentTime, setCurrentTime] = useState({ date: '', time: '' })
   const [companyInfo, setCompanyInfo] = useState(null);
   const [isAuth, setIsAuth] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [userType, setUserType] = useState(null)
 
   const formatDateForMySQL = (date) => {
     return date.toISOString().slice(0, 19).replace('T', ' ');
