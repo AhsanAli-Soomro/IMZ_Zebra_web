@@ -5,7 +5,7 @@ import db from '@/lib/db'
 
 export async function GET() {
   try {
-    const rows = await db.query('SELECT * FROM company_profile LIMIT 1')
+    const rows = await db.query('SELECT * FROM company_profile')
     const profile = rows[0]
 
     if (!profile) {

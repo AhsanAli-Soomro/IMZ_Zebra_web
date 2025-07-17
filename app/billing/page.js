@@ -23,6 +23,7 @@ export default function BillingPage() {
   const [amountPaid, setAmountPaid] = useState(0);
   const [currentTime, setCurrentTime] = useState({ date: '', time: '' })
   const [companyInfo, setCompanyInfo] = useState(null);
+  const [isAuth, setIsAuth] = useState(false)
 
   const formatDateForMySQL = (date) => {
     return date.toISOString().slice(0, 19).replace('T', ' ');
@@ -359,14 +360,28 @@ export default function BillingPage() {
       toast.error('Error while adding customer')
     }
   }
+
+    useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('user'))
+    console.log(user)
+    if (!user) {
+      window.location.href = '/login'
+    } else {
+      setIsAuth(true)
+    }
+    if(user.user_type){
+      setUserType(user.user_type)
+    }
+    setLoading(false)
+  }, [])
   const actualRemaining = billAmount - amountPaid; // Without subtracting discount
 
-
   const filteredProducts =
-    selectedCategory === 'all'
-      ? products
-      : products.filter(prod => prod.category === selectedCategory);
-
+  selectedCategory === 'all'
+  ? products
+  : products.filter(prod => prod.category === selectedCategory);
+  
+  if (!isAuth) return null
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col">
 
