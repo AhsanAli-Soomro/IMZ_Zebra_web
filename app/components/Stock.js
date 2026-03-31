@@ -346,6 +346,10 @@ export default function Stocks() {
                         src={stock.image_path}
                         alt="Item"
                         className="h-10 w-10 rounded object-cover border"
+                        onError={(e) => {
+                          console.log('Image failed:', stock.image_path)
+                          e.currentTarget.style.display = 'none'
+                        }}
                       />
                     ) : (
                       <span className="text-gray-400">No Image</span>

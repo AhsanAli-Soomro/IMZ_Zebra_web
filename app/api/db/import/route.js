@@ -4,9 +4,9 @@ import { parse as csvParse } from 'csv-parse/sync'
 
 export const config = { api: { bodyParser: false } }
 
-// 🔧 Fix ISO date to MySQL DATETIME
 function fixDates(record) {
   const fixed = { ...record }
+
   for (const key in fixed) {
     const value = fixed[key]
     if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
@@ -16,6 +16,7 @@ function fixDates(record) {
       }
     }
   }
+
   return fixed
 }
 
@@ -42,11 +43,13 @@ export async function POST(req) {
     const fixedRecords = records.map(fixDates)
     const columns = Object.keys(fixedRecords[0])
     const placeholders = columns.map(() => '?').join(', ')
-    const updateClause = columns.map(col => `\`${col}\`=VALUES(\`${col}\`)`).join(', ')
+    const quotedColumns = columns.map(col => `\`${col}\``).join(', ')
 
-    const insertSQL = `INSERT INTO \`${table}\` (${columns.map(col => `\`${col}\``).join(', ')})
-      VALUES (${placeholders})
-      ON DUPLICATE KEY UPDATE ${updateClause}`
+    const hasIdColumn = columns.includes('id')
+
+    const insertSQL = hasIdColumn
+      ? `INSERT OR REPLACE INTO \`${table}\` (${quotedColumns}) VALUES (${placeholders})`
+      : `INSERT INTO \`${table}\` (${quotedColumns}) VALUES (${placeholders})`
 
     for (const row of fixedRecords) {
       const values = columns.map(col => row[col])
@@ -54,9 +57,11 @@ export async function POST(req) {
     }
 
     return NextResponse.json({ success: true })
-
   } catch (err) {
     console.error('CSV Import Error:', err)
-    return NextResponse.json({ error: 'Failed to import CSV', message: err.message }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Failed to import CSV', message: err.message },
+      { status: 500 }
+    )
   }
 }

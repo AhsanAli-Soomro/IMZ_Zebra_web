@@ -8,7 +8,7 @@ export async function GET() {
            SUM(net_total) AS revenue,
            SUM(net_total - amount_paid) AS profit
     FROM billing_history
-    WHERE bill_date >= CURDATE() - INTERVAL 7 DAY
+    WHERE bill_date >= datetime('now', '-7 days')
     GROUP BY DATE(bill_date)
     ORDER BY date ASC
   `)

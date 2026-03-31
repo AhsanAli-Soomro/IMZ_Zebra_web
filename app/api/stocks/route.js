@@ -2,9 +2,39 @@ import db from '@/lib/db'
 import { saveImageFile } from '@/lib/saveImage'
 import { NextResponse } from 'next/server'
 
+
 export async function GET() {
-  const data = await db.query('SELECT * FROM stocks ORDER BY purchase_date DESC')
-  return NextResponse.json({ success: true, data })
+  try {
+    const rows = await db.query('SELECT * FROM stocks ORDER BY purchase_date DESC')
+
+    const data = rows.map((row) => {
+      const qty =
+        Number(row.qty || 0) > 0
+          ? Number(row.qty || 0)
+          : Number(row.quantity || 0)
+
+      const salePrice =
+        Number(row.sale_price || 0) > 0
+          ? Number(row.sale_price || 0)
+          : Number(row.selling_price || 0)
+
+      return {
+        ...row,
+        qty,
+        quantity: qty,
+        sale_price: salePrice,
+        selling_price: salePrice,
+        name: row.name || row.item_name || row.product_name,
+      }
+    })
+
+    return NextResponse.json({ success: true, data })
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, message: error.message || 'Failed to load stocks' },
+      { status: 500 }
+    )
+  }
 }
 
 export async function POST(req) {
@@ -27,10 +57,28 @@ export async function POST(req) {
     image_path
   }
 
-  await db.query(`
-    INSERT INTO stocks (item_code, item_name, category, quantity, purchase_price, selling_price, expire_date, supplier_name, purchase_date, status, image_path)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, Object.values(stock))
+await db.query(`
+  INSERT INTO stocks (
+    item_code, item_name, category, quantity, qty, purchase_price,
+    selling_price, sale_price, expire_date, supplier_name, purchase_date,
+    status, image_path
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`, [
+  stock.item_code,
+  stock.item_name,
+  stock.category,
+  stock.quantity,
+  stock.quantity,
+  stock.purchase_price,
+  stock.selling_price,
+  stock.selling_price,
+  stock.expire_date,
+  stock.supplier_name,
+  stock.purchase_date,
+  stock.status,
+  stock.image_path
+])
 
   return NextResponse.json({ success: true, message: 'Stock item added' })
 }
@@ -40,8 +88,7 @@ export async function PUT(req) {
 
   const image = formData.get('image')
   let image_path = formData.get('existing_image')
-
-  if (image && typeof image === 'object') {
+  if (image && image.name) {
     image_path = await saveImageFile(image)
   }
 
@@ -60,14 +107,28 @@ export async function PUT(req) {
     image_path
   }
 
-  await db.query(`
-    UPDATE stocks SET item_code=?, item_name=?, category=?, quantity=?, purchase_price=?, selling_price=?, expire_date=?, supplier_name=?, purchase_date=?, status=?, image_path=?
-    WHERE id=?
-  `, [
-    stock.item_code, stock.item_name, stock.category, stock.quantity,
-    stock.purchase_price, stock.selling_price, stock.expire_date, stock.supplier_name,
-    stock.purchase_date, stock.status, stock.image_path, stock.id
-  ])
+await db.query(`
+  UPDATE stocks
+  SET item_code = ?, item_name = ?, category = ?, quantity = ?, qty = ?, purchase_price = ?,
+      selling_price = ?, sale_price = ?, expire_date = ?, supplier_name = ?, purchase_date = ?,
+      status = ?, image_path = ?, updated_at = CURRENT_TIMESTAMP
+  WHERE id = ?
+`, [
+  stock.item_code,
+  stock.item_name,
+  stock.category,
+  stock.quantity,
+  stock.quantity,
+  stock.purchase_price,
+  stock.selling_price,
+  stock.selling_price,
+  stock.expire_date,
+  stock.supplier_name,
+  stock.purchase_date,
+  stock.status,
+  stock.image_path,
+  stock.id
+])
 
   return NextResponse.json({ success: true, message: 'Stock item updated' })
 }

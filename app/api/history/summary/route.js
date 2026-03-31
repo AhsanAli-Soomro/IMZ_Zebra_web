@@ -6,7 +6,7 @@ export async function GET() {
   try {
     const rows = await db.query(`
       SELECT 
-        DATE_FORMAT(bill_date, '%Y-%m') AS month,
+        strftime('%Y-%m', bill_date) AS month,
         COUNT(*) AS invoices,
         SUM(net_total) AS revenue,
         SUM(amount_paid) AS paid

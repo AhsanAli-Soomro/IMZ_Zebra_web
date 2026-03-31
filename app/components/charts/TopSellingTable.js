@@ -21,7 +21,7 @@ export default function TopSellingTable({ data }) {
         <tbody>
           {data.map((item, idx) => (
             <tr
-              key={item.id}
+              key={`${item.id}-${idx}`}
               className={`transition duration-200 cursor-pointer hover:bg-indigo-50 ${
                 idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
               }`}

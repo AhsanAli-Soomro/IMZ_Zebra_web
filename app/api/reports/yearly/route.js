@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   const rows = await db.query(`
-    SELECT DATE_FORMAT(bill_date, '%Y') AS year,
+    SELECT strftime('%Y', bill_date) AS year,
            COUNT(*) AS invoices,
            SUM(net_total) AS revenue,
            SUM(net_total - amount_paid) AS profit

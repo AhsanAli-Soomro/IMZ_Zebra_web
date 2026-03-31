@@ -1,7 +1,6 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
-
+import { useEffect, useState } from 'react'
 export default function CompanyProfilePage() {
   const [form, setForm] = useState({
     company_name: '',
@@ -20,7 +19,8 @@ export default function CompanyProfilePage() {
   const [userType, setUserType] = useState(null)
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user'))
+    const rawUser = window.localStorage.getItem('user')
+    const user = rawUser ? JSON.parse(rawUser) : null
     if (user?.user_type) {
       setUserType(user.user_type)
     }
@@ -64,12 +64,13 @@ export default function CompanyProfilePage() {
       method: 'POST',
       body,
     })
+    const data = await res.json()
 
     if (res.ok) {
       alert('Profile updated!')
       window.location.reload()
     } else {
-      alert('Failed to update')
+      alert(data.error || 'Failed to update')
     }
   }
 
@@ -120,7 +121,6 @@ export default function CompanyProfilePage() {
           </div>
         </div>
       </div>
-
       {/* Edit Form */}
       {isEditing && (
         <form

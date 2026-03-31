@@ -14,11 +14,7 @@ export default function DBImport() {
 useEffect(() => {
   axios.get('/api/db/tables')
     .then(res => {
-      const rawTables = res.data.tables || []
-      const tableNames = rawTables.map(t => {
-        const firstVal = Object.values(t)[0]
-        return typeof firstVal === 'string' ? firstVal : ''
-      }).filter(Boolean)
+      const tableNames = res.data.tables || []
       setTables(tableNames)
       if (tableNames.length > 0) setSelected(tableNames[0])
     })

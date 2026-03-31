@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { post } from '../../lib/axiosService'
 
 export default function LoginPage() {
@@ -17,44 +17,42 @@ export default function LoginPage() {
     }))
   }
 
-const handleSubmit = async (e) => {
-  e.preventDefault()
-  setErrorMessage('')
-  setLoading(true)
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setErrorMessage('')
+    setLoading(true)
 
-  try {
-    const response = await post('/api/login', formData)
+    try {
+      const response = await post('/api/login', formData)
 
-    if (response.success) {
-      const user = response.user
+      if (response.success) {
+        const user = response.user
 
-      if (user.status && user.status !== 'active') {
-        localStorage.removeItem('authToken')
-        router.push('/inactive')
-        return
-      }
+        if (user.status && user.status !== 'active') {
+          window.localStorage.removeItem('authToken')
+          router.push('/inactive')
+          return
+        }
 
-      localStorage.setItem('authToken', response.token)
-      localStorage.setItem('user', JSON.stringify(user))
+        window.localStorage.setItem('authToken', response.token || '')
+        window.localStorage.setItem('user', JSON.stringify(user))
 
-      // 🔀 Redirect based on user type
-      if (user.user_type === 'Admin') {
-        router.push('/dashboard')
-      } else if (user.user_type === 'Employee') {
-        router.push('/billing')
+        if (user.user_type === 'Admin') {
+          router.push('/dashboard')
+        } else if (user.user_type === 'Employee') {
+          router.push('/billing')
+        } else {
+          setErrorMessage('Unknown user type')
+        }
       } else {
-        setErrorMessage('Unknown user type')
+        setErrorMessage(response.message || 'Invalid credentials')
       }
-    } else {
-      setErrorMessage(response.message || 'Invalid credentials')
+    } catch (error) {
+      setErrorMessage('Login failed. Please try again.')
+    } finally {
+      setLoading(false)
     }
-  } catch (error) {
-    setErrorMessage('Login failed. Please try again.')
-  } finally {
-    setLoading(false)
   }
-}
-
 
   return (
     <div className="min-h-screen flex justify-center items-center bg-gray-100">

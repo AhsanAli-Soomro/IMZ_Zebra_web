@@ -2,21 +2,81 @@
   "name": "zebra-ims",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "dev": "npm rebuild better-sqlite3 && NODE_OPTIONS=--no-webstorage next dev -p 3001",
+    "electron": "electron .",
+    "dev:all": "concurrently \"npm run dev\" \"wait-on http://127.0.0.1:3001 && npm run electron\"",
+
+    "build:web": "next build && mkdir -p .next/standalone/.next && cp -R .next/static .next/standalone/.next/ && cp -R public .next/standalone/",
+    "build": "npm rebuild better-sqlite3 && npm run build:web",
+
+    "start": "npm rebuild better-sqlite3 && next start -p 3001",
+
+    "rebuild:node": "npm rebuild better-sqlite3",
+    "rebuild:electron": "npx @electron/rebuild -f -w better-sqlite3",
+
+    "sync:standalone-native": "rm -rf .next/standalone/node_modules/better-sqlite3 && cp -R node_modules/better-sqlite3 .next/standalone/node_modules/",
+
+    "dist:mac": "npm run build && npm run rebuild:electron && npm run sync:standalone-native && electron-builder --mac",
+    "dist:win": "npm run build && npm run sync:standalone-native && electron-builder --win",
+
+    "dist": "npm run dist:mac",
+
+    "lint": "next lint",
+    "db:init": "node scripts/init-db.js",
+    "migrate:sqlite": "node scripts/mysql-to-sqlite.js",
+    "migrate": "node scripts/run-migrations.js"
   },
+"build": {
+  "appId": "com.zebra.ims",
+  "productName": "Zebra IMS",
+  "directories": {
+    "output": "dist"
+  },
+  "files": [
+    "electron/**/*",
+    ".next/standalone/**/*",
+    ".next/static/**/*",
+    "public/**/*",
+    "database/**/*",
+    "scripts/**/*",
+    "lib/**/*",
+    "package.json"
+  ],
+  "asarUnpack": [
+    ".next/standalone/**/*",
+    "**/*.node",
+    "database/**/*"
+  ],
+  "mac": {
+    "icon": "build/icon.icns",
+    "target": ["dmg", "zip"]
+  },
+  "win": {
+    "icon": "build/icon.ico",
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true
+  }
+}  ,
   "dependencies": {
     "axios": "^1.10.0",
+    "better-sqlite3": "^12.8.0",
     "chart.js": "^4.5.0",
     "cookie": "^1.0.2",
     "csv-parse": "^5.6.0",
+    "dotenv": "^17.3.1",
     "html2pdf.js": "^0.10.3",
     "json2csv": "^6.0.0-alpha.2",
     "jsonwebtoken": "^9.0.2",
-    "mysql2": "^3.14.1",
     "next": "15.3.4",
     "puppeteer": "^24.10.2",
     "react": "^19.0.0",
@@ -25,7 +85,12 @@
     "react-toastify": "^11.0.5"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
     "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4"
+    "concurrently": "^9.2.1",
+    "electron": "^41.0.4",
+    "electron-builder": "^26.8.1",
+    "tailwindcss": "^4",
+    "wait-on": "^9.0.4"
   }
 }

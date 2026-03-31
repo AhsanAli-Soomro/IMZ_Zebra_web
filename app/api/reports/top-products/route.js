@@ -7,7 +7,8 @@ export async function GET() {
 
         for (const bill of bills) {
             try {
-                const items = eval(bill.items) // ⚠️ only if it's your trusted internal data
+if (!bill.items) continue
+const items = typeof bill.items === 'string' ? JSON.parse(bill.items) : bill.items
 
                 if (!Array.isArray(items)) continue
 

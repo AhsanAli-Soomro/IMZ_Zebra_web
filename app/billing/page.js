@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 import axios from 'axios'
 import Navbar from '../components/Navbar'
 import { toast } from 'react-toastify'
+import { useRouter } from 'next/navigation'
+import { getStoredUser } from '@/lib/storage'
 
 export default function BillingPage() {
   const [products, setProducts] = useState([])
@@ -26,7 +28,7 @@ export default function BillingPage() {
   const [isAuth, setIsAuth] = useState(false)
   const [loading, setLoading] = useState(true)
   const [userType, setUserType] = useState(null)
-
+const router = useRouter()
   const formatDateForMySQL = (date) => {
     return date.toISOString().slice(0, 19).replace('T', ' ');
   };
@@ -363,19 +365,19 @@ export default function BillingPage() {
     }
   }
 
-    useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user'))
-    console.log(user)
-    if (!user) {
-      window.location.href = '/login'
-    } else {
-      setIsAuth(true)
-    }
-    if(user.user_type){
-      setUserType(user.user_type)
-    }
+useEffect(() => {
+  const user = getStoredUser()
+
+  if (!user) {
+    router.replace('/login')
     setLoading(false)
-  }, [])
+    return
+  }
+
+  setIsAuth(true)
+  setUserType(user?.user_type || null)
+  setLoading(false)
+}, [router])
   const actualRemaining = billAmount - amountPaid; // Without subtracting discount
 
   const filteredProducts =
@@ -384,6 +386,7 @@ export default function BillingPage() {
   : products.filter(prod => prod.category === selectedCategory);
   
   if (!isAuth) return null
+  if (loading) return <div className="p-6">Loading...</div>
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col">
 

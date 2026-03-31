@@ -12,8 +12,7 @@ export default function DBExport() {
     useEffect(() => {
         axios.get('/api/db/tables')
             .then(res => {
-                const rawTables = res.data.tables || []
-                const tableNames = rawTables.map(row => Object.values(row)[0])
+                const tableNames = res.data.tables || []
                 setTables(tableNames)
                 setSelected(tableNames[0] || '')
             })
