@@ -21,16 +21,20 @@ export default function TopSellingTable({ data }) {
         <tbody>
           {data.map((item, idx) => (
             <tr
-              key={`${item.id}-${idx}`}
+              key={`${item.stock_id || idx}-${idx}`}
               className={`transition duration-200 cursor-pointer hover:bg-indigo-50 ${
                 idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
               }`}
             >
               <td className="p-3">{idx + 1}</td>
-              <td className="p-3 font-medium">{item.item_name}</td>
+              <td className="p-3 font-medium">{item.product_name}</td>
               <td className="p-3">{item.total_qty}</td>
-              <td className="p-3 text-blue-700 font-semibold">Rs {Number(item.total_amount).toLocaleString()}</td>
-              <td className="p-3 text-green-700 font-semibold">Rs {Number(item.total_profit).toLocaleString()}</td>
+              <td className="p-3 text-blue-700 font-semibold">
+                Rs {Number(item.total_sales || 0).toLocaleString()}
+              </td>
+              <td className="p-3 text-green-700 font-semibold">
+                Rs {Number(item.total_profit || 0).toLocaleString()}
+              </td>
             </tr>
           ))}
         </tbody>

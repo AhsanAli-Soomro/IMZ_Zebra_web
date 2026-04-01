@@ -1,53 +1,40 @@
+import { NextResponse } from 'next/server'
 import db from '@/lib/db'
 
 export async function GET() {
-    try {
-        const bills = await db.query('SELECT items FROM bills')
-        const salesMap = new Map()
+  try {
+    const rows = await db.query(`
+      SELECT
+        sii.stock_id,
+        COALESCE(sii.product_name, s.item_name, 'Unknown Product') AS product_name,
+        COALESCE(SUM(sii.qty), 0) AS total_qty,
+        COALESCE(SUM(sii.total), 0) AS total_sales,
+        COALESCE(SUM(
+          sii.total - (sii.qty * COALESCE(s.purchase_price, 0))
+        ), 0) AS total_profit
+      FROM sales_invoice_items sii
+      INNER JOIN bills b ON b.id = sii.bill_id
+      LEFT JOIN stocks s ON s.id = sii.stock_id
+      WHERE (b.deleted_at IS NULL OR b.deleted_at = '')
+      GROUP BY sii.stock_id, COALESCE(sii.product_name, s.item_name, 'Unknown Product')
+      ORDER BY total_qty DESC, total_sales DESC
+      LIMIT 10
+    `)
 
-        for (const bill of bills) {
-            try {
-if (!bill.items) continue
-const items = typeof bill.items === 'string' ? JSON.parse(bill.items) : bill.items
+    const data = rows.map((row) => ({
+      stock_id: Number(row.stock_id || 0),
+      product_name: row.product_name,
+      total_qty: Number(row.total_qty || 0),
+      total_sales: Number(row.total_sales || 0),
+      total_profit: Number(row.total_profit || 0),
+    }))
 
-                if (!Array.isArray(items)) continue
-
-                for (const item of items) {
-                    const id = item.id
-                    if (!salesMap.has(id)) {
-                        salesMap.set(id, {
-                            id,
-                            item_name: item.item_name,
-                            total_qty: 0,
-                            total_amount: 0,
-                            total_profit: 0,
-                        })
-                    }
-
-                    const entry = salesMap.get(id)
-                    const qty = Number(item.qty || 0)
-                    const sell = parseFloat(item.selling_price || '0')
-                    const buy = parseFloat(item.purchase_price || '0')
-
-                    const profit = qty * (sell - buy)
-
-                    entry.total_qty += qty
-                    entry.total_amount += qty * sell
-                    entry.total_profit += profit
-
-                }
-            } catch (e) {
-                console.error('⚠️ Failed to eval items:', bill.items)
-            }
-        }
-
-        const sorted = Array.from(salesMap.values())
-            .sort((a, b) => b.total_qty - a.total_qty)
-            .slice(0, 10)
-
-        return Response.json({ success: true, data: sorted })
-    } catch (err) {
-        console.error('Top products API error:', err)
-        return Response.json({ success: false, error: 'Failed to fetch' }, { status: 500 })
-    }
+    return NextResponse.json({ success: true, data })
+  } catch (error) {
+    console.error('Top products report error:', error)
+    return NextResponse.json(
+      { success: false, message: error.message || 'Failed to load top products report' },
+      { status: 500 }
+    )
+  }
 }

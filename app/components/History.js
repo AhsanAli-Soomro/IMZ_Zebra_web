@@ -63,6 +63,50 @@ export default function History() {
       console.error('Company profile load failed', err)
     }
   }
+  async function deleteInvoiceById(invoiceId) {
+    const ok = window.confirm('Are you sure you want to delete this invoice?')
+    if (!ok) return
+
+    try {
+      setMessage('')
+
+      const res = await fetch(`/api/invoices/${invoiceId}`, {
+        method: 'DELETE',
+      })
+
+      const json = await res.json()
+
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || 'Failed to delete invoice')
+      }
+
+      setMessage('Invoice deleted successfully')
+
+      await loadInvoices()
+
+      if (selectedCustomer) {
+        const remainingInvoices = invoices.filter((inv) => Number(inv.id) !== Number(invoiceId))
+
+        const updatedCustomer = buildCustomerGroup(
+          selectedCustomer.customer_id,
+          selectedCustomer.customer_name,
+          remainingInvoices
+        )
+
+        if (updatedCustomer) {
+          setSelectedCustomer(updatedCustomer)
+        } else {
+          closeCustomerModal()
+        }
+      }
+
+      if (selectedInvoice && Number(selectedInvoice.id) === Number(invoiceId)) {
+        closeInvoicePreview()
+      }
+    } catch (err) {
+      setMessage(err.message || 'Failed to delete invoice')
+    }
+  }
 
   async function openInvoicePreview(invoiceId) {
     try {
@@ -230,12 +274,12 @@ export default function History() {
     const q = search.trim().toLowerCase()
     const filtered = q
       ? rows.filter((cust) => {
-          const inName = String(cust.customer_name || '').toLowerCase().includes(q)
-          const inInvoice = cust.invoices.some((inv) =>
-            String(inv.invoice_no || '').toLowerCase().includes(q)
-          )
-          return inName || inInvoice
-        })
+        const inName = String(cust.customer_name || '').toLowerCase().includes(q)
+        const inInvoice = cust.invoices.some((inv) =>
+          String(inv.invoice_no || '').toLowerCase().includes(q)
+        )
+        return inName || inInvoice
+      })
       : rows
 
     return filtered.sort((a, b) => {
@@ -392,9 +436,8 @@ export default function History() {
                   {groupedCustomers.map((customer, idx) => (
                     <tr
                       key={customer.key}
-                      className={`border-t cursor-pointer hover:bg-indigo-50 ${
-                        idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                      }`}
+                      className={`border-t cursor-pointer hover:bg-indigo-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                        }`}
                       onClick={() => openCustomer(customer)}
                     >
                       <td className="px-4 py-3 font-medium">{customer.customer_name}</td>
@@ -404,9 +447,8 @@ export default function History() {
                         Rs {money(customer.totalPaid)}
                       </td>
                       <td
-                        className={`px-4 py-3 text-right font-semibold ${
-                          customer.totalRemaining > 0 ? 'text-red-600' : 'text-green-700'
-                        }`}
+                        className={`px-4 py-3 text-right font-semibold ${customer.totalRemaining > 0 ? 'text-red-600' : 'text-green-700'
+                          }`}
                       >
                         Rs {money(customer.totalRemaining)}
                       </td>
@@ -499,13 +541,23 @@ export default function History() {
                           {invoice.payment_status || 'unpaid'}
                         </td>
                         <td className="px-4 py-3">
-                          <button
-                            type="button"
-                            onClick={() => openInvoicePreview(invoice.id)}
-                            className="text-indigo-600 hover:text-indigo-800 font-medium"
-                          >
-                            View
-                          </button>
+                          <div className="flex flex-wrap gap-3">
+                            <button
+                              type="button"
+                              onClick={() => openInvoicePreview(invoice.id)}
+                              className="text-indigo-600 hover:text-indigo-800 font-medium"
+                            >
+                              View
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => deleteInvoiceById(invoice.id)}
+                              className="text-red-600 hover:text-red-800 font-medium"
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

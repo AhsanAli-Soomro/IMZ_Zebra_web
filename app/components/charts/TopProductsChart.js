@@ -11,17 +11,17 @@ export default function TopSellingBarChart({ data }) {
   }
 
   const chartData = {
-    labels: data.map(p => p.item_name),
+    labels: data.map((p) => p.product_name),
     datasets: [
       {
         label: 'Qty Sold',
-        data: data.map(p => p.total_qty),
+        data: data.map((p) => Number(p.total_qty || 0)),
         backgroundColor: '#3b82f6',
         borderRadius: 6,
         barPercentage: 0.6,
         categoryPercentage: 0.6,
-      }
-    ]
+      },
+    ],
   }
 
   const options = {
@@ -29,33 +29,33 @@ export default function TopSellingBarChart({ data }) {
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        display: false
+        display: false,
       },
       tooltip: {
         callbacks: {
-          label: ctx => `Sold: ${ctx.raw.toLocaleString()} pcs`
-        }
+          label: (ctx) => `Sold: ${Number(ctx.raw || 0).toLocaleString()} pcs`,
+        },
       },
       title: {
-        display: false
-      }
+        display: false,
+      },
     },
     scales: {
       y: {
         beginAtZero: true,
         ticks: { color: '#6b7280' },
-        grid: { color: '#e5e7eb' }
+        grid: { color: '#e5e7eb' },
       },
       x: {
         ticks: {
           color: '#6b7280',
           autoSkip: false,
           maxRotation: 30,
-          minRotation: 0
+          minRotation: 0,
         },
-        grid: { color: '#f3f4f6' }
-      }
-    }
+        grid: { color: '#f3f4f6' },
+      },
+    },
   }
 
   return (

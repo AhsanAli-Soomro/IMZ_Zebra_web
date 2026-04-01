@@ -72,41 +72,41 @@ export default function ZebraDashboardClient() {
     }
   }, [active, router, searchParams])
 
-const renderContent = () => {
-  switch (active?.toLowerCase()) {
-    case 'dashboard':
-      return <DashboardPage />
-    case 'stock':
-      return <Stock />
-    case 'inventory':
-      return <Inventory />
-    case 'customers':
-      return (
-        <Customers
-          setActive={setActive}
-          setSelectedCustomerId={setSelectedCustomerId}
-        />
-      )
-    case 'customer khata':
-      return <CustomerKhata customerId={selectedCustomerId} />
-    case 'create invoice':
-      return <InvoiceCreate />
-    case 'suppliers':
-      return <Suppliers />
-    case 'categories':
-      return <Categories />
-    case 'employees':
-      return userType === 'Employee' ? <NotFound /> : <Employees />
-    case 'billing history':
-      return <History />
-    case 'import export data':
-      return <DataImportExport />
-    case 'settings':
-      return <CompanyProfilePage />
-    default:
-      return <DashboardPage />
+  const renderContent = () => {
+    switch (active?.toLowerCase()) {
+      case 'dashboard':
+        return <DashboardPage />
+      case 'stock':
+        return <Stock />
+      case 'inventory':
+        return <Inventory />
+      case 'customers':
+        return (
+          <Customers
+            setActive={setActive}
+            setSelectedCustomerId={setSelectedCustomerId}
+          />
+        )
+      case 'customer khata':
+        return <CustomerKhata customerId={selectedCustomerId} />
+      case 'create invoice':
+        return <InvoiceCreate />
+      case 'suppliers':
+        return <Suppliers />
+      case 'categories':
+        return <Categories />
+      case 'employees':
+        return userType === 'Employee' ? <NotFound /> : <Employees />
+      case 'billing history':
+        return <History />
+      case 'import export data':
+        return <DataImportExport />
+      case 'settings':
+        return <CompanyProfilePage />
+      default:
+        return <DashboardPage />
+    }
   }
-}
 
   if (loading) return <div className="p-6">Loading...</div>
   if (!isAuth) return null
@@ -124,10 +124,10 @@ const renderContent = () => {
         </button>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden min-h-0">
         <Sidebar active={active} setActive={setActive} isOpen={sidebarOpen} />
 
-        <main className="flex-1 overflow-y-auto p-6 bg-white">
+        <main className="flex-1 min-h-0 overflow-y-auto p-6 bg-white">
           {renderContent()}
         </main>
       </div>

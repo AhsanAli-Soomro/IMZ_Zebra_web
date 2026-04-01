@@ -67,3 +67,9 @@
 .animate-slide-up {
   animation: slideUp 0.3s ease-out;
 }
+input,
+textarea,
+select,
+button {
+  -webkit-app-region: no-drag !important;
+}

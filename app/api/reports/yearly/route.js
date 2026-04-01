@@ -1,16 +1,39 @@
-import db from '@/lib/db'
 import { NextResponse } from 'next/server'
+import db from '@/lib/db'
 
 export async function GET() {
-  const rows = await db.query(`
-    SELECT strftime('%Y', bill_date) AS year,
-           COUNT(*) AS invoices,
-           SUM(net_total) AS revenue,
-           SUM(net_total - amount_paid) AS profit
-    FROM billing_history
-    GROUP BY year
-    ORDER BY year DESC
-    LIMIT 5
-  `)
-  return NextResponse.json({ success: true, data: rows })
+  try {
+    const rows = await db.query(`
+      SELECT
+        strftime('%Y', b.invoice_date) AS year_key,
+        COALESCE(SUM(b.total), 0) AS revenue,
+        COALESCE(SUM(b.total - (
+          SELECT COALESCE(SUM(sii.qty * COALESCE(s.purchase_price, 0)), 0)
+          FROM sales_invoice_items sii
+          LEFT JOIN stocks s ON s.id = sii.stock_id
+          WHERE sii.bill_id = b.id
+        )), 0) AS profit,
+        COUNT(b.id) AS invoices
+      FROM bills b
+      WHERE (b.deleted_at IS NULL OR b.deleted_at = '')
+      GROUP BY strftime('%Y', b.invoice_date)
+      ORDER BY strftime('%Y', b.invoice_date) ASC
+    `)
+
+    const data = rows.map((row) => ({
+      year: row.year_key,
+      label: row.year_key,
+      revenue: Number(row.revenue || 0),
+      profit: Number(row.profit || 0),
+      invoices: Number(row.invoices || 0),
+    }))
+
+    return NextResponse.json({ success: true, data })
+  } catch (error) {
+    console.error('Yearly report error:', error)
+    return NextResponse.json(
+      { success: false, message: error.message || 'Failed to load yearly report' },
+      { status: 500 }
+    )
+  }
 }

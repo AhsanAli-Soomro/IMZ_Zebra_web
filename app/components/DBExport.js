@@ -25,34 +25,71 @@ export default function DBExport() {
     const exportCSV = async (tableName) => {
         if (!tableName) return
         setLoading(true)
+
         try {
             const res = await fetch('/api/db/export', {
                 method: 'POST',
                 body: JSON.stringify({ table: tableName }),
                 headers: { 'Content-Type': 'application/json' },
             })
+
+            if (!res.ok) {
+                const text = await res.text()
+                throw new Error(text || 'Export failed')
+            }
+
             const blob = await res.blob()
+
+            if (blob.size === 0) {
+                throw new Error('Downloaded file is empty')
+            }
+
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
             a.download = `${tableName}.csv`
+            document.body.appendChild(a)
             a.click()
+            a.remove()
             URL.revokeObjectURL(url)
         } catch (err) {
             console.error('Download failed', err)
+            setError(err.message || 'Download failed')
+        } finally {
+            setLoading(false)
         }
-        setLoading(false)
     }
 
     const exportFullDatabase = async () => {
-        const res = await fetch('/api/db/export-all') // assuming route is export-all
-        const blob = await res.blob()
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `full-database.csv`
-        a.click()
-        URL.revokeObjectURL(url)
+        setLoading(true)
+        try {
+            const res = await fetch('/api/db/export-all')
+
+            if (!res.ok) {
+                const text = await res.text()
+                throw new Error(text || 'Full export failed')
+            }
+
+            const blob = await res.blob()
+
+            if (blob.size === 0) {
+                throw new Error('Downloaded full database file is empty')
+            }
+
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = 'full-database.csv'
+            document.body.appendChild(a)
+            a.click()
+            a.remove()
+            URL.revokeObjectURL(url)
+        } catch (err) {
+            console.error('Full export failed', err)
+            setError(err.message || 'Full export failed')
+        } finally {
+            setLoading(false)
+        }
     }
 
 
@@ -88,8 +125,8 @@ export default function DBExport() {
                             onClick={() => exportCSV(selected)}
                             disabled={loading || !selected}
                             className={`w-full py-2 cursor-pointer rounded-md font-medium transition ${loading
-                                    ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                                : 'bg-blue-600 hover:bg-blue-700 text-white'
                                 }`}
                         >
                             ⬇️ Download {selected}.csv
@@ -102,8 +139,8 @@ export default function DBExport() {
                             onClick={exportFullDatabase}
                             disabled={loading}
                             className={`w-full py-2 cursor-pointer rounded-md font-medium transition ${loading
-                                    ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                                    : 'bg-green-600 hover:bg-green-700 text-white'
+                                ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                                : 'bg-green-600 hover:bg-green-700 text-white'
                                 }`}
                         >
                             📦 Download Full Database (.csv)

@@ -26,7 +26,6 @@ export default function Sidebar({ active, setActive, isOpen }) {
     'Stock',
     'Inventory',
     'Customers',
-    // 'Customer Khata',
     'Create Invoice',
     'Suppliers',
     'Categories',
@@ -38,12 +37,13 @@ export default function Sidebar({ active, setActive, isOpen }) {
 
   return (
     <aside
-      className={`bg-gray-900 text-white w-64 min-h-screen p-4 ${isOpen ? 'block' : 'hidden md:block'
+      className={`bg-gray-900 text-white w-64 p-4 pb-10 flex-col overflow-hidden ${isOpen ? 'flex' : 'hidden md:flex'
         }`}
+      style={{ height: 'calc(100dvh - 64px)' }}
     >
-      <h2 className="text-xl font-bold mb-6">Menu</h2>
+      <h2 className="text-xl font-bold mb-6 shrink-0">Menu</h2>
 
-      <div className="space-y-2">
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-2">
         {menuItems.map((item) => (
           <button
             key={item}
@@ -55,13 +55,6 @@ export default function Sidebar({ active, setActive, isOpen }) {
           </button>
         ))}
       </div>
-
-      <button
-        onClick={handleLogout}
-        className="mt-6 w-full bg-red-600 px-3 py-2 rounded"
-      >
-        Logout
-      </button>
     </aside>
   )
 }
