@@ -1,4 +1,5 @@
 const { app, BrowserWindow, utilityProcess, dialog, ipcMain } = require('electron')
+const { isActivated, activateWithKey, clearActivation } = require('./license')
 const path = require('path')
 const http = require('http')
 const net = require('net')
@@ -45,7 +46,7 @@ function getBundledPath(...parts) {
 function findStandaloneServer() {
   const candidates = [
     path.join(process.resourcesPath, 'app.asar.unpacked', '.next', 'standalone', 'server.js'),
-    path.join(process.resourcesPath, '.next', 'standalone', 'server.js')
+    path.join(process.resourcesPath, '.next', 'standalone', 'server.js'),
   ]
 
   for (const p of candidates) {
@@ -84,9 +85,7 @@ async function runMigrationScript(dbPath) {
       }
     })
 
-    proc.on('error', (err) => {
-      reject(err)
-    })
+    proc.on('error', reject)
   })
 }
 
@@ -113,7 +112,7 @@ function waitForServer(url, timeout = 30000) {
   })
 }
 
-function createWindow(port) {
+function createWindow(port, route = '/') {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -122,6 +121,7 @@ function createWindow(port) {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
       preload: path.join(__dirname, 'preload.js'),
     },
   })
@@ -136,8 +136,61 @@ function createWindow(port) {
     mainWindow = null
   })
 
-  mainWindow.loadURL(`http://127.0.0.1:${port}`)
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc) => {
+    console.error('did-fail-load:', code, desc)
+  })
+
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    console.error('render-process-gone:', details)
+  })
+
+  mainWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+    console.log('renderer console:', { level, message, line, sourceId })
+  })
+
+  mainWindow.loadURL(`http://127.0.0.1:${port}${route}`)
 }
+
+/* =========================
+   LICENSE IPC HANDLERS
+========================= */
+
+ipcMain.handle('license:check', async () => {
+  try {
+    return isActivated()
+  } catch (err) {
+    console.error('license:check error', err)
+    return {
+      ok: false,
+      reason: 'check_failed',
+      message: err.message || 'Activation check failed',
+    }
+  }
+})
+
+ipcMain.handle('license:activate', async (_event, key) => {
+  try {
+    return activateWithKey(key)
+  } catch (err) {
+    console.error('license:activate error', err)
+    return {
+      ok: false,
+      message: err.message || 'Activation failed',
+    }
+  }
+})
+
+ipcMain.handle('license:clear', async () => {
+  try {
+    return clearActivation()
+  } catch (err) {
+    console.error('license:clear error', err)
+    return {
+      ok: false,
+      message: err.message || 'Clear activation failed',
+    }
+  }
+})
 
 /* =========================
    PRINT / PDF IPC HANDLERS
@@ -148,7 +201,7 @@ ipcMain.handle('get-printers', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     const printers = await win.webContents.getPrintersAsync()
     return printers || []
-  } catch (err) {
+  } catch {
     return []
   }
 })
@@ -189,9 +242,7 @@ ipcMain.handle('print-invoice', async (event, payload) => {
           resolve({
             success,
             code: success ? 'PRINTED' : 'PRINT_FAILED',
-            message: success
-              ? 'Printed successfully'
-              : (failureReason || 'Print failed'),
+            message: success ? 'Printed successfully' : failureReason || 'Print failed',
           })
         }
       )
@@ -231,8 +282,8 @@ ipcMain.handle('download-invoice-pdf', async (event, payload) => {
           landscape: false,
           preferCSSPageSize: true,
           pageSize: {
-            width: 3.15,   // 80mm approx in inches
-            height: 14,    // long receipt height
+            width: 3.15,
+            height: 14,
           },
           margins: {
             top: 0,
@@ -255,7 +306,6 @@ ipcMain.handle('download-invoice-pdf', async (event, payload) => {
         }
 
     const pdfData = await win.webContents.printToPDF(pdfOptions)
-
     fs.writeFileSync(filePath, pdfData)
 
     return {
@@ -302,7 +352,7 @@ function ensureDatabaseExists() {
 
 async function startApp() {
   if (isStarting) {
-    console.log('startApp: already running, skipping')
+
     return
   }
 
@@ -310,31 +360,20 @@ async function startApp() {
 
   try {
     const isDev = !app.isPackaged
-    console.log('startApp: begin')
-
+    const activation = isActivated()
     const dbPath = ensureDatabaseExists()
-    console.log('startApp: db ready', dbPath)
-
-    console.log('startApp: before migrations')
     await runMigrationScript(dbPath)
-    console.log('startApp: after migrations')
+    const initialRoute = activation.ok ? '/login' : '/activate'
 
     if (isDev) {
       const devPort = 3001
       await waitForServer(`http://127.0.0.1:${devPort}`)
-      createWindow(devPort)
-      console.log('startApp: dev window created')
+      createWindow(devPort, initialRoute)
       return
     }
 
     const port = await getFreePort()
-    console.log('startApp: got port', port)
-
     const standaloneServerPath = findStandaloneServer()
-    console.log('Standalone server path:', standaloneServerPath)
-    console.log('SQLite path:', dbPath)
-    console.log('Resources path:', process.resourcesPath)
-
     const userDataPath = app.getPath('userData')
 
     nextProcess = utilityProcess.fork(standaloneServerPath, [], {
@@ -360,7 +399,6 @@ async function startApp() {
     })
 
     nextProcess.on('exit', (code) => {
-      console.log('Next standalone server exited with code:', code)
       nextProcess = null
     })
 
@@ -369,10 +407,7 @@ async function startApp() {
     })
 
     await waitForServer(`http://127.0.0.1:${port}`, 45000)
-    console.log('startApp: server ready')
-
-    createWindow(port)
-    console.log('startApp: window created')
+    createWindow(port, initialRoute)
   } catch (err) {
     console.error('App startup failed:', err)
     dialog.showErrorBox(

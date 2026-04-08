@@ -17,6 +17,7 @@ import NotFound from '../components/404'
 import DataImportExport from '../db/page'
 import CustomerKhata from '../components/CustomerKhata'
 import InvoiceCreate from '../components/InvoiceCreate'
+import ActivationGate from '../components/ActivationGate'
 
 export default function ZebraDashboardClient() {
   const router = useRouter()
@@ -128,7 +129,9 @@ export default function ZebraDashboardClient() {
         <Sidebar active={active} setActive={setActive} isOpen={sidebarOpen} />
 
         <main className="flex-1 min-h-0 overflow-y-auto p-6 bg-white">
-          {renderContent()}
+          <ActivationGate>
+            {renderContent()}
+          </ActivationGate>
         </main>
       </div>
     </div>
