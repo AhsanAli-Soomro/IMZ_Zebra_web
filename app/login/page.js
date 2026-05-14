@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { post } from '../../lib/axiosService'
 
 export default function LoginPage() {
@@ -9,13 +9,28 @@ export default function LoginPage() {
   const [formData, setFormData] = useState({ email: '', password: '' })
   const [errorMessage, setErrorMessage] = useState('')
   const [loading, setLoading] = useState(false)
-
+  const [companyData, setCompanyData] = useState(null)
   const handleChange = (e) => {
     setFormData((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
     }))
   }
+
+  const getCompanyData = async () => {
+    try {
+      const res = await fetch('/api/company-profile')
+      const data = await res.json()
+      setCompanyData(data)
+
+    } catch (error) {
+      console.error('Failed to fetch company data:', error)
+    }
+  }
+
+  useEffect(() => {
+    getCompanyData()
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -55,14 +70,26 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex justify-center items-center bg-gray-100">
+    <div className="min-h-screen flex flex-col items-center justify-center ">
       <form
         onSubmit={handleSubmit}
         className="bg-white p-6 rounded shadow-md w-full max-w-sm"
       >
+        <div className="flex flex-col items-center">
+          <img
+            src={loading ? '/loading.gif' : companyData?.logo_url}
+            alt={loading ? 'Loading...' : companyData?.company_name}
+            className='w-24 h-auto mb-2'
+          />
+          <h3 className="text-2xl font-semibold mb-4">
+            {companyData?.company_name || ''}
+          </h3>
+        </div>
         <h1 className="text-xl font-semibold mb-6">Login</h1>
 
-        {errorMessage && <p className="text-red-500 mb-4">{errorMessage}</p>}
+        {errorMessage && (
+          <p className="text-red-500 mb-4">{errorMessage}</p>
+        )}
 
         <input
           type="email"
@@ -73,6 +100,7 @@ export default function LoginPage() {
           required
           className="border p-2 mb-4 w-full"
         />
+
         <input
           type="password"
           name="password"
