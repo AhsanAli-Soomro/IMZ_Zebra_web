@@ -227,9 +227,8 @@ export default function InvoicePreviewModal({
         onClick={onClose}
       >
         <div
-          className={`w-full overflow-hidden rounded-2xl bg-white shadow-2xl ${
-            view === 'pos' ? 'max-w-[430px]' : 'max-w-5xl'
-          }`}
+          className={`w-full overflow-hidden rounded-2xl bg-white shadow-2xl ${view === 'pos' ? 'max-w-[430px]' : 'max-w-5xl'
+            }`}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="no-print flex items-center justify-between border-b bg-gray-50 px-4 py-3 md:px-6">
@@ -261,11 +260,10 @@ export default function InvoicePreviewModal({
                   <button
                     type="button"
                     onClick={() => setView('invoice')}
-                    className={`rounded-lg px-4 py-2 text-sm font-medium ${
-                      view === 'invoice'
-                        ? 'bg-indigo-600 text-white'
-                        : 'border text-gray-700 hover:bg-gray-50'
-                    }`}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium ${view === 'invoice'
+                      ? 'bg-indigo-600 text-white'
+                      : 'border text-gray-700 hover:bg-gray-50'
+                      }`}
                   >
                     Modal View
                   </button>
@@ -273,11 +271,10 @@ export default function InvoicePreviewModal({
                   <button
                     type="button"
                     onClick={() => setView('pos')}
-                    className={`rounded-lg px-4 py-2 text-sm font-medium ${
-                      view === 'pos'
-                        ? 'bg-indigo-600 text-white'
-                        : 'border text-gray-700 hover:bg-gray-50'
-                    }`}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium ${view === 'pos'
+                      ? 'bg-indigo-600 text-white'
+                      : 'border text-gray-700 hover:bg-gray-50'
+                      }`}
                   >
                     POS View
                   </button>
@@ -288,11 +285,10 @@ export default function InvoicePreviewModal({
                     type="button"
                     onClick={handlePrint}
                     disabled={!printerAvailable}
-                    className={`rounded-lg px-4 py-2 text-sm font-medium ${
-                      printerAvailable
-                        ? 'bg-gray-900 text-white hover:bg-black'
-                        : 'border border-gray-300 bg-gray-50 text-gray-500 cursor-not-allowed'
-                    }`}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium ${printerAvailable
+                      ? 'bg-gray-900 text-white hover:bg-black'
+                      : 'border border-gray-300 bg-gray-50 text-gray-500 cursor-not-allowed'
+                      }`}
                   >
                     Print
                   </button>
@@ -353,13 +349,31 @@ export default function InvoicePreviewModal({
                         </div>
 
                         <div className="md:text-right">
-                          <p className="text-xs uppercase tracking-wide text-gray-400">Customer</p>
-                          <h3 className="mt-1 text-xl font-semibold text-gray-900">
-                            {invoice.customer_name || 'Walk-in Customer'}
-                          </h3>
-                          <p className="mt-2 text-sm text-gray-600">
-                            Phone: {invoice.customer_phone || '—'}
+                          <p className="text-xs uppercase tracking-wide text-gray-400">
+                            {invoice.invoice_type === 'purchase' ? 'Supplier' : 'Customer'}
                           </p>
+
+                          <h3 className="mt-1 text-xl font-semibold text-gray-900">
+                            {invoice.invoice_type === 'purchase'
+                              ? invoice.supplier_name || 'Supplier'
+                              : invoice.customer_name || 'Walk-in Customer'}
+                          </h3>
+
+                          {invoice.invoice_type !== 'purchase' ? (
+                            <p className="mt-2 text-sm text-gray-600">
+                              Phone: {invoice.customer_phone || '—'}
+                            </p>
+                          ) : (
+                            <>
+                              <p className="mt-2 text-sm text-gray-600">
+                                Broker: {invoice.broker_name || '—'}
+                              </p>
+
+                              <p className="text-sm text-gray-600">
+                                Warehouse: {invoice.warehouse_name || '—'}
+                              </p>
+                            </>
+                          )}
                           <p className="text-sm text-gray-600">
                             Payment Type: {invoice.payment_type || '—'}
                           </p>
@@ -394,12 +408,14 @@ export default function InvoicePreviewModal({
 
                       <div className="overflow-hidden rounded-2xl border">
                         <div className="overflow-x-auto">
-                          <table className="w-full min-w-[700px] text-sm">
+                          <table className="w-full min-w-[850px] text-sm">
                             <thead className="bg-indigo-600 text-white">
                               <tr>
-                                <th className="px-4 py-3 text-left">Product</th>
+                                <th className="px-4 py-3 text-left">Item</th>
                                 <th className="px-4 py-3 text-right">Qty</th>
+                                <th className="px-4 py-3 text-right">Weight</th>
                                 <th className="px-4 py-3 text-right">Price</th>
+                                <th className="px-4 py-3 text-right">Amount</th>
                                 <th className="px-4 py-3 text-right">Discount</th>
                                 <th className="px-4 py-3 text-right">Tax</th>
                                 <th className="px-4 py-3 text-right">Total</th>
@@ -408,7 +424,7 @@ export default function InvoicePreviewModal({
                             <tbody>
                               {(invoice.items || []).length === 0 ? (
                                 <tr>
-                                  <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
+                                  <td colSpan={8} className="px-4 py-6 text-center text-gray-500">
                                     No items found.
                                   </td>
                                 </tr>
@@ -416,13 +432,17 @@ export default function InvoicePreviewModal({
                                 invoice.items.map((item, index) => (
                                   <tr key={item.id || index} className="border-t">
                                     <td className="px-4 py-3">
-                                      {item.product_name ||
-                                        item.item_name ||
+                                      {item.item_name ||
+                                        item.product_name ||
                                         item.name ||
                                         `Stock ${item.stock_id || item.product_id || ''}`}
                                     </td>
                                     <td className="px-4 py-3 text-right">{item.qty}</td>
+                                    <td className="px-4 py-3 text-right">
+                                      {money(item.weight)} {item.weight_unit || item.weightUnit || 'kg'}
+                                    </td>
                                     <td className="px-4 py-3 text-right">{money(item.price)}</td>
+                                    <td className="px-4 py-3 text-right">{money(item.amount)}</td>
                                     <td className="px-4 py-3 text-right">{money(item.discount)}</td>
                                     <td className="px-4 py-3 text-right">{money(item.tax)}</td>
                                     <td className="px-4 py-3 text-right font-medium">
@@ -459,8 +479,17 @@ export default function InvoicePreviewModal({
                               <span className="font-medium">Rs {money(invoice.tax)}</span>
                             </div>
                             <div className="flex items-center justify-between">
-                              <span className="text-gray-600">Shipping</span>
-                              <span className="font-medium">Rs {money(invoice.shipping)}</span>
+                              <span className="text-gray-600">Transport</span>
+
+                              <span className="font-medium">
+                                Rs{' '}
+                                {money(
+                                  invoice.transport_expense ||
+                                  invoice.transportExpense ||
+                                  invoice.shipping ||
+                                  0
+                                )}
+                              </span>
                             </div>
                             <div className="flex items-center justify-between border-t pt-2 text-base font-bold">
                               <span>Total</span>
@@ -509,83 +538,77 @@ export default function InvoicePreviewModal({
                                 Time:{' '}
                                 {invoice.created_at
                                   ? new Date(invoice.created_at).toLocaleTimeString([], {
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                    })
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
                                   : '—'}
                               </p>
                             </div>
 
                             <p>Date: {formatDate(invoice.invoice_date)}</p>
-                            <p>Buyer: {invoice.customer_name || 'Walk-in Customer'}</p>
+                            <p>
+                              {invoice.invoice_type === 'purchase' ? 'Supplier' : 'Buyer'}:{' '}
+                              {invoice.invoice_type === 'purchase'
+                                ? invoice.supplier_name || 'Supplier'
+                                : invoice.customer_name || 'Walk-in Customer'}
+                            </p>
+
+                            {invoice.invoice_type === 'purchase' && (
+                              <>
+                                <p>Broker: {invoice.broker_name || '—'}</p>
+                                <p>Warehouse: {invoice.warehouse_name || '—'}</p>
+                              </>
+                            )}
                           </div>
 
                           <div className="border-b border-gray-800 py-2">
-                            <table className="w-full table-fixed text-[10px]">
-                              <colgroup>
-                                <col style={{ width: '8%' }} />
-                                <col style={{ width: '36%' }} />
-                                <col style={{ width: '10%' }} />
-                                <col style={{ width: '16%' }} />
-                                <col style={{ width: '10%' }} />
-                                <col style={{ width: '20%' }} />
-                              </colgroup>
-
-                              <thead>
-                                <tr className="border-b border-gray-800">
-                                  <th className="pb-1 text-left font-bold">Sl</th>
-                                  <th className="description-cell pb-1 text-left font-bold">
-                                    Description
-                                  </th>
-                                  <th className="pb-1 text-right font-bold">Qty</th>
-                                  <th className="pb-1 text-right font-bold">Rate</th>
-                                  <th className="pb-1 text-right font-bold">Dis</th>
-                                  <th className="pb-1 text-right font-bold">Amount</th>
-                                </tr>
-                              </thead>
-
-                              <tbody>
-                                {(invoice.items || []).length === 0 ? (
-                                  <tr>
-                                    <td colSpan={6} className="py-3 text-center">
-                                      No items found
-                                    </td>
-                                  </tr>
-                                ) : (
-                                  invoice.items.map((item, index) => (
-                                    <tr
-                                      key={item.id || index}
-                                      className="border-b border-gray-200 align-top"
-                                    >
-                                      <td className="pt-1 text-left">{index + 1}</td>
-
-                                      <td className="description-cell pt-1 pr-1 text-left leading-4">
-                                        {item.product_name ||
-                                          item.item_name ||
-                                          item.name ||
-                                          `Stock ${item.stock_id || item.product_id || ''}`}
-                                      </td>
-
-                                      <td className="pt-1 text-right whitespace-nowrap">
-                                        {item.qty}
-                                      </td>
-
-                                      <td className="pt-1 text-right whitespace-nowrap">
-                                        {money(item.price)}
-                                      </td>
-
-                                      <td className="pt-1 text-right whitespace-nowrap">
-                                        {money(item.discount)}
-                                      </td>
-
-                                      <td className="pt-1 text-right font-semibold whitespace-nowrap">
-                                        {money(item.total)}
-                                      </td>
+                                <table className="w-full table-fixed text-[9px]">
+                                  <thead>
+                                    <tr>
+                                      <th className="pb-1 text-left font-bold w-[18px]">Sl</th>
+                                      <th className="pb-1 text-left font-bold">Item</th>
+                                      <th className="pb-1 text-right font-bold w-[35px]">Qty</th>
+                                      <th className="pb-1 text-right font-bold w-[45px]">Wt</th>
+                                      <th className="pb-1 text-right font-bold w-[45px]">Rate</th>
+                                      <th className="pb-1 text-right font-bold w-[55px]">Amt</th>
                                     </tr>
-                                  ))
-                                )}
-                              </tbody>
-                            </table>
+                                  </thead>
+
+                                  <tbody>
+                                    {(invoice.items || []).map((item, index) => (
+                                      <tr key={item.id || index} className="border-b border-gray-300">
+                                        <td className="pt-1 align-top">
+                                          {index + 1}
+                                        </td>
+
+                                        <td className="pt-1 align-top break-words">
+                                          {item.item_name ||
+                                            item.product_name ||
+                                            item.name ||
+                                            `Stock ${item.stock_id || ''}`}
+                                        </td>
+
+                                        <td className="pt-1 text-right align-top whitespace-nowrap">
+                                          {item.qty}
+                                        </td>
+
+                                        <td className="pt-1 text-right align-top whitespace-nowrap">
+                                          {Number(item.weight || 0) > 0
+                                            ? `${money(item.weight)} ${item.weight_unit || 'kg'}`
+                                            : '-'}
+                                        </td>
+
+                                        <td className="pt-1 text-right align-top whitespace-nowrap">
+                                          {money(item.price)}
+                                        </td>
+
+                                        <td className="pt-1 text-right align-top whitespace-nowrap">
+                                          {money(item.amount || item.total)}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
                           </div>
 
                           <div className="space-y-1 border-b border-gray-800 py-2 text-[10px]">
@@ -604,6 +627,17 @@ export default function InvoicePreviewModal({
                             <div className="flex justify-between">
                               <span>SGST</span>
                               <span>{money(Number(invoice.tax || 0) / 2)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Transport</span>
+                              <span>
+                                {money(
+                                  invoice.transport_expense ||
+                                  invoice.transportExpense ||
+                                  invoice.shipping ||
+                                  0
+                                )}
+                              </span>
                             </div>
                             <div className="flex justify-between pt-1 text-[11px] font-bold">
                               <span>Total</span>

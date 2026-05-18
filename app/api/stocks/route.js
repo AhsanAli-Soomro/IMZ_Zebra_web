@@ -2,7 +2,6 @@ import db from '@/lib/db'
 import { saveImageFile } from '@/lib/saveImage'
 import { NextResponse } from 'next/server'
 
-
 export async function GET() {
   try {
     const rows = await db.query('SELECT * FROM stocks ORDER BY purchase_date DESC')
@@ -22,6 +21,8 @@ export async function GET() {
         ...row,
         qty,
         quantity: qty,
+        weight: Number(row.weight || 0),
+        weight_unit: row.weight_unit || 'kg',
         sale_price: salePrice,
         selling_price: salePrice,
         name: row.name || row.item_name || row.product_name,
@@ -41,44 +42,48 @@ export async function POST(req) {
   const formData = await req.formData()
 
   const image = formData.get('image')
-  const image_path = image ? await saveImageFile(image) : null
+  const image_path = image && image.name ? await saveImageFile(image) : null
 
   const stock = {
     item_code: formData.get('item_code'),
     item_name: formData.get('item_name'),
     category: formData.get('category'),
-    quantity: formData.get('quantity'),
-    purchase_price: formData.get('purchase_price'),
-    selling_price: formData.get('selling_price'),
+    quantity: Number(formData.get('quantity') || 0),
+    weight: Number(formData.get('weight') || 0),
+    weight_unit: formData.get('weight_unit') || 'kg',
+    purchase_price: Number(formData.get('purchase_price') || 0),
+    selling_price: Number(formData.get('selling_price') || 0),
     expire_date: formData.get('expire_date'),
     supplier_name: formData.get('supplier_name'),
     purchase_date: formData.get('purchase_date'),
     status: formData.get('status'),
-    image_path
+    image_path,
   }
 
-await db.query(`
-  INSERT INTO stocks (
-    item_code, item_name, category, quantity, qty, purchase_price,
-    selling_price, sale_price, expire_date, supplier_name, purchase_date,
-    status, image_path
-  )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-`, [
-  stock.item_code,
-  stock.item_name,
-  stock.category,
-  stock.quantity,
-  stock.quantity,
-  stock.purchase_price,
-  stock.selling_price,
-  stock.selling_price,
-  stock.expire_date,
-  stock.supplier_name,
-  stock.purchase_date,
-  stock.status,
-  stock.image_path
-])
+  await db.query(`
+    INSERT INTO stocks (
+      item_code, item_name, category, quantity, qty, purchase_price,
+      selling_price, sale_price, expire_date, supplier_name, purchase_date,
+      status, image_path, weight, weight_unit
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    stock.item_code,
+    stock.item_name,
+    stock.category,
+    stock.quantity,
+    stock.quantity,
+    stock.purchase_price,
+    stock.selling_price,
+    stock.selling_price,
+    stock.expire_date,
+    stock.supplier_name,
+    stock.purchase_date,
+    stock.status,
+    stock.image_path,
+    stock.weight,
+    stock.weight_unit,
+  ])
 
   return NextResponse.json({ success: true, message: 'Stock item added' })
 }
@@ -88,6 +93,7 @@ export async function PUT(req) {
 
   const image = formData.get('image')
   let image_path = formData.get('existing_image')
+
   if (image && image.name) {
     image_path = await saveImageFile(image)
   }
@@ -97,38 +103,42 @@ export async function PUT(req) {
     item_code: formData.get('item_code'),
     item_name: formData.get('item_name'),
     category: formData.get('category'),
-    quantity: formData.get('quantity'),
-    purchase_price: formData.get('purchase_price'),
+    quantity: Number(formData.get('quantity') || 0),
+    weight: Number(formData.get('weight') || 0),
+    weight_unit: formData.get('weight_unit') || 'kg',
+    purchase_price: Number(formData.get('purchase_price') || 0),
     expire_date: formData.get('expire_date'),
-    selling_price: formData.get('selling_price'),
+    selling_price: Number(formData.get('selling_price') || 0),
     supplier_name: formData.get('supplier_name'),
     purchase_date: formData.get('purchase_date'),
     status: formData.get('status'),
-    image_path
+    image_path,
   }
 
-await db.query(`
-  UPDATE stocks
-  SET item_code = ?, item_name = ?, category = ?, quantity = ?, qty = ?, purchase_price = ?,
-      selling_price = ?, sale_price = ?, expire_date = ?, supplier_name = ?, purchase_date = ?,
-      status = ?, image_path = ?, updated_at = CURRENT_TIMESTAMP
-  WHERE id = ?
-`, [
-  stock.item_code,
-  stock.item_name,
-  stock.category,
-  stock.quantity,
-  stock.quantity,
-  stock.purchase_price,
-  stock.selling_price,
-  stock.selling_price,
-  stock.expire_date,
-  stock.supplier_name,
-  stock.purchase_date,
-  stock.status,
-  stock.image_path,
-  stock.id
-])
+  await db.query(`
+    UPDATE stocks
+    SET item_code = ?, item_name = ?, category = ?, quantity = ?, qty = ?, purchase_price = ?,
+        selling_price = ?, sale_price = ?, expire_date = ?, supplier_name = ?, purchase_date = ?,
+        status = ?, image_path = ?, weight = ?, weight_unit = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `, [
+    stock.item_code,
+    stock.item_name,
+    stock.category,
+    stock.quantity,
+    stock.quantity,
+    stock.purchase_price,
+    stock.selling_price,
+    stock.selling_price,
+    stock.expire_date,
+    stock.supplier_name,
+    stock.purchase_date,
+    stock.status,
+    stock.image_path,
+    stock.weight,
+    stock.weight_unit,
+    stock.id,
+  ])
 
   return NextResponse.json({ success: true, message: 'Stock item updated' })
 }

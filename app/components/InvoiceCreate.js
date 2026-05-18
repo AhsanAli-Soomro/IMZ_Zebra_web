@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import InvoicePreviewModal from './InvoicePreviewModal'
 
-
 function today() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -12,11 +11,11 @@ function money(value) {
   return Number(value || 0).toLocaleString()
 }
 
-function formatDate(value) {
-  if (!value) return '—'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return value
-  return d.toLocaleDateString()
+function lineAmount(item) {
+  const qty = Number(item.qty || 0)
+  const price = Number(item.price || 0)
+
+  return qty * price
 }
 
 export default function InvoiceCreate({ selectedCustomerId = null }) {
@@ -46,19 +45,18 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
   const [items, setItems] = useState([
     {
       stockId: '',
+      itemName: '',
       qty: 1,
+      weight: '',
       price: '',
+      amount: '',
       discount: 0,
       tax: 0,
     },
   ])
 
   const totals = useMemo(() => {
-    const subtotal = items.reduce((sum, item) => {
-      const qty = Number(item.qty || 0)
-      const price = Number(item.price || 0)
-      return sum + qty * price
-    }, 0)
+    const subtotal = items.reduce((sum, item) => sum + lineAmount(item), 0)
 
     const itemDiscount = items.reduce((sum, item) => sum + Number(item.discount || 0), 0)
     const itemTax = items.reduce((sum, item) => sum + Number(item.tax || 0), 0)
@@ -149,8 +147,22 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
     }
   }
 
+  function emptyItem() {
+    return {
+      stockId: '',
+      itemName: '',
+      qty: 1,
+      weight: '',
+      weight_unit: 'kg',
+      price: '',
+      amount: '',
+      discount: 0,
+      tax: 0,
+    }
+  }
+
   function addItemRow() {
-    setItems((prev) => [...prev, { stockId: '', qty: 1, price: '', discount: 0, tax: 0 }])
+    setItems((prev) => [...prev, emptyItem()])
   }
 
   function removeItemRow(index) {
@@ -159,7 +171,17 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
 
   function updateItem(index, key, value) {
     setItems((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, [key]: value } : item))
+      prev.map((item, i) => {
+        if (i !== index) return item
+
+        const updated = { ...item, [key]: value }
+
+        if (key === 'qty' || key === 'weight' || key === 'price') {
+          updated.amount = lineAmount(updated)
+        }
+
+        return updated
+      })
     )
   }
 
@@ -173,13 +195,19 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
           ? Number(stock.selling_price)
           : 0
 
+    const weight = Number(stock?.weight || 0)
+    const weightUnit = stock?.weight_unit || 'kg'
     setItems((prev) =>
       prev.map((item, i) =>
         i === index
           ? {
               ...item,
               stockId,
+              itemName: stock?.item_name || '',
               price: autoPrice,
+              weight,
+              weight_unit: weightUnit,
+              amount: weight > 0 ? weight * autoPrice : Number(item.qty || 1) * autoPrice,
             }
           : item
       )
@@ -199,7 +227,7 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
       shipping: '',
       notes: '',
     })
-    setItems([{ stockId: '', qty: 1, price: '', discount: 0, tax: 0 }])
+    setItems([emptyItem()])
   }
 
   async function handleSubmit(e) {
@@ -237,16 +265,38 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
               : Number(form.paidAmount || 0),
         discount: Number(form.discount || 0),
         tax: Number(form.tax || 0),
-        shipping: Number(form.shipping || 0),
+        shipping: Number(
+          form.transportExpense ||
+          form.shipping ||
+          0
+        ),
         notes: form.notes,
         createdBy: 1,
-        items: items.map((item) => ({
-          stockId: Number(item.stockId),
-          qty: Number(item.qty),
-          price: Number(item.price),
-          discount: Number(item.discount || 0),
-          tax: Number(item.tax || 0),
-        })),
+
+        items: items.map((item) => {
+          const stock = stocks.find((s) => String(s.id) === String(item.stockId))
+          const qty = Number(item.qty || 0)
+          const weight = Number(item.weight || stock?.weight || 0)
+          const price = Number(item.price || 0)
+          const amount = qty * price
+          const name = stock?.item_name || item.itemName || ''
+
+          return {
+            stockId: Number(item.stockId),
+            itemName: name,
+            item_name: name,
+            productName: name,
+            product_name: name,
+            qty,
+            weight,
+            weightUnit: item.weight_unit || stock?.weight_unit || 'kg',
+            weight_unit: item.weight_unit || stock?.weight_unit || 'kg',
+            price,
+            amount,
+            discount: Number(item.discount || 0),
+            tax: Number(item.tax || 0),
+          }
+        }),
       }
 
       const res = await fetch('/api/invoices', {
@@ -280,14 +330,7 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
       resetForm()
 
       if (newInvoiceId) {
-        try {
-          await openInvoiceModal(newInvoiceId)
-        } catch (modalError) {
-          console.error('Invoice saved but modal open failed:', modalError)
-          setMessage(
-            `Invoice save ho gayi (${savedInvoice.invoice_no}), lekin preview open nahi hui.`
-          )
-        }
+        await openInvoiceModal(newInvoiceId)
       }
     } catch (error) {
       setMessage(error.message || 'Something went wrong')
@@ -340,22 +383,23 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
       tax: String(invoiceDetail.tax || ''),
       shipping: String(invoiceDetail.shipping || ''),
       notes: invoiceDetail.notes || '',
+      
     })
 
     const mappedItems =
       (invoiceDetail.items || []).map((item) => ({
         stockId: String(item.stock_id || item.stockId || item.product_id || ''),
+        itemName: item.item_name || item.product_name || '',
         qty: Number(item.qty || 1),
+        weight: Number(item.weight || 0),
         price: String(item.price || ''),
+        amount: Number(item.amount || 0),
         discount: Number(item.discount || 0),
         tax: Number(item.tax || 0),
+        weight_unit: item.weight_unit || item.weightUnit || 'kg',
       })) || []
 
-    setItems(
-      mappedItems.length
-        ? mappedItems
-        : [{ stockId: '', qty: 1, price: '', discount: 0, tax: 0 }]
-    )
+    setItems(mappedItems.length ? mappedItems : [emptyItem()])
 
     closeInvoiceModal()
 
@@ -395,11 +439,11 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
           </div>
         </div>
 
-        {message && (
+        {/* {message && (
           <div className="border border-indigo-200 rounded-md bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
             {message}
           </div>
-        )}
+        )} */}
 
         {createdInvoice && (
           <div className="border border-gray-200 rounded-lg bg-white p-4 shadow-sm">
@@ -508,9 +552,6 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
                     form.paymentType !== 'partial' ? 'bg-gray-100 cursor-not-allowed' : ''
                   }`}
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                  Cash = full paid, Credit = 0 paid, Partial = manual amount.
-                </p>
               </div>
 
               <div>
@@ -538,7 +579,7 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
               </div>
 
               <div>
-                <label className={labelClass}>Shipping</label>
+                <label className={labelClass}>Transport</label>
                 <input
                   type="number"
                   min="0"
@@ -603,6 +644,28 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
                       />
                     </div>
 
+                    <div className="w-[100px]">
+                      <label className={labelClass}>Weight</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={item.weight}
+                        onChange={(e) => updateItem(index, 'weight', e.target.value)}
+                        className={fieldClass}
+                      />
+                    </div>
+                    <div className="w-[100px]">
+                      <label className={labelClass}>Unit</label>
+                      <select
+                        value={item.weight_unit || 'kg'}
+                        onChange={(e) => updateItem(index, 'weight_unit', e.target.value)}
+                        className={fieldClass}
+                      >
+                        <option value="g">Gram</option>
+                        <option value="kg">Kg</option>
+                        <option value="ton">Ton</option>
+                      </select>
+                    </div>
                     <div className="w-[110px]">
                       <label className={labelClass}>Price</label>
                       <input
@@ -610,6 +673,16 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
                         value={item.price}
                         onChange={(e) => updateItem(index, 'price', e.target.value)}
                         className={fieldClass}
+                      />
+                    </div>
+
+                    <div className="w-[120px]">
+                      <label className={labelClass}>Amount</label>
+                      <input
+                        type="number"
+                        value={lineAmount(item)}
+                        readOnly
+                        className={`${fieldClass} bg-gray-100`}
                       />
                     </div>
 

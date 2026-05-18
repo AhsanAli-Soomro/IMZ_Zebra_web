@@ -18,6 +18,7 @@ import DataImportExport from '../db/page'
 import CustomerKhata from '../components/CustomerKhata'
 import InvoiceCreate from '../components/InvoiceCreate'
 import ActivationGate from '../components/ActivationGate'
+import PurchaseInvoice from '../components/PurchaseInvoice'
 
 export default function ZebraDashboardClient() {
   const router = useRouter()
@@ -90,8 +91,10 @@ export default function ZebraDashboardClient() {
         )
       case 'customer khata':
         return <CustomerKhata customerId={selectedCustomerId} />
-      case 'create invoice':
+      case 'sale invoice':
         return <InvoiceCreate />
+      case 'purchase invoice':
+        return <PurchaseInvoice />
       case 'suppliers':
         return <Suppliers />
       case 'categories':

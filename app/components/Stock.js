@@ -11,55 +11,60 @@ export default function Stocks() {
     item_name: '',
     category: '',
     quantity: '',
+    weight: '',
+    weight_unit: 'kg',
     purchase_price: '',
     selling_price: '',
     expire_date: '',
     supplier_name: '',
     purchase_date: '',
     status: 'Active',
-    existing_image: ''
+    existing_image: '',
   })
 
   const [imageFile, setImageFile] = useState(null)
   const [categories, setCategories] = useState([])
   const [suppliers, setSuppliers] = useState([])
-  const [searchTerm, setSearchTerm] = useState('');
-  const [searchCategory, setSearchCategory] = useState('');
-  const [searchSupplier, setSearchSupplier] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [searchTerm, setSearchTerm] = useState('')
+  const [searchCategory, setSearchCategory] = useState('')
+  const [searchSupplier, setSearchSupplier] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
 
-  const filteredStocks = stocks.filter(stock => {
-    const itemCode = String(stock.item_code || '').toLowerCase();
-    const itemName = String(stock.item_name || '').toLowerCase();
-    const matchesCode = itemCode.includes(searchTerm.toLowerCase());
-    const matchesName = itemName.includes(searchTerm.toLowerCase());
-    const matchesCategory = searchCategory ? stock.category === searchCategory : true;
-    const matchesSupplier = searchSupplier ? stock.supplier_name === searchSupplier : true;
+  const itemsPerPage = 10
 
-    return (matchesCode || matchesName) && matchesCategory && matchesSupplier;
-  });
+  const filteredStocks = stocks.filter((stock) => {
+    const itemCode = String(stock.item_code || '').toLowerCase()
+    const itemName = String(stock.item_name || '').toLowerCase()
+    const q = searchTerm.toLowerCase()
 
+    const matchesCode = itemCode.includes(q)
+    const matchesName = itemName.includes(q)
+    const matchesCategory = searchCategory ? stock.category === searchCategory : true
+    const matchesSupplier = searchSupplier ? stock.supplier_name === searchSupplier : true
 
-  const totalPages = Math.ceil(filteredStocks.length / itemsPerPage);
+    return (matchesCode || matchesName) && matchesCategory && matchesSupplier
+  })
+
+  const totalPages = Math.ceil(filteredStocks.length / itemsPerPage)
+
   const paginatedStocks = filteredStocks.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
-  );
+  )
 
   const fetchStocks = async () => {
     const res = await axios.get('/api/stocks')
-    setStocks(res.data.data)
+    setStocks(res.data.data || [])
   }
 
   const fetchCategories = async () => {
     const res = await axios.get('/api/categories')
-    setCategories(res.data.data.filter(c => c.status === 'Active'))
+    setCategories((res.data.data || []).filter((c) => c.status === 'Active'))
   }
 
   const fetchSuppliers = async () => {
     const res = await axios.get('/api/suppliers')
-    setSuppliers(res.data.data.filter(s => s.status === 'Active'))
+    setSuppliers((res.data.data || []).filter((s) => s.status === 'Active'))
   }
 
   useEffect(() => {
@@ -68,8 +73,30 @@ export default function Stocks() {
     fetchSuppliers()
   }, [])
 
+  const resetForm = () => {
+    setForm({
+      id: null,
+      item_code: '',
+      item_name: '',
+      category: '',
+      quantity: '',
+      weight: '',
+      weight_unit: 'kg',
+      purchase_price: '',
+      selling_price: '',
+      expire_date: '',
+      supplier_name: '',
+      purchase_date: '',
+      status: 'Active',
+      existing_image: '',
+    })
+
+    setImageFile(null)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+
     const formData = new FormData()
 
     for (const key in form) {
@@ -86,42 +113,43 @@ export default function Stocks() {
       await axios.post('/api/stocks', formData)
     }
 
-    setForm({
-      id: null, item_code: '', item_name: '', category: '', quantity: '',
-      purchase_price: '', selling_price: '', expire_date: '', supplier_name: '',
-      purchase_date: '', status: 'Active', existing_image: ''
-    })
-    setImageFile(null)
+    resetForm()
     fetchStocks()
   }
 
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // month is 0-based
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
+    if (!dateString) return ''
 
+    const date = new Date(dateString)
+    if (Number.isNaN(date.getTime())) return ''
+
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+
+    return `${year}-${month}-${day}`
+  }
 
   const handleEdit = (stock) => {
     setForm({
       id: stock.id,
-      item_code: stock.item_code,
-      item_name: stock.item_name,
-      category: stock.category,
-      quantity: stock.quantity,
-      purchase_price: stock.purchase_price,
-      selling_price: stock.selling_price,
+      item_code: stock.item_code || '',
+      item_name: stock.item_name || '',
+      category: stock.category || '',
+      quantity: stock.quantity || '',
+      weight: stock.weight || '',
+      weight_unit: stock.weight_unit || 'kg',
+      purchase_price: stock.purchase_price || '',
+      selling_price: stock.selling_price || '',
       expire_date: stock.expire_date ? formatDate(stock.expire_date) : '',
-      supplier_name: stock.supplier_name,
+      supplier_name: stock.supplier_name || '',
       purchase_date: stock.purchase_date ? formatDate(stock.purchase_date) : '',
-      status: stock.status,
-      existing_image: stock.image_path || ''
-    });
-    setImageFile(null);
-  };
+      status: stock.status || 'Active',
+      existing_image: stock.image_path || '',
+    })
 
+    setImageFile(null)
+  }
 
   const handleDelete = async (id) => {
     await axios.delete('/api/stocks', { data: { id } })
@@ -132,7 +160,11 @@ export default function Stocks() {
     <div className="p-6 bg-gray-50 min-h-screen">
       <h1 className="text-2xl font-bold text-indigo-700 mb-6">📦 Stock Management</h1>
 
-      <form onSubmit={handleSubmit} encType="multipart/form-data" className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-6 rounded-lg shadow mb-4">
+      <form
+        onSubmit={handleSubmit}
+        encType="multipart/form-data"
+        className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-6 rounded-lg shadow mb-4"
+      >
         <input type="hidden" name="existing_image" value={form.existing_image} />
 
         <div>
@@ -160,12 +192,14 @@ export default function Stocks() {
           <select
             value={form.category}
             onChange={(e) => setForm({ ...form, category: e.target.value })}
-            required
+            // required
             className="border border-gray-300 p-2 rounded-md w-full"
           >
             <option value="">Select Category</option>
             {categories.map((cat, index) => (
-              <option key={index} value={cat.name}>{cat.name}</option>
+              <option key={cat.id || index} value={cat.name}>
+                {cat.name}
+              </option>
             ))}
           </select>
         </div>
@@ -182,7 +216,33 @@ export default function Stocks() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Price (PKR)</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Weight</label>
+          <input
+            type="number"
+            step="0.01"
+            value={form.weight}
+            onChange={(e) => setForm({ ...form, weight: e.target.value })}
+            className="border border-gray-300 p-2 rounded-md w-full"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Weight Unit</label>
+          <select
+            value={form.weight_unit}
+            onChange={(e) => setForm({ ...form, weight_unit: e.target.value })}
+            className="border border-gray-300 p-2 rounded-md w-full"
+          >
+            <option value="g">Gram</option>
+            <option value="kg">Kg</option>
+            <option value="ton">Ton</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Purchase Price (PKR)
+          </label>
           <input
             type="number"
             value={form.purchase_price}
@@ -193,7 +253,9 @@ export default function Stocks() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (PKR)</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Selling Price (PKR)
+          </label>
           <input
             type="number"
             value={form.selling_price}
@@ -202,6 +264,7 @@ export default function Stocks() {
             className="border border-gray-300 p-2 rounded-md w-full"
           />
         </div>
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Expire Date</label>
           <input
@@ -211,6 +274,7 @@ export default function Stocks() {
             className="border border-gray-300 p-2 rounded-md w-full"
           />
         </div>
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
           <select
@@ -220,7 +284,7 @@ export default function Stocks() {
           >
             <option value="">Select Supplier</option>
             {suppliers.map((sup, index) => (
-              <option key={index} value={sup.name}>
+              <option key={sup.id || index} value={sup.name}>
                 {sup.name} {sup.company_name ? `(${sup.company_name})` : ''}
               </option>
             ))}
@@ -254,7 +318,7 @@ export default function Stocks() {
           <input
             type="file"
             accept="image/*"
-            onChange={(e) => setImageFile(e.target.files[0])}
+            onChange={(e) => setImageFile(e.target.files?.[0] || null)}
             className="file:mr-4 file:py-1 file:px-2 file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 cursor-pointer"
           />
         </div>
@@ -269,8 +333,6 @@ export default function Stocks() {
         </div>
       </form>
 
-
-      {/* Table Section */}
       <div className="overflow-x-auto bg-white p-4 rounded-lg shadow-lg">
         <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
           <input
@@ -326,6 +388,9 @@ export default function Stocks() {
                 <th className="p-3">Name</th>
                 <th className="p-3">Category</th>
                 <th className="p-3">Qty</th>
+                <th className="p-3">Weight</th>
+                <th className="p-3">Unit</th>
+                <th className="p-3">Supplier</th>
                 <th className="p-3">Purchase</th>
                 <th className="p-3">Selling</th>
                 <th className="p-3">Expire Date</th>
@@ -333,12 +398,14 @@ export default function Stocks() {
                 <th className="p-3 text-center">Actions</th>
               </tr>
             </thead>
+
             <tbody>
               {paginatedStocks.map((stock, i) => (
                 <tr
                   key={stock.id}
-                  className={`hover:bg-indigo-50 transition duration-200 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                    }`}
+                  className={`hover:bg-indigo-50 transition duration-200 ${
+                    i % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                  }`}
                 >
                   <td className="p-3">
                     {stock.image_path ? (
@@ -347,7 +414,6 @@ export default function Stocks() {
                         alt="Item"
                         className="h-10 w-10 rounded object-cover border"
                         onError={(e) => {
-                          console.log('Image failed:', stock.image_path)
                           e.currentTarget.style.display = 'none'
                         }}
                       />
@@ -355,23 +421,35 @@ export default function Stocks() {
                       <span className="text-gray-400">No Image</span>
                     )}
                   </td>
+
                   <td className="p-3">{stock.item_code}</td>
                   <td className="p-3 font-medium">{stock.item_name}</td>
                   <td className="p-3">{stock.category}</td>
                   <td className="p-3">{stock.quantity}</td>
+                  <td className="p-3">{Number(stock.weight || 0).toLocaleString()}</td>
+                  <td className="p-3">{stock.weight_unit || 'kg'}</td>
+                  <td className="p-3">{stock.supplier_name || '-'}</td>
+
                   <td className="p-3 text-blue-700 font-semibold">
-                    Rs {Number(stock.purchase_price).toLocaleString()}
+                    Rs {Number(stock.purchase_price || 0).toLocaleString()}
                   </td>
+
                   <td className="p-3 text-blue-700 font-semibold">
-                    Rs {Number(stock.selling_price).toLocaleString()}
+                    Rs {Number(stock.selling_price || 0).toLocaleString()}
                   </td>
-                  <td className="p-3">{new Date(stock.expire_date).toLocaleDateString()}</td>
+
+                  <td className="p-3">
+                    {stock.expire_date ? new Date(stock.expire_date).toLocaleDateString() : '-'}
+                  </td>
+
                   <td
-                    className={`p-3 font-semibold ${stock.status === 'Active' ? 'text-green-600' : 'text-red-600'
-                      }`}
+                    className={`p-3 font-semibold ${
+                      stock.status === 'Active' ? 'text-green-600' : 'text-red-600'
+                    }`}
                   >
                     {stock.status}
                   </td>
+
                   <td className="p-3 text-center space-x-2">
                     <button
                       onClick={() => handleEdit(stock)}
@@ -379,6 +457,7 @@ export default function Stocks() {
                     >
                       Edit
                     </button>
+
                     <button
                       onClick={() => handleDelete(stock.id)}
                       className="text-red-600 hover:underline"
@@ -388,6 +467,14 @@ export default function Stocks() {
                   </td>
                 </tr>
               ))}
+
+              {!paginatedStocks.length && (
+                <tr>
+                  <td colSpan={13} className="p-6 text-center text-gray-500">
+                    No stock found.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -395,30 +482,29 @@ export default function Stocks() {
         <div className="flex justify-between items-center mt-6 text-sm text-gray-600">
           <p>
             Showing {filteredStocks.length ? (currentPage - 1) * itemsPerPage + 1 : 0}–
-            {Math.min(currentPage * itemsPerPage, filteredStocks.length)} of {filteredStocks.length}
+            {Math.min(currentPage * itemsPerPage, filteredStocks.length)} of{' '}
+            {filteredStocks.length}
           </p>
 
           <div className="space-x-2">
             <button
-              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
               className="px-4 py-2 rounded border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-50"
             >
               Prev
             </button>
+
             <button
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages || totalPages === 0}
               className="px-4 py-2 rounded border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-50"
             >
               Next
             </button>
           </div>
         </div>
-
       </div>
-
     </div>
-
   )
 }

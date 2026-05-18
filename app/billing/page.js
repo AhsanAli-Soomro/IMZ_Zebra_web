@@ -14,6 +14,13 @@ function money(value) {
   return Number(value || 0).toLocaleString()
 }
 
+function lineAmount(item) {
+  const qty = Number(item.qty || 0)
+  const price = Number(item.price || 0)
+
+  return qty * price
+}
+
 export default function BillingPage({ selectedCustomerId = null }) {
   const [customers, setCustomers] = useState([])
   const [stocks, setStocks] = useState([])
@@ -46,18 +53,25 @@ export default function BillingPage({ selectedCustomerId = null }) {
     tax: '',
     shipping: '',
     notes: '',
+    invoiceType: 'sale',
+    supplierName: '',
+    transportExpense: '',
   })
 
-  const [items, setItems] = useState([
-    {
-      id: `row-${Date.now()}`,
-      stockId: '',
-      qty: 1,
-      price: '',
-      discount: 0,
-      tax: 0,
-    },
-  ])
+  const emptyItem = () => ({
+    id: `row-${Date.now()}-${Math.random()}`,
+    stockId: '',
+    itemName: '',
+    qty: 1,
+    weight: '',
+    weight_unit: 'kg',
+    price: '',
+    amount: '',
+    discount: 0,
+    tax: 0,
+  })
+
+  const [items, setItems] = useState([emptyItem()])
 
   const currentCustomer =
     customers.find((c) => String(c.id) === String(form.customerId)) || null
@@ -79,20 +93,15 @@ export default function BillingPage({ selectedCustomerId = null }) {
   }, [items])
 
   const totals = useMemo(() => {
-    const subtotal = items.reduce((sum, item) => {
-      const qty = Number(item.qty || 0)
-      const price = Number(item.price || 0)
-      return sum + qty * price
-    }, 0)
-
+    const subtotal = items.reduce((sum, item) => sum + lineAmount(item), 0)
     const itemDiscount = items.reduce((sum, item) => sum + Number(item.discount || 0), 0)
     const itemTax = items.reduce((sum, item) => sum + Number(item.tax || 0), 0)
 
     const discount = Number(form.discount || 0)
     const tax = Number(form.tax || 0)
-    const shipping = Number(form.shipping || 0)
+    const transportExpense = Number(form.transportExpense || form.shipping || 0)
 
-    const total = subtotal - itemDiscount - discount + itemTax + tax + shipping
+    const total = subtotal - itemDiscount - discount + itemTax + tax + transportExpense
 
     return {
       subtotal,
@@ -101,7 +110,7 @@ export default function BillingPage({ selectedCustomerId = null }) {
       total,
       qty: items.reduce((sum, item) => sum + Number(item.qty || 0), 0),
     }
-  }, [items, form.discount, form.tax, form.shipping])
+  }, [items, form.discount, form.tax, form.shipping, form.transportExpense])
 
   const filteredStocks = useMemo(() => {
     if (selectedCategory === 'all') return stocks
@@ -185,25 +194,24 @@ export default function BillingPage({ selectedCustomerId = null }) {
 
   function updateItemByRowId(rowId, key, value) {
     setItems((prev) =>
-      prev.map((item) => (item.id === rowId ? { ...item, [key]: value } : item))
+      prev.map((item) => {
+        if (item.id !== rowId) return item
+
+        const updated = { ...item, [key]: value }
+
+        if (key === 'qty' || key === 'weight' || key === 'price') {
+          updated.amount = lineAmount(updated)
+        }
+
+        return updated
+      })
     )
   }
 
   function removeItemByRowId(rowId) {
     setItems((prev) => {
       const updated = prev.filter((item) => item.id !== rowId)
-      return updated.length
-        ? updated
-        : [
-            {
-              id: `row-${Date.now()}`,
-              stockId: '',
-              qty: 1,
-              price: '',
-              discount: 0,
-              tax: 0,
-            },
-          ]
+      return updated.length ? updated : [emptyItem()]
     })
   }
 
@@ -216,6 +224,8 @@ export default function BillingPage({ selectedCustomerId = null }) {
             ? Number(stock.selling_price)
             : 0
 
+      const weight = Number(stock.weight || 0)
+      const weightUnit = stock.weight_unit || 'kg'
       const existingItem = items.find((item) => String(item.stockId) === String(stock.id))
 
       if (existingItem) {
@@ -229,51 +239,31 @@ export default function BillingPage({ selectedCustomerId = null }) {
         return
       }
 
+      const newItem = {
+        id: `row-${Date.now()}-${stock.id}`,
+        stockId: String(stock.id),
+        itemName: stock.item_name || '',
+        qty: 1,
+        weight,
+        weight_unit: weightUnit,
+        price: autoPrice,
+        amount: weight > 0 ? weight * autoPrice : autoPrice,
+        discount: 0,
+        tax: 0,
+      }
+
       const hasEmptyRow = items.some((item) => !item.stockId)
 
       if (hasEmptyRow) {
-        setItems((prev) =>
-          prev.map((item) =>
-            !item.stockId
-              ? {
-                  ...item,
-                  stockId: String(stock.id),
-                  qty: 1,
-                  price: autoPrice,
-                  discount: 0,
-                  tax: 0,
-                }
-              : item
-          )
-        )
+        setItems((prev) => prev.map((item) => (!item.stockId ? newItem : item)))
         return
       }
 
-      setItems((prev) => [
-        ...prev,
-        {
-          id: `row-${Date.now()}-${stock.id}`,
-          stockId: String(stock.id),
-          qty: 1,
-          price: autoPrice,
-          discount: 0,
-          tax: 0,
-        },
-      ])
+      setItems((prev) => [...prev, newItem])
       return
     }
 
-    setItems((prev) => [
-      ...prev,
-      {
-        id: `row-${Date.now()}`,
-        stockId: '',
-        qty: 1,
-        price: '',
-        discount: 0,
-        tax: 0,
-      },
-    ])
+    setItems((prev) => [...prev, emptyItem()])
   }
 
   function handleStockSelect(rowId, stockId) {
@@ -286,70 +276,77 @@ export default function BillingPage({ selectedCustomerId = null }) {
           ? Number(stock.selling_price)
           : 0
 
+    const weight = Number(stock?.weight || 0)
+    const weightUnit = stock?.weight_unit || 'kg'
+
     setItems((prev) =>
       prev.map((item) =>
         item.id === rowId
           ? {
               ...item,
               stockId,
+              itemName: stock?.item_name || '',
               price: autoPrice,
+              weight,
+              weight_unit: weightUnit,
+              amount: weight > 0 ? weight * autoPrice : Number(item.qty || 1) * autoPrice,
             }
           : item
       )
     )
   }
 
-async function handleAddManualCustomer() {
-  if (!manualCustomer.name.trim()) {
-    toast.info('Name is required')
-    return
+  async function handleAddManualCustomer() {
+    if (!manualCustomer.name.trim()) {
+      toast.info('Name is required')
+      return
+    }
+
+    try {
+      const payload = {
+        name: manualCustomer.name.trim(),
+        email: '',
+        phone: manualCustomer.phone?.trim() || '',
+        address: manualCustomer.address?.trim() || '',
+        status: 'Active',
+      }
+
+      const res = await axios.post('/api/customers', payload)
+
+      if (!res.data?.success) {
+        throw new Error(res.data?.message || 'Failed to add customer')
+      }
+
+      toast.success('Customer added successfully')
+
+      const refreshed = await axios.get('/api/customers')
+      const updatedCustomers = refreshed.data?.data || []
+      setCustomers(updatedCustomers)
+
+      const newCustomer = updatedCustomers.find(
+        (c) =>
+          String(c.name || '').trim().toLowerCase() === payload.name.toLowerCase() &&
+          String(c.phone || '').trim() === payload.phone
+      )
+
+      if (newCustomer) {
+        setSelectedCustomerMode('existing')
+        setForm((prev) => ({
+          ...prev,
+          customerId: String(newCustomer.id),
+        }))
+      }
+
+      setManualCustomer({
+        name: payload.name,
+        phone: payload.phone,
+        address: payload.address,
+      })
+    } catch (error) {
+      console.error('Customer save failed:', error)
+      toast.error(error?.response?.data?.message || error.message || 'Failed to save customer')
+    }
   }
-
-  try {
-    const payload = {
-      name: manualCustomer.name.trim(),
-      email: '',
-      phone: manualCustomer.phone?.trim() || '',
-      address: manualCustomer.address?.trim() || '',
-      status: 'Active',
-    }
-
-    const res = await axios.post('/api/customers', payload)
-
-    if (!res.data?.success) {
-      throw new Error(res.data?.message || 'Failed to add customer')
-    }
-
-    toast.success('Customer added successfully')
-
-    const refreshed = await axios.get('/api/customers')
-    const updatedCustomers = refreshed.data?.data || []
-    setCustomers(updatedCustomers)
-
-    const newCustomer = updatedCustomers.find(
-      (c) =>
-        String(c.name || '').trim().toLowerCase() === payload.name.toLowerCase() &&
-        String(c.phone || '').trim() === payload.phone
-    )
-
-    if (newCustomer) {
-      setSelectedCustomerMode('existing')
-      setForm((prev) => ({
-        ...prev,
-        customerId: String(newCustomer.id),
-      }))
-    }
-
-    setManualCustomer({
-      name: payload.name,
-      phone: payload.phone,
-      address: payload.address,
-    })
-  } catch (error) {
-    console.error('Customer save failed:', error)
-    toast.error(error?.response?.data?.message || error.message || 'Failed to save customer')
-  }
-}
 
   function resetForm() {
     setEditingInvoiceId(null)
@@ -369,17 +366,11 @@ async function handleAddManualCustomer() {
       tax: '',
       shipping: '',
       notes: '',
+      invoiceType: 'sale',
+      supplierName: '',
+      transportExpense: '',
     })
-    setItems([
-      {
-        id: `row-${Date.now()}`,
-        stockId: '',
-        qty: 1,
-        price: '',
-        discount: 0,
-        tax: 0,
-      },
-    ])
+    setItems([emptyItem()])
   }
 
   async function handleSubmit(e) {
@@ -414,41 +405,71 @@ async function handleAddManualCustomer() {
         }
       }
 
+      const actualPaid =
+        form.paymentType === 'cash'
+          ? totals.total
+          : form.paymentType === 'credit'
+            ? 0
+            : Number(form.paidAmount || 0)
+
       const payload = {
-        customerId:
-          selectedCustomerMode === 'existing' && form.customerId
-            ? Number(form.customerId)
-            : null,
-        customerName: selectedCustomerMode === 'manual' ? manualCustomer.name : undefined,
-        customerPhone: selectedCustomerMode === 'manual' ? manualCustomer.phone : undefined,
+        customerId: selectedCustomerMode === 'existing' ? Number(form.customerId) : null,
+        customerName:
+          selectedCustomerMode === 'manual' ? manualCustomer.name.trim() : customerDisplay.name,
+        customerPhone:
+          selectedCustomerMode === 'manual' ? manualCustomer.phone.trim() : customerDisplay.phone,
         customerAddress:
-          selectedCustomerMode === 'manual' ? manualCustomer.address : undefined,
+          selectedCustomerMode === 'manual'
+            ? manualCustomer.address.trim()
+            : customerDisplay.address,
+
+        supplierName: form.supplierName || '',
+        invoiceType: form.invoiceType || 'sale',
         invoiceDate: form.invoiceDate,
         dueDate: form.dueDate,
         paymentType: form.paymentType,
-        paidAmount:
-          form.paymentType === 'cash'
-            ? Number(totals.total || 0)
-            : form.paymentType === 'credit'
-              ? 0
-              : Number(form.paidAmount || 0),
+        paidAmount: Number(actualPaid || 0),
+        subtotal: Number(totals.subtotal || 0),
         discount: Number(form.discount || 0),
         tax: Number(form.tax || 0),
-        shipping: Number(form.shipping || 0),
-        notes: form.notes,
+        shipping: Number(form.transportExpense || form.shipping || 0),
+        transportExpense: Number(form.transportExpense || 0),
+        total: Number(totals.total || 0),
+        notes: form.notes || '',
         createdBy: 1,
-        items: validItems.map((item) => ({
-          stockId: Number(item.stockId),
-          qty: Number(item.qty),
-          price: Number(item.price),
-          discount: Number(item.discount || 0),
-          tax: Number(item.tax || 0),
-        })),
+
+        items: validItems.map((item) => {
+          const stock = stocks.find((s) => String(s.id) === String(item.stockId))
+          const qty = Number(item.qty || 0)
+          const weight = Number(item.weight || stock?.weight || 0)
+          const weightUnit = item.weight_unit || stock?.weight_unit || 'kg'
+          const price = Number(item.price || 0)
+          const amount = qty * price
+          const name = stock?.item_name || item.itemName || ''
+
+          return {
+            stockId: Number(item.stockId),
+            itemName: name,
+            item_name: name,
+            productName: name,
+            product_name: name,
+            qty,
+            weight,
+            weightUnit,
+            weight_unit: weightUnit,
+            price,
+            amount,
+            discount: Number(item.discount || 0),
+            tax: Number(item.tax || 0),
+          }
+        }),
       }
 
       const res = await fetch('/api/invoices', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(payload),
       })
 
@@ -477,14 +498,7 @@ async function handleAddManualCustomer() {
       resetForm()
 
       if (newInvoiceId) {
-        try {
-          await openInvoiceModal(newInvoiceId)
-        } catch (modalError) {
-          console.error('Invoice saved but modal open failed:', modalError)
-          setMessage(
-            `Invoice save ho gayi (${savedInvoice.invoice_no}), lekin preview open nahi hui.`
-          )
-        }
+        await openInvoiceModal(newInvoiceId)
       }
     } catch (error) {
       setMessage(error.message || 'Something went wrong')
@@ -548,32 +562,26 @@ async function handleAddManualCustomer() {
       tax: String(invoiceDetail.tax || ''),
       shipping: String(invoiceDetail.shipping || ''),
       notes: invoiceDetail.notes || '',
+      invoiceType: invoiceDetail.invoice_type || 'sale',
+      supplierName: invoiceDetail.supplier_name || '',
+      transportExpense: String(invoiceDetail.transport_expense || invoiceDetail.shipping || ''),
     })
 
     const mappedItems =
       (invoiceDetail.items || []).map((item, index) => ({
         id: `edit-row-${index}-${item.stock_id || item.stockId || item.product_id || index}`,
         stockId: String(item.stock_id || item.stockId || item.product_id || ''),
+        itemName: item.item_name || item.product_name || '',
         qty: Number(item.qty || 1),
+        weight: Number(item.weight || 0),
+        weight_unit: item.weight_unit || item.weightUnit || 'kg',
         price: String(item.price || ''),
+        amount: Number(item.amount || 0),
         discount: Number(item.discount || 0),
         tax: Number(item.tax || 0),
       })) || []
 
-    setItems(
-      mappedItems.length
-        ? mappedItems
-        : [
-            {
-              id: `row-${Date.now()}`,
-              stockId: '',
-              qty: 1,
-              price: '',
-              discount: 0,
-              tax: 0,
-            },
-          ]
-    )
+    setItems(mappedItems.length ? mappedItems : [emptyItem()])
 
     closeInvoiceModal()
 
@@ -598,7 +606,8 @@ async function handleAddManualCustomer() {
 
   return (
     <>
-    <Navbar />
+      <Navbar />
+
       <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col">
         <div className="flex flex-1 overflow-hidden">
           <aside className="w-[350px] bg-white border-r p-6 shadow-lg space-y-6 overflow-y-auto">
@@ -638,6 +647,7 @@ async function handleAddManualCustomer() {
                       setManualCustomer((prev) => ({ ...prev, name: e.target.value }))
                     }
                   />
+
                   <input
                     placeholder="Contact"
                     className="border px-3 py-2 w-full rounded shadow-sm focus:ring-2 focus:ring-indigo-400 focus:outline-none mt-3"
@@ -646,6 +656,7 @@ async function handleAddManualCustomer() {
                       setManualCustomer((prev) => ({ ...prev, phone: e.target.value }))
                     }
                   />
+
                   <input
                     placeholder="Address"
                     className="border px-3 py-2 w-full rounded shadow-sm focus:ring-2 focus:ring-indigo-400 focus:outline-none mt-3"
@@ -679,7 +690,11 @@ async function handleAddManualCustomer() {
                       className="flex items-center justify-between p-2 border rounded hover:bg-gray-50 transition"
                     >
                       <div className="flex-1">
-                        <div>{stock?.item_name || 'Product'}</div>
+                        <div>{stock?.item_name || item.itemName || 'Product'}</div>
+                        <div className="text-xs text-gray-500">
+                          Weight: {money(item.weight || 0)} {item.weight_unit || 'kg'}
+                        </div>
+
                         <button
                           type="button"
                           onClick={() => removeItemByRowId(item.id)}
@@ -704,7 +719,7 @@ async function handleAddManualCustomer() {
                       />
 
                       <div className="ml-2 min-w-[80px] text-right">
-                        Rs {money(Number(item.qty || 0) * Number(item.price || 0))}
+                        Rs {money(lineAmount(item))}
                       </div>
                     </div>
                   )
@@ -721,18 +736,27 @@ async function handleAddManualCustomer() {
                 <span>Total Qty:</span>
                 <span>{totals.qty}</span>
               </p>
+
               <p className="flex justify-between">
                 <span>Subtotal:</span>
                 <span>Rs {money(totals.subtotal)}</span>
               </p>
+
               <p className="flex justify-between">
                 <span>Items Discount:</span>
                 <span>Rs {money(totals.itemDiscount)}</span>
               </p>
+
               <p className="flex justify-between">
                 <span>Items Tax:</span>
                 <span>Rs {money(totals.itemTax)}</span>
               </p>
+
+              <p className="flex justify-between">
+                <span>Transport:</span>
+                <span>Rs {money(form.transportExpense || form.shipping || 0)}</span>
+              </p>
+
               <p className="flex justify-between font-bold mt-2">
                 <span>Net Pay:</span>
                 <span>Rs {money(totals.total)}</span>
@@ -778,13 +802,35 @@ async function handleAddManualCustomer() {
               </div>
 
               <div className="flex justify-between items-center">
-                <label className="text-sm font-medium">Shipping</label>
+                <label className="text-sm font-medium">Invoice Type</label>
+                <select
+                  value={form.invoiceType}
+                  onChange={(e) => setForm({ ...form, invoiceType: e.target.value })}
+                  className="w-32 text-right border px-2 py-1 rounded focus:ring-indigo-400"
+                >
+                  <option value="sale">Sale</option>
+                  <option value="purchase">Purchase</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Supplier Name</label>
+                <input
+                  placeholder="Supplier Name"
+                  value={form.supplierName}
+                  onChange={(e) => setForm({ ...form, supplierName: e.target.value })}
+                  className="w-full border px-2 py-1 rounded focus:ring-indigo-400 mt-1"
+                />
+              </div>
+
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-medium">Transport</label>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
-                  value={form.shipping}
-                  onChange={(e) => setForm({ ...form, shipping: e.target.value })}
+                  value={form.transportExpense}
+                  onChange={(e) => setForm({ ...form, transportExpense: e.target.value })}
                   className="w-24 text-right border px-2 py-1 rounded focus:ring-indigo-400"
                 />
               </div>
@@ -810,6 +856,7 @@ async function handleAddManualCustomer() {
                 <span>Paid:</span>
                 <span>Rs {money(actualPaid)}</span>
               </p>
+
               <p className="flex justify-between font-semibold">
                 <span>Remaining:</span>
                 <span>Rs {money(remaining)}</span>
@@ -897,6 +944,7 @@ async function handleAddManualCustomer() {
                     )}
 
                     <h3 className="text-sm font-medium text-center">{stock.item_name}</h3>
+
                     <p
                       className={`text-xs ${
                         Number(stock.quantity) < 5
@@ -909,6 +957,10 @@ async function handleAddManualCustomer() {
 
                     <p className="text-sm font-semibold text-indigo-600 mt-1">
                       Rs {money(displayPrice)}
+                    </p>
+
+                    <p className="text-xs text-gray-500">
+                      Weight: {money(stock.weight || 0)} {stock.weight_unit || 'kg'}
                     </p>
                   </div>
                 )
