@@ -32,8 +32,10 @@ export default function Sidebar({ active, setActive, isOpen }) {
     'Categories',
     ...(userType === 'Employee' ? [] : ['Employees']),
     'Billing History',
-    'Import Export Data',
-    'Settings',
+    'Cash Information',
+    'Report and Analytics',
+    // 'Import Export Data',
+    // 'Settings',
   ]
 
   return (

@@ -15,6 +15,7 @@ export async function POST(request) {
       shipping: body.shipping || 0,
       paidAmount: body.paidAmount || 0,
       paymentType: body.paymentType || 'cash',
+      sourceOfPayment: body.sourceOfPayment || 'Customer',
       notes: body.notes || '',
       createdBy: body.createdBy || null,
     })

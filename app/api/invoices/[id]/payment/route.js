@@ -19,6 +19,7 @@ export async function POST(request, context) {
       amount: body.amount,
       paymentDate: body.paymentDate || null,
       paymentMethod: body.paymentMethod || 'cash',
+      sourceOfPayment: body.sourceOfPayment || 'Customer',
       notes: body.notes || '',
       createdBy: body.createdBy || null,
     })

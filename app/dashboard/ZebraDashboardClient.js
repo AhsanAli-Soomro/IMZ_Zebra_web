@@ -19,6 +19,8 @@ import CustomerKhata from '../components/CustomerKhata'
 import InvoiceCreate from '../components/InvoiceCreate'
 import ActivationGate from '../components/ActivationGate'
 import PurchaseInvoice from '../components/PurchaseInvoice'
+import CashInformation from '../components/CashInformation'
+import ReportsDashboard from '../components/ReportsDashboard'
 
 export default function ZebraDashboardClient() {
   const router = useRouter()
@@ -103,6 +105,10 @@ export default function ZebraDashboardClient() {
         return userType === 'Employee' ? <NotFound /> : <Employees />
       case 'billing history':
         return <History />
+      case 'cash information':
+        return <CashInformation />
+      case 'report and analytics':
+        return <ReportsDashboard />
       case 'import export data':
         return <DataImportExport />
       case 'settings':

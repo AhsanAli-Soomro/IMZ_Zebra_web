@@ -21,6 +21,7 @@ export async function POST(request, context) {
       notes: body.notes || '',
       createdBy: body.createdBy || null,
       paymentMethod: body.paymentMethod || 'cash',
+      sourceOfPayment: body.sourceOfPayment || 'Customer',
     })
 
     return NextResponse.json({
