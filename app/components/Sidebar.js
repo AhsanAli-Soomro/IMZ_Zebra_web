@@ -35,7 +35,7 @@ export default function Sidebar({ active, setActive, isOpen }) {
     'Cash Information',
     'Report and Analytics',
     // 'Import Export Data',
-    // 'Settings',
+    'Settings',
   ]
 
   return (
