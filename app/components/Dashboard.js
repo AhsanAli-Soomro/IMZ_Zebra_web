@@ -46,6 +46,7 @@ export default function DashboardPage() {
         { label: 'Revenue', value: total.total_revenue, color: 'from-green-400 to-green-600', icon: '💰' },
         { label: 'Profit', value: total.total_profit, color: 'from-yellow-400 to-yellow-500', icon: '📈' },
         { label: 'Products Sold', value: total.total_products_sold, color: 'from-pink-400 to-pink-600', icon: '🛒' },
+        { label: 'Stock Amount', value: total.total_stock_amount, color: 'from-purple-400 to-purple-600', icon: '📦' },
     ]
 
     return (
@@ -53,7 +54,7 @@ export default function DashboardPage() {
             <h1 className="text-3xl font-bold text-gray-800">📊 Sales Dashboard</h1>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
                 {cards.map(({ label, value, color, icon }, idx) => (
                     <div
                         key={idx}

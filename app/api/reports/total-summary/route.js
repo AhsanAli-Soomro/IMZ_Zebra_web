@@ -19,6 +19,13 @@ export async function GET() {
       WHERE (b.deleted_at IS NULL OR b.deleted_at = '')
     `)
 
+    const stockAmountRows = await db.query(`
+      SELECT
+        COALESCE(SUM(COALESCE(qty, 0) * COALESCE(purchase_price, 0)), 0) AS total_stock_amount
+      FROM stocks
+      WHERE (deleted_at IS NULL OR deleted_at = '')
+    `)
+
     const profitRows = await db.query(`
       SELECT
         COALESCE(SUM(
@@ -38,6 +45,7 @@ export async function GET() {
       total_revenue: Number(invoiceRows[0]?.total_revenue || 0),
       total_products_sold: Number(soldRows[0]?.total_products_sold || 0),
       total_profit: Number(profitRows[0]?.total_profit || 0),
+      total_stock_amount: Number(stockAmountRows[0]?.total_stock_amount || 0),
     }
 
     return NextResponse.json({ success: true, data })
