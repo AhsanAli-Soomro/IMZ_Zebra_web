@@ -25,6 +25,9 @@ jobs:
 
       - name: Build Windows installer
         run: npm run dist:win
+        env:
+          JWT_SECRET: "habib-rice-corporation-build-secret"
+          NODE_ENV: production
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
