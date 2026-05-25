@@ -11,6 +11,9 @@ jobs:
   build-windows:
     runs-on: windows-latest
 
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout project
         uses: actions/checkout@v4
@@ -29,11 +32,29 @@ jobs:
           JWT_SECRET: "habib-rice-corporation-build-secret"
           NODE_ENV: production
 
-      - name: Upload installer
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: Habib-Rice-Corporation-Windows-Setup
           path: |
             dist/*.exe
-            dist/*.msi
-            dist/*.zip
+
+      - name: Delete old latest release
+        shell: bash
+        continue-on-error: true
+        run: |
+          gh release delete latest-windows --yes
+          git push origin --delete latest-windows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create latest Windows release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-windows
+          name: Latest Windows Setup
+          body: |
+            Latest Windows installer for Habib Rice Corporation.
+          files: dist/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

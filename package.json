@@ -24,7 +24,7 @@
   "build": {
     "appId": "com.habibrice.corporation",
     "productName": "Habib Rice Corporation",
-    "artifactName": "Habib Rice Corporation Setup ${version}.${ext}",
+    "artifactName": "Habib-Rice-Corporation-Setup.${ext}",
     "directories": {
       "output": "dist"
     },
