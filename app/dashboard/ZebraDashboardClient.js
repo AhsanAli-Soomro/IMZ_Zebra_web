@@ -22,6 +22,7 @@ import PurchaseInvoice from '../components/PurchaseInvoice'
 import CashInformation from '../components/CashInformation'
 import ReportsDashboard from '../components/ReportsDashboard'
 import Footer from '../components/Footer'
+import ProfitLossCalculator from '../components/Calculator'
 
 export default function ZebraDashboardClient() {
   const router = useRouter()
@@ -114,6 +115,8 @@ export default function ZebraDashboardClient() {
         return <DataImportExport />
       case 'settings':
         return <CompanyProfilePage />
+      case 'calculator':
+        return <ProfitLossCalculator />
       default:
         return <DashboardPage />
     }
