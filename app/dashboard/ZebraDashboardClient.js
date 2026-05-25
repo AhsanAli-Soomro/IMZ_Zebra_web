@@ -21,6 +21,7 @@ import ActivationGate from '../components/ActivationGate'
 import PurchaseInvoice from '../components/PurchaseInvoice'
 import CashInformation from '../components/CashInformation'
 import ReportsDashboard from '../components/ReportsDashboard'
+import Footer from '../components/Footer'
 
 export default function ZebraDashboardClient() {
   const router = useRouter()
@@ -143,6 +144,7 @@ export default function ZebraDashboardClient() {
           </ActivationGate>
         </main>
       </div>
+      <Footer />
     </div>
   )
 }
