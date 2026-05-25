@@ -32,28 +32,41 @@ function pathExists(p) {
 }
 
 function getBundledPath(...parts) {
-  const unpacked = path.join(process.resourcesPath, 'app.asar.unpacked', ...parts)
-  const packed = path.join(process.resourcesPath, 'app.asar', ...parts)
-  const resources = path.join(process.resourcesPath, ...parts)
-
-  if (pathExists(unpacked)) return unpacked
-  if (pathExists(packed)) return packed
-  if (pathExists(resources)) return resources
-
-  return null
-}
-
-function findStandaloneServer() {
-  const candidates = [
-    path.join(process.resourcesPath, 'app.asar.unpacked', '.next', 'standalone', 'server.js'),
-    path.join(process.resourcesPath, '.next', 'standalone', 'server.js'),
-  ]
+  const candidates = app.isPackaged
+    ? [
+      path.join(process.resourcesPath, 'app.asar.unpacked', ...parts),
+      path.join(process.resourcesPath, 'app.asar', ...parts),
+      path.join(process.resourcesPath, ...parts),
+    ]
+    : [
+      path.join(app.getAppPath(), ...parts),
+      path.join(__dirname, '..', ...parts),
+    ]
 
   for (const p of candidates) {
     if (pathExists(p)) return p
   }
 
-  throw new Error(`server.js not found in unpacked resources. Checked:\n${candidates.join('\n')}`)
+  return null
+}
+
+function findStandaloneServer() {
+  const candidates = app.isPackaged
+    ? [
+      path.join(process.resourcesPath, 'app.asar.unpacked', '.next', 'standalone', 'server.js'),
+      path.join(process.resourcesPath, 'app.asar', '.next', 'standalone', 'server.js'),
+      path.join(process.resourcesPath, '.next', 'standalone', 'server.js'),
+    ]
+    : [
+      path.join(app.getAppPath(), '.next', 'standalone', 'server.js'),
+      path.join(__dirname, '..', '.next', 'standalone', 'server.js'),
+    ]
+
+  for (const p of candidates) {
+    if (pathExists(p)) return p
+  }
+
+  throw new Error(`server.js not found. Checked:\n${candidates.join('\n')}`)
 }
 
 async function runMigrationScript(dbPath) {
@@ -67,8 +80,10 @@ async function runMigrationScript(dbPath) {
     }
 
     console.log('Migration script path:', migrationScriptPath)
+    console.log('Migration DB path:', dbPath)
 
     const proc = utilityProcess.fork(migrationScriptPath, [], {
+      cwd: path.dirname(migrationScriptPath),
       env: {
         ...process.env,
         SQLITE_DB_PATH: dbPath,
@@ -226,18 +241,18 @@ ipcMain.handle('print-invoice', async (event, payload) => {
       win.webContents.print(
         isThermal
           ? {
-              silent: false,
-              printBackground: true,
-              deviceName: defaultPrinter.name,
-              margins: { marginType: 'none' },
-              usePrinterDefaultPageSize: true,
-            }
+            silent: false,
+            printBackground: true,
+            deviceName: defaultPrinter.name,
+            margins: { marginType: 'none' },
+            usePrinterDefaultPageSize: true,
+          }
           : {
-              silent: false,
-              printBackground: true,
-              pageSize: 'A4',
-              margins: { marginType: 'default' },
-            },
+            silent: false,
+            printBackground: true,
+            pageSize: 'A4',
+            margins: { marginType: 'default' },
+          },
         (success, failureReason) => {
           resolve({
             success,
@@ -278,32 +293,32 @@ ipcMain.handle('download-invoice-pdf', async (event, payload) => {
 
     const pdfOptions = isThermal
       ? {
-          printBackground: true,
-          landscape: false,
-          preferCSSPageSize: true,
-          pageSize: {
-            width: 3.15,
-            height: 14,
-          },
-          margins: {
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0,
-          },
-        }
+        printBackground: true,
+        landscape: false,
+        preferCSSPageSize: true,
+        pageSize: {
+          width: 3.15,
+          height: 14,
+        },
+        margins: {
+          top: 0,
+          bottom: 0,
+          left: 0,
+          right: 0,
+        },
+      }
       : {
-          printBackground: true,
-          landscape: false,
-          preferCSSPageSize: false,
-          pageSize: 'A4',
-          margins: {
-            top: 0.2,
-            bottom: 0.2,
-            left: 0.2,
-            right: 0.2,
-          },
-        }
+        printBackground: true,
+        landscape: false,
+        preferCSSPageSize: false,
+        pageSize: 'A4',
+        margins: {
+          top: 0.2,
+          bottom: 0.2,
+          left: 0.2,
+          right: 0.2,
+        },
+      }
 
     const pdfData = await win.webContents.printToPDF(pdfOptions)
     fs.writeFileSync(filePath, pdfData)
@@ -344,7 +359,7 @@ function ensureDatabaseExists() {
     console.log('Copied DB from:', sourceDbPath)
     console.log('Copied DB to:', targetDbPath)
   } else {
-    console.log('Bundled DB not found, app will create a new DB at:', targetDbPath)
+    console.log('Bundled DB not found. New DB path will be:', targetDbPath)
   }
 
   return targetDbPath
@@ -352,7 +367,6 @@ function ensureDatabaseExists() {
 
 async function startApp() {
   if (isStarting) {
-
     return
   }
 
@@ -362,7 +376,9 @@ async function startApp() {
     const isDev = !app.isPackaged
     const activation = isActivated()
     const dbPath = ensureDatabaseExists()
+
     await runMigrationScript(dbPath)
+
     const initialRoute = activation.ok ? '/login' : '/activate'
 
     if (isDev) {
@@ -376,7 +392,12 @@ async function startApp() {
     const standaloneServerPath = findStandaloneServer()
     const userDataPath = app.getPath('userData')
 
+    console.log('Standalone server path:', standaloneServerPath)
+    console.log('Standalone server cwd:', path.dirname(standaloneServerPath))
+    console.log('SQLite DB path:', dbPath)
+
     nextProcess = utilityProcess.fork(standaloneServerPath, [], {
+      cwd: path.dirname(standaloneServerPath),
       env: {
         ...process.env,
         PORT: String(port),
@@ -399,6 +420,7 @@ async function startApp() {
     })
 
     nextProcess.on('exit', (code) => {
+      console.log('Next standalone server exited with code:', code)
       nextProcess = null
     })
 

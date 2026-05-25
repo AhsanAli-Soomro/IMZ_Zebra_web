@@ -1,72 +1,86 @@
 {
-  "name": "zebra-ims",
+  "name": "habib-rice-corporation",
   "version": "0.1.0",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
-    "dev": "npm rebuild better-sqlite3 && NODE_OPTIONS=--no-webstorage next dev -p 3001",
+    "dev": "cross-env NODE_OPTIONS=--no-webstorage next dev -p 3001",
     "electron": "electron .",
-    "dev:all": "concurrently \"npm run dev\" \"wait-on http://127.0.0.1:3001 && npm run electron\"",
-
-    "build:web": "next build && mkdir -p .next/standalone/.next && cp -R .next/static .next/standalone/.next/ && cp -R public .next/standalone/",
-    "build": "npm rebuild better-sqlite3 && npm run build:web",
-
-    "start": "npm rebuild better-sqlite3 && next start -p 3001",
-
+    "dev:all": "npm run rebuild:electron && concurrently \"npm run dev\" \"wait-on http://127.0.0.1:3001 && npm run electron\"",
+    "build:web": "npm run rebuild:node && next build && shx mkdir -p .next/standalone/.next && shx cp -r .next/static .next/standalone/.next/ && shx cp -r public .next/standalone/",
+    "build": "npm run build:web",
+    "start": "next start -p 3001",
     "rebuild:node": "npm rebuild better-sqlite3",
     "rebuild:electron": "npx @electron/rebuild -f -w better-sqlite3",
-
-    "sync:standalone-native": "rm -rf .next/standalone/node_modules/better-sqlite3 && cp -R node_modules/better-sqlite3 .next/standalone/node_modules/",
-
-    "dist:mac": "npm run build && npm run rebuild:electron && npm run sync:standalone-native && electron-builder --mac",
-    "dist:win": "npm run build && npm run sync:standalone-native && electron-builder --win",
-
+    "sync:standalone-native": "shx rm -rf .next/standalone/node_modules/better-sqlite3 && shx mkdir -p .next/standalone/node_modules && shx cp -r node_modules/better-sqlite3 .next/standalone/node_modules/",
+    "dist:mac": "npm run build:web && npm run rebuild:electron && npm run sync:standalone-native && electron-builder --mac",
+    "dist:win": "npm run build:web && npm run rebuild:electron && npm run sync:standalone-native && electron-builder --win --x64",
     "dist": "npm run dist:mac",
-
     "lint": "next lint",
     "db:init": "node scripts/init-db.js",
     "migrate:sqlite": "node scripts/mysql-to-sqlite.js",
     "migrate": "node scripts/run-migrations.js"
   },
-"build": {
-  "appId": "com.zebra.ims",
-  "productName": "Zebra IMS",
-  "directories": {
-    "output": "dist"
-  },
-  "files": [
-    "electron/**/*",
-    ".next/standalone/**/*",
-    ".next/static/**/*",
-    "public/**/*",
-    "database/**/*",
-    "scripts/**/*",
-    "lib/**/*",
-    "package.json"
-  ],
-  "asarUnpack": [
-    ".next/standalone/**/*",
-    "**/*.node",
-    "database/**/*"
-  ],
-  "mac": {
-    "icon": "build/icon.icns",
-    "target": ["dmg", "zip"]
-  },
-  "win": {
-    "icon": "build/icon.ico",
-    "target": [
+  "build": {
+    "appId": "com.habibrice.corporation",
+    "productName": "Habib Rice Corporation",
+    "artifactName": "Habib Rice Corporation Setup ${version}.${ext}",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      ".next/standalone/**/*",
+      ".next/static/**/*",
+      "public/**/*",
+      "database/**/*",
+      "scripts/**/*",
+      "lib/**/*",
+      "package.json"
+    ],
+    "extraResources": [
       {
-        "target": "nsis",
-        "arch": ["x64"]
+        "from": "database.sqlite",
+        "to": "database.sqlite"
+      },
+      {
+        "from": "database",
+        "to": "database"
       }
-    ]
+    ],
+    "asarUnpack": [
+      ".next/standalone/**/*",
+      "**/*.node",
+      "database/**/*",
+      "scripts/**/*"
+    ],
+    "mac": {
+      "icon": "build/icon.icns",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Habib Rice Corporation",
+      "uninstallDisplayName": "Habib Rice Corporation",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   },
-  "nsis": {
-    "oneClick": false,
-    "allowToChangeInstallationDirectory": true
-  }
-}  ,
   "dependencies": {
     "axios": "^1.10.0",
     "better-sqlite3": "^12.8.0",
@@ -88,8 +102,10 @@
     "@electron/rebuild": "^4.0.3",
     "@tailwindcss/postcss": "^4",
     "concurrently": "^9.2.1",
+    "cross-env": "^7.0.3",
     "electron": "^41.0.4",
     "electron-builder": "^26.8.1",
+    "shx": "^0.4.0",
     "tailwindcss": "^4",
     "wait-on": "^9.0.4"
   }
