@@ -14,7 +14,7 @@
     "rebuild:electron": "npx @electron/rebuild -f -w better-sqlite3",
     "sync:standalone-native": "shx rm -rf .next/standalone/node_modules/better-sqlite3 && shx mkdir -p .next/standalone/node_modules && shx cp -r node_modules/better-sqlite3 .next/standalone/node_modules/",
     "dist:mac": "npm run build:web && npm run rebuild:electron && npm run sync:standalone-native && electron-builder --mac",
-    "dist:win": "npm run build:web && npm run rebuild:electron && npm run sync:standalone-native && electron-builder --win --x64",
+    "dist:win": "npm run build:web && npm run rebuild:electron && npm run sync:standalone-native && electron-builder --win --x64 --publish never",
     "dist": "npm run dist:mac",
     "lint": "next lint",
     "db:init": "node scripts/init-db.js",
