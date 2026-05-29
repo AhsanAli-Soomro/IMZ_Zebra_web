@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Zebra IMS",
-  description: "Zebra IMS - Inventory Management System",
+  title: "Habib Rice Corporation",
+  description: "Habib Rice Corporation - IMS",
 };
 
 export default function RootLayout({ children }) {
