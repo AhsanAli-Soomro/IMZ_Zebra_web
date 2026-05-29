@@ -17,8 +17,29 @@
 /.next/
 /out/
 
-# production
-/build
+# electron-builder output
+/dist/
+
+# DO NOT ignore /build because it contains app icons:
+# build/icon.ico
+# build/icon.icns
+
+# SQLite temporary files
+*.sqlite-wal
+*.sqlite-shm
+*.db-wal
+*.db-shm
+*.sqlite-journal
+*.db-journal
+
+# Optional local database backups
+database/*backup*.sqlite
+database/*backup*.db
+database/*.bak
+
+# Keep production seed database and schema
+!database/ims.sqlite
+!database/schema.sql
 
 # misc
 .DS_Store
@@ -30,8 +51,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files
+.env
+.env.*
+!.env.example
 
 # vercel
 .vercel

@@ -70,38 +70,36 @@ function findStandaloneServer() {
 }
 
 async function runMigrationScript(dbPath) {
-  const migrationScriptPath = getBundledPath('scripts', 'run-migrations.js')
+  try {
+    const migrationScriptPath = getBundledPath('lib', 'migrate.js')
+    const schemaPath = getBundledPath('database', 'schema.sql')
 
-  return new Promise((resolve, reject) => {
     if (!migrationScriptPath) {
-      console.log('Migration script not found, skipping')
-      resolve()
+      console.log('Migration module not found, skipping')
       return
     }
 
-    console.log('Migration script path:', migrationScriptPath)
+    console.log('Migration module path:', migrationScriptPath)
     console.log('Migration DB path:', dbPath)
+    console.log('Migration schema path:', schemaPath)
 
-    const proc = utilityProcess.fork(migrationScriptPath, [], {
-      cwd: path.dirname(migrationScriptPath),
-      env: {
-        ...process.env,
-        SQLITE_DB_PATH: dbPath,
-      },
-      stdio: 'inherit',
-    })
+    process.env.SQLITE_DB_PATH = dbPath
+    process.env.DATABASE_URL = dbPath
+    process.env.SQLITE_SCHEMA_PATH = schemaPath || ''
 
-    proc.on('exit', (code) => {
-      if (code === 0) {
-        console.log('Migration script completed')
-        resolve()
-      } else {
-        reject(new Error(`Migration script failed with code ${code}`))
-      }
-    })
+    const migrationModule = await import(`file://${migrationScriptPath}`)
 
-    proc.on('error', reject)
-  })
+    if (!migrationModule || typeof migrationModule.runMigrations !== 'function') {
+      throw new Error('lib/migrate.js must export runMigrations(dbPath, schemaPath)')
+    }
+
+    migrationModule.runMigrations(dbPath, schemaPath)
+
+    console.log('Migration script completed')
+  } catch (err) {
+    console.error('Migration failed:', err)
+    throw new Error(`Migration failed: ${err.message || String(err)}`)
+  }
 }
 
 function waitForServer(url, timeout = 30000) {
@@ -126,13 +124,22 @@ function waitForServer(url, timeout = 30000) {
     check()
   })
 }
+function getIconPath() {
+  const iconPath = getBundledPath('build', 'icon.ico')
 
+  if (iconPath) {
+    return iconPath
+  }
+
+  return path.join(__dirname, '..', 'build', 'icon.ico')
+}
 function createWindow(port, route = '/') {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     autoHideMenuBar: true,
     show: false,
+    icon: getIconPath(),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -354,13 +361,17 @@ function ensureDatabaseExists() {
 
   const sourceDbPath = getBundledPath('database', 'ims.sqlite')
 
-  if (sourceDbPath) {
-    fs.copyFileSync(sourceDbPath, targetDbPath)
-    console.log('Copied DB from:', sourceDbPath)
-    console.log('Copied DB to:', targetDbPath)
-  } else {
-    console.log('Bundled DB not found. New DB path will be:', targetDbPath)
+  if (!sourceDbPath) {
+    throw new Error(
+      'Bundled database not found. Expected database/ims.sqlite. ' +
+        'Please make sure database/ims.sqlite exists and is included in electron-builder extraResources.'
+    )
   }
+
+  fs.copyFileSync(sourceDbPath, targetDbPath)
+
+  console.log('Copied DB from:', sourceDbPath)
+  console.log('Copied DB to:', targetDbPath)
 
   return targetDbPath
 }
