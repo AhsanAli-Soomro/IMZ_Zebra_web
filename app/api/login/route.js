@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server'
 
 const JWT_SECRET = process.env.JWT_SECRET
 if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET is not defined')
+    throw new Error('JWT_SECRET is not defined')
 }
 export async function POST(req) {
     try {
@@ -49,8 +49,8 @@ export async function POST(req) {
                 id: user.id,
                 name: user.name,
                 email: user.email,
-                user_type: user.user_type, // <--- important
-                status: user.status,// in case you're using "active" check
+                user_type: user.user_type,
+                status: String(user.status || 'active').toLowerCase(),
             },
         })
     } catch (error) {
