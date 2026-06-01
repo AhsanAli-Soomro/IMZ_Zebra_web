@@ -12,7 +12,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [resettingLicense, setResettingLicense] = useState(false)
   const [companyData, setCompanyData] = useState(null)
-
+  const [checkingUsers, setCheckingUsers] = useState(true)
   const handleChange = (e) => {
     setFormData((prev) => ({
       ...prev,
@@ -31,8 +31,31 @@ export default function LoginPage() {
   }
 
   useEffect(() => {
-    getCompanyData()
-  }, [])
+    const checkUsers = async () => {
+      try {
+        const res = await fetch('/api/users/count', {
+          cache: 'no-store',
+        })
+
+        const data = await res.json()
+        const usersCount = Number(data?.count || 0)
+
+        if (usersCount === 0) {
+          router.replace('/dashboard')
+          return
+        }
+
+        setCheckingUsers(false)
+        getCompanyData()
+      } catch (error) {
+        console.error('Failed to check users count:', error)
+        setCheckingUsers(false)
+        getCompanyData()
+      }
+    }
+
+    checkUsers()
+  }, [router])
 
   const handleResetLicense = async () => {
     setErrorMessage('')
@@ -100,7 +123,9 @@ export default function LoginPage() {
       setLoading(false)
     }
   }
-
+  if (checkingUsers) {
+    return <div className="p-6">Loading...</div>
+  }
   return (
     <div className="min-h-screen flex flex-col items-center justify-center">
       <form
