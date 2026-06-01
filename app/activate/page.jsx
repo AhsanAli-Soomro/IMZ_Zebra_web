@@ -26,7 +26,7 @@ export default function ActivatePage() {
 
       if (result?.ok) {
         setMessage(result.message || 'Activated successfully')
-        router.replace('/login')
+        router.replace('/dashboard')
       } else {
         setError(result?.message || 'Activation failed')
       }

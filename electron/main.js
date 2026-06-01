@@ -4,7 +4,7 @@ const path = require('path')
 const http = require('http')
 const net = require('net')
 const fs = require('fs')
-
+const license = require('./license') 
 let mainWindow = null
 let nextProcess = null
 let isStarting = false
@@ -189,7 +189,9 @@ ipcMain.handle('license:check', async () => {
     }
   }
 })
-
+ipcMain.handle('license:reset', async () => {
+  return license.clearActivation()
+})
 ipcMain.handle('license:activate', async (_event, key) => {
   try {
     return activateWithKey(key)

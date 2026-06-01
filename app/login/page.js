@@ -8,8 +8,11 @@ export default function LoginPage() {
   const router = useRouter()
   const [formData, setFormData] = useState({ email: '', password: '' })
   const [errorMessage, setErrorMessage] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [resettingLicense, setResettingLicense] = useState(false)
   const [companyData, setCompanyData] = useState(null)
+
   const handleChange = (e) => {
     setFormData((prev) => ({
       ...prev,
@@ -22,7 +25,6 @@ export default function LoginPage() {
       const res = await fetch('/api/company-profile')
       const data = await res.json()
       setCompanyData(data)
-
     } catch (error) {
       console.error('Failed to fetch company data:', error)
     }
@@ -32,9 +34,38 @@ export default function LoginPage() {
     getCompanyData()
   }, [])
 
+  const handleResetLicense = async () => {
+    setErrorMessage('')
+    setSuccessMessage('')
+    setResettingLicense(true)
+
+    try {
+      if (!window.electronAPI?.resetLicense) {
+        setErrorMessage('License reset function not available')
+        return
+      }
+
+      const result = await window.electronAPI.resetLicense()
+
+      if (result?.ok) {
+        window.localStorage.removeItem('authToken')
+        window.localStorage.removeItem('user')
+        setSuccessMessage('License reset ho gaya. App restart karein ya dobara activate karein.')
+      } else {
+        setErrorMessage(result?.message || 'License reset failed')
+      }
+    } catch (error) {
+      console.error('License reset error:', error)
+      setErrorMessage('License reset failed')
+    } finally {
+      setResettingLicense(false)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setErrorMessage('')
+    setSuccessMessage('')
     setLoading(true)
 
     try {
@@ -63,6 +94,7 @@ export default function LoginPage() {
         setErrorMessage(response.message || 'Invalid credentials')
       }
     } catch (error) {
+      console.error('Login error:', error)
       setErrorMessage('Login failed. Please try again.')
     } finally {
       setLoading(false)
@@ -70,7 +102,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center ">
+    <div className="min-h-screen flex flex-col items-center justify-center">
       <form
         onSubmit={handleSubmit}
         className="bg-white p-6 rounded shadow-md w-full max-w-sm"
@@ -79,16 +111,21 @@ export default function LoginPage() {
           <img
             src={loading ? '/loading.gif' : companyData?.logo_url}
             alt={loading ? 'Loading...' : companyData?.company_name}
-            className='w-24 h-auto mb-2'
+            className="w-24 h-auto mb-2"
           />
           <h3 className="text-2xl font-semibold mb-4">
             {companyData?.company_name || ''}
           </h3>
         </div>
+
         <h1 className="text-xl font-semibold mb-6">Login</h1>
 
         {errorMessage && (
           <p className="text-red-500 mb-4">{errorMessage}</p>
+        )}
+
+        {successMessage && (
+          <p className="text-green-600 mb-4">{successMessage}</p>
         )}
 
         <input
@@ -113,11 +150,20 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          disabled={loading}
-          className="bg-blue-600 text-white w-full py-2 rounded hover:bg-blue-700"
+          disabled={loading || resettingLicense}
+          className="bg-blue-600 text-white w-full py-2 rounded hover:bg-blue-700 disabled:opacity-60"
         >
           {loading ? 'Logging in...' : 'Login'}
         </button>
+
+        {/* <button
+          type="button"
+          onClick={handleResetLicense}
+          disabled={loading || resettingLicense}
+          className="mt-3 bg-red-600 text-white w-full py-2 rounded hover:bg-red-700 disabled:opacity-60"
+        >
+          {resettingLicense ? 'Resetting License...' : 'Reset License'}
+        </button> */}
       </form>
     </div>
   )
