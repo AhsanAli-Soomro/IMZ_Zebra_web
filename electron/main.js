@@ -4,7 +4,7 @@ const path = require('path')
 const http = require('http')
 const net = require('net')
 const fs = require('fs')
-const license = require('./license') 
+const license = require('./license')
 let mainWindow = null
 let nextProcess = null
 let isStarting = false
@@ -34,14 +34,14 @@ function pathExists(p) {
 function getBundledPath(...parts) {
   const candidates = app.isPackaged
     ? [
-        path.join(process.resourcesPath, 'app.asar.unpacked', ...parts),
-        path.join(process.resourcesPath, 'app.asar', ...parts),
-        path.join(process.resourcesPath, ...parts),
-      ]
+      path.join(process.resourcesPath, 'app.asar.unpacked', ...parts),
+      path.join(process.resourcesPath, 'app.asar', ...parts),
+      path.join(process.resourcesPath, ...parts),
+    ]
     : [
-        path.join(app.getAppPath(), ...parts),
-        path.join(__dirname, '..', ...parts),
-      ]
+      path.join(app.getAppPath(), ...parts),
+      path.join(__dirname, '..', ...parts),
+    ]
 
   for (const p of candidates) {
     if (pathExists(p)) return p
@@ -53,14 +53,14 @@ function getBundledPath(...parts) {
 function findStandaloneServer() {
   const candidates = app.isPackaged
     ? [
-        path.join(process.resourcesPath, 'app.asar.unpacked', '.next', 'standalone', 'server.js'),
-        path.join(process.resourcesPath, 'app.asar', '.next', 'standalone', 'server.js'),
-        path.join(process.resourcesPath, '.next', 'standalone', 'server.js'),
-      ]
+      path.join(process.resourcesPath, 'app.asar.unpacked', '.next', 'standalone', 'server.js'),
+      path.join(process.resourcesPath, 'app.asar', '.next', 'standalone', 'server.js'),
+      path.join(process.resourcesPath, '.next', 'standalone', 'server.js'),
+    ]
     : [
-        path.join(app.getAppPath(), '.next', 'standalone', 'server.js'),
-        path.join(__dirname, '..', '.next', 'standalone', 'server.js'),
-      ]
+      path.join(app.getAppPath(), '.next', 'standalone', 'server.js'),
+      path.join(__dirname, '..', '.next', 'standalone', 'server.js'),
+    ]
 
   for (const p of candidates) {
     if (pathExists(p)) return p
@@ -250,18 +250,18 @@ ipcMain.handle('print-invoice', async (event, payload) => {
       win.webContents.print(
         isThermal
           ? {
-              silent: false,
-              printBackground: true,
-              deviceName: defaultPrinter.name,
-              margins: { marginType: 'none' },
-              usePrinterDefaultPageSize: true,
-            }
+            silent: false,
+            printBackground: true,
+            deviceName: defaultPrinter.name,
+            margins: { marginType: 'none' },
+            usePrinterDefaultPageSize: true,
+          }
           : {
-              silent: false,
-              printBackground: true,
-              pageSize: 'A4',
-              margins: { marginType: 'default' },
-            },
+            silent: false,
+            printBackground: true,
+            pageSize: 'A4',
+            margins: { marginType: 'default' },
+          },
         (success, failureReason) => {
           resolve({
             success,
@@ -302,32 +302,32 @@ ipcMain.handle('download-invoice-pdf', async (event, payload) => {
 
     const pdfOptions = isThermal
       ? {
-          printBackground: true,
-          landscape: false,
-          preferCSSPageSize: true,
-          pageSize: {
-            width: 3.15,
-            height: 14,
-          },
-          margins: {
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0,
-          },
-        }
+        printBackground: true,
+        landscape: false,
+        preferCSSPageSize: true,
+        pageSize: {
+          width: 3.15,
+          height: 14,
+        },
+        margins: {
+          top: 0,
+          bottom: 0,
+          left: 0,
+          right: 0,
+        },
+      }
       : {
-          printBackground: true,
-          landscape: false,
-          preferCSSPageSize: false,
-          pageSize: 'A4',
-          margins: {
-            top: 0.2,
-            bottom: 0.2,
-            left: 0.2,
-            right: 0.2,
-          },
-        }
+        printBackground: true,
+        landscape: false,
+        preferCSSPageSize: false,
+        pageSize: 'A4',
+        margins: {
+          top: 0.2,
+          bottom: 0.2,
+          left: 0.2,
+          right: 0.2,
+        },
+      }
 
     const pdfData = await win.webContents.printToPDF(pdfOptions)
     fs.writeFileSync(filePath, pdfData)
@@ -366,7 +366,7 @@ function ensureDatabaseExists() {
   if (!sourceDbPath) {
     throw new Error(
       'Bundled database not found. Expected database/ims.sqlite. ' +
-        'Please make sure database/ims.sqlite exists and is included in electron-builder extraResources.'
+      'Please make sure database/ims.sqlite exists and is included in electron-builder extraResources.'
     )
   }
 
@@ -421,7 +421,9 @@ async function startApp() {
         HOSTNAME: '127.0.0.1',
         NODE_ENV: 'production',
         SQLITE_DB_PATH: dbPath,
+        DATABASE_URL: dbPath,
         APP_USER_DATA_PATH: userDataPath,
+        JWT_SECRET: process.env.JWT_SECRET || '12345',
         DEFAULT_ADMIN_NAME: 'Admin',
         DEFAULT_ADMIN_EMAIL: 'admin@gmail.com',
         DEFAULT_ADMIN_PASSWORD: '123456',

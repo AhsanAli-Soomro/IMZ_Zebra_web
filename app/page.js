@@ -15,7 +15,7 @@ export default function HomePage() {
         if (!mounted) return
 
         if (result?.ok) {
-          router.replace('/dashboard')
+          router.replace('/login')
         } else {
           router.replace('/activate')
         }

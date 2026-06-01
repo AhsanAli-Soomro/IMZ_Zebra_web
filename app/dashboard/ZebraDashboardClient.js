@@ -27,7 +27,6 @@ import ProfitLossCalculator from '../components/Calculator'
 export default function ZebraDashboardClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
-
   const [selectedCustomerId, setSelectedCustomerId] = useState(null)
   const [active, setActive] = useState(null)
   const [isAuth, setIsAuth] = useState(false)
@@ -36,79 +35,25 @@ export default function ZebraDashboardClient() {
   const [userType, setUserType] = useState(null)
 
   useEffect(() => {
-    const checkUsersAndAuth = async () => {
-      try {
-        setLoading(true)
+    const rawUser = window.localStorage.getItem('user')
 
-        const res = await fetch('/api/users/count', {
-          cache: 'no-store',
-        })
-
-        const data = await res.json()
-        const usersCount = Number(data?.count || 0)
-
-        // Agar DB new hai aur ek bhi user nahi hai,
-        // dashboard direct allow kar do.
-        if (usersCount === 0) {
-          setIsAuth(true)
-          setUserType('Admin')
-          setLoading(false)
-          return
-        }
-
-        // Agar users available hain, phir login/auth required hai.
-        const rawUser = window.localStorage.getItem('user')
-
-        if (!rawUser) {
-          router.replace('/login')
-          return
-        }
-
-        try {
-          const user = JSON.parse(rawUser)
-
-          if (!user) {
-            window.localStorage.removeItem('user')
-            window.localStorage.removeItem('authToken')
-            router.replace('/login')
-            return
-          }
-
-          setIsAuth(true)
-          setUserType(user?.user_type || null)
-        } catch (err) {
-          console.error('Invalid stored user:', err)
-          window.localStorage.removeItem('user')
-          window.localStorage.removeItem('authToken')
-          router.replace('/login')
-        }
-      } catch (error) {
-        console.error('Failed to check users count:', error)
-
-        // Safety: agar users count API fail ho jaye,
-        // auth required rakhein.
-        const rawUser = window.localStorage.getItem('user')
-
-        if (!rawUser) {
-          router.replace('/login')
-          return
-        }
-
-        try {
-          const user = JSON.parse(rawUser)
-          setIsAuth(true)
-          setUserType(user?.user_type || null)
-        } catch {
-          window.localStorage.removeItem('user')
-          window.localStorage.removeItem('authToken')
-          router.replace('/login')
-        }
-      } finally {
-        setLoading(false)
-      }
+    if (!rawUser) {
+      router.replace('/login')
+      return
     }
 
-    checkUsersAndAuth()
+    try {
+      const user = JSON.parse(rawUser)
+      setIsAuth(true)
+      setUserType(user?.user_type || null)
+    } catch (err) {
+      console.error('Invalid stored user:', err)
+      window.localStorage.removeItem('user')
+      window.localStorage.removeItem('authToken')
+      router.replace('/login')
+    } finally {
+      setLoading(false)
+    }
   }, [router])
 
   useEffect(() => {
@@ -202,7 +147,6 @@ export default function ZebraDashboardClient() {
           </ActivationGate>
         </main>
       </div>
-
       <Footer />
     </div>
   )
