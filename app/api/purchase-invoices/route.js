@@ -1,5 +1,6 @@
 import db from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { ensureSupplierLedgerAccount, recalculateAccountBalances } from '@/lib/ledger.js'
 
 function toNumber(value) {
   const n = Number(value)
@@ -21,6 +22,7 @@ export async function GET() {
     const rows = await db.query(`
       SELECT *
       FROM purchase_invoices
+      WHERE deleted_at IS NULL OR deleted_at = ''
       ORDER BY id DESC
     `)
 
@@ -38,6 +40,7 @@ export async function POST(req) {
     const body = await req.json()
 
     const supplierName = clean(body.supplierName || body.supplier_name)
+    let supplierId = toNumber(body.supplierId || body.supplier_id)
     const brokerName = clean(body.brokerName || body.broker_name)
     const warehouseName = clean(body.warehouseName || body.warehouse_name)
     const invoiceType = clean(body.invoiceType || body.invoice_type, 'purchase')
@@ -57,7 +60,7 @@ export async function POST(req) {
       const weight = toNumber(item.weight)
       const weightUnit = clean(item.weightUnit || item.weight_unit, 'kg')
       const price = toNumber(item.price || item.cost_price || item.purchase_price)
-      const amount = toNumber(item.amount || (weight > 0 ? weight * price : qty * price))
+      const amount = qty * price
       const discount = toNumber(item.discount)
       const tax = toNumber(item.tax)
       const total = amount - discount + tax
@@ -84,6 +87,23 @@ export async function POST(req) {
     const itemsTax = safeItems.reduce((sum, item) => sum + item.tax, 0)
     const total = subtotal - itemsDiscount + itemsTax + transportExpense
 
+    if (!supplierId && supplierName) {
+      const supplierRows = await db.query(
+        `SELECT id FROM suppliers
+         WHERE LOWER(name) = LOWER(?)
+           AND (deleted_at IS NULL OR deleted_at = '')
+         LIMIT 1`,
+        [supplierName]
+      )
+
+      supplierId = toNumber(supplierRows[0]?.id)
+    }
+
+    let supplierAccount = null
+    if (supplierId) {
+      supplierAccount = await ensureSupplierLedgerAccount(supplierId)
+    }
+
     const purchaseNo = `PUR-${Date.now()}`
     const sqlite = db.getConnection()
 
@@ -92,6 +112,7 @@ export async function POST(req) {
         INSERT INTO purchase_invoices (
           invoice_no,
           purchase_no,
+          supplier_id,
           supplier_name,
           invoice_type,
           invoice_date,
@@ -103,6 +124,7 @@ export async function POST(req) {
           total,
           paid_amount,
           remaining_amount,
+          payment_type,
           payment_status,
           broker_name,
           warehouse_name,
@@ -110,16 +132,17 @@ export async function POST(req) {
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `)
 
-      const paidAmount = toNumber(body.paidAmount || body.paid_amount)
+      let paidAmount = toNumber(body.paidAmount || body.paid_amount)
       const paymentType = clean(body.paymentType || body.payment_type, 'credit')
 
       let paymentStatus = 'unpaid'
       let remainingAmount = total
 
       if (paymentType === 'cash') {
+        paidAmount = total
         paymentStatus = 'paid'
         remainingAmount = 0
       }
@@ -137,6 +160,7 @@ export async function POST(req) {
       const invoiceResult = invoiceInsert.run(
         purchaseNo,
         purchaseNo,
+        supplierId || null,
         supplierName,
         invoiceType,
         purchaseDate,
@@ -148,6 +172,7 @@ export async function POST(req) {
         total,
         paidAmount,
         remainingAmount,
+        paymentType,
         paymentStatus,
         brokerName,
         warehouseName,
@@ -209,11 +234,10 @@ export async function POST(req) {
         SET
           quantity = quantity + ?,
           qty = qty + ?,
-          purchase_price = ?,
-          supplier_name = ?,
           purchase_date = ?,
-          weight = ?,
-          weight_unit = ?,
+          supplier_name = '',
+          weight = 0,
+          weight_unit = 'kg',
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `)
@@ -242,11 +266,7 @@ export async function POST(req) {
           stockUpdate.run(
             item.qty,
             item.qty,
-            item.price,
-            supplierName,
             purchaseDate,
-            item.weight,
-            item.weightUnit,
             stockId
           )
         } else {
@@ -258,13 +278,13 @@ export async function POST(req) {
             '',
             item.qty,
             item.qty,
-            item.price,
-            item.price,
-            item.price,
-            supplierName,
+            0,
+            0,
+            0,
+            '',
             purchaseDate,
-            item.weight,
-            item.weightUnit
+            0,
+            'kg'
           )
 
           stockId = Number(stockResult.lastInsertRowid)
@@ -294,10 +314,90 @@ export async function POST(req) {
         )
       }
 
+      if (supplierAccount && total > 0) {
+        sqlite.prepare(`
+          INSERT INTO ledger_entries (
+            account_id,
+            entry_date,
+            entry_type,
+            reference_type,
+            reference_id,
+            debit,
+            credit,
+            balance_after,
+            description,
+            notes,
+            created_at,
+            updated_at
+          ) VALUES (?, ?, 'purchase_credit', 'purchase_invoice', ?, 0, ?, 0, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).run(
+          supplierAccount.id,
+          purchaseDate,
+          purchaseInvoiceId,
+          total,
+          `Purchase invoice ${purchaseNo}`,
+          notes
+        )
+
+        if (paidAmount > 0) {
+          sqlite.prepare(`
+            INSERT INTO ledger_entries (
+              account_id,
+              entry_date,
+              entry_type,
+              reference_type,
+              reference_id,
+              debit,
+              credit,
+              balance_after,
+              description,
+              notes,
+              created_at,
+              updated_at
+            ) VALUES (?, ?, 'supplier_payment', 'purchase_invoice', ?, ?, 0, 0, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `).run(
+            supplierAccount.id,
+            purchaseDate,
+            purchaseInvoiceId,
+            paidAmount,
+            `Payment paid against purchase ${purchaseNo}`,
+            notes
+          )
+
+          sqlite.prepare(`
+            INSERT INTO cash_transactions (
+              tx_date,
+              tx_type,
+              category,
+              reference_type,
+              reference_id,
+              amount,
+              payment_method,
+              source_of_payment,
+              description,
+              notes,
+              created_at,
+              updated_at
+            ) VALUES (?, 'out', 'purchase_payment', 'purchase_invoice', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `).run(
+            purchaseDate,
+            purchaseInvoiceId,
+            paidAmount,
+            paymentType === 'partial' ? 'cash' : paymentType,
+            'Business',
+            `Purchase payment paid ${purchaseNo}`,
+            notes
+          )
+        }
+
+        recalculateAccountBalances(sqlite, supplierAccount.id, 'credit-debit')
+      }
+
       return {
         id: purchaseInvoiceId,
         purchase_no: purchaseNo,
         invoice_no: purchaseNo,
+        supplier_id: supplierId || null,
         total,
       }
     })()

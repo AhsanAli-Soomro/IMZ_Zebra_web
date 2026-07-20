@@ -217,12 +217,7 @@ export default function BillingPage({ selectedCustomerId = null }) {
 
   function addItemRow(stock = null) {
     if (stock) {
-      const autoPrice =
-        Number(stock?.sale_price || 0) > 0
-          ? Number(stock.sale_price)
-          : Number(stock?.selling_price || 0) > 0
-            ? Number(stock.selling_price)
-            : 0
+      const autoPrice = 0
 
       const weight = Number(stock.weight || 0)
       const weightUnit = stock.weight_unit || 'kg'
@@ -247,7 +242,7 @@ export default function BillingPage({ selectedCustomerId = null }) {
         weight,
         weight_unit: weightUnit,
         price: autoPrice,
-        amount: weight > 0 ? weight * autoPrice : autoPrice,
+        amount: lineAmount({ qty: 1, price: autoPrice }),
         discount: 0,
         tax: 0,
       }
@@ -269,12 +264,7 @@ export default function BillingPage({ selectedCustomerId = null }) {
   function handleStockSelect(rowId, stockId) {
     const stock = stocks.find((s) => String(s.id) === String(stockId))
 
-    const autoPrice =
-      Number(stock?.sale_price || 0) > 0
-        ? Number(stock.sale_price)
-        : Number(stock?.selling_price || 0) > 0
-          ? Number(stock.selling_price)
-          : 0
+    const autoPrice = 0
 
     const weight = Number(stock?.weight || 0)
     const weightUnit = stock?.weight_unit || 'kg'
@@ -289,7 +279,7 @@ export default function BillingPage({ selectedCustomerId = null }) {
               price: autoPrice,
               weight,
               weight_unit: weightUnit,
-              amount: weight > 0 ? weight * autoPrice : Number(item.qty || 1) * autoPrice,
+              amount: lineAmount({ ...item, price: autoPrice }),
             }
           : item
       )
@@ -920,11 +910,6 @@ export default function BillingPage({ selectedCustomerId = null }) {
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5">
               {filteredStocks.map((stock) => {
-                const displayPrice =
-                  Number(stock?.sale_price || 0) > 0
-                    ? Number(stock.sale_price)
-                    : Number(stock?.selling_price || 0)
-
                 return (
                   <div
                     key={stock.id}
@@ -956,11 +941,7 @@ export default function BillingPage({ selectedCustomerId = null }) {
                     </p>
 
                     <p className="text-sm font-semibold text-indigo-600 mt-1">
-                      Rs {money(displayPrice)}
-                    </p>
-
-                    <p className="text-xs text-gray-500">
-                      Weight: {money(stock.weight || 0)} {stock.weight_unit || 'kg'}
+                      Stock: {money(stock.quantity || 0)}
                     </p>
                   </div>
                 )

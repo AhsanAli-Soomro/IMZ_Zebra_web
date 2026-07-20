@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
+import Select from "react-select";
 import InvoicePreviewModal from './InvoicePreviewModal'
 
 function today() {
@@ -14,10 +15,9 @@ function money(value) {
 
 function lineAmount(item) {
   const qty = Number(item.qty || 0)
-  const weight = Number(item.weight || 0)
   const price = Number(item.price || 0)
 
-  return (weight > 0 ? weight : qty) * price
+  return qty * price
 }
 
 export default function PurchaseInvoice() {
@@ -30,6 +30,7 @@ export default function PurchaseInvoice() {
   const [company, setCompany] = useState(null)
 
   const [form, setForm] = useState({
+    supplierId: '',
     supplierName: '',
     brokerName: '',
     warehouseName: '',
@@ -91,35 +92,35 @@ export default function PurchaseInvoice() {
     loadSuppliers()
   }, [])
 
-async function openInvoiceModal(invoiceId) {
-  try {
-    setInvoiceModalOpen(true)
-    setInvoiceLoading(true)
-    setInvoiceDetail(null)
+  async function openInvoiceModal(invoiceId) {
+    try {
+      setInvoiceModalOpen(true)
+      setInvoiceLoading(true)
+      setInvoiceDetail(null)
 
-    const res = await fetch(`/api/purchase-invoices/${invoiceId}`, {
-      cache: 'no-store',
-    })
+      const res = await fetch(`/api/purchase-invoices/${invoiceId}`, {
+        cache: 'no-store',
+      })
 
-    const data = await res.json()
+      const data = await res.json()
 
-    if (!res.ok || !data.success) {
-      throw new Error(data.message || 'Failed to load purchase invoice')
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to load purchase invoice')
+      }
+
+      setInvoiceDetail(data.data)
+    } catch (error) {
+      setMessage(error.message || 'Failed to load purchase invoice')
+      setInvoiceModalOpen(false)
+    } finally {
+      setInvoiceLoading(false)
     }
-
-    setInvoiceDetail(data.data)
-  } catch (error) {
-    setMessage(error.message || 'Failed to load purchase invoice')
-    setInvoiceModalOpen(false)
-  } finally {
-    setInvoiceLoading(false)
   }
-}
 
-function closeInvoiceModal() {
-  setInvoiceModalOpen(false)
-  setInvoiceDetail(null)
-}
+  function closeInvoiceModal() {
+    setInvoiceModalOpen(false)
+    setInvoiceDetail(null)
+  }
 
   function updateItem(index, key, value) {
     setItems((prev) =>
@@ -128,7 +129,7 @@ function closeInvoiceModal() {
 
         const updated = { ...item, [key]: value }
 
-        if (key === 'qty' || key === 'weight' || key === 'price') {
+        if (key === 'qty' || key === 'price') {
           updated.amount = lineAmount(updated)
         }
 
@@ -150,6 +151,7 @@ function closeInvoiceModal() {
 
   function resetForm() {
     setForm({
+      supplierId: '',
       supplierName: '',
       brokerName: '',
       warehouseName: '',
@@ -181,6 +183,7 @@ function closeInvoiceModal() {
       }
 
       const payload = {
+        supplierId: form.supplierId ? Number(form.supplierId) : null,
         supplierName: form.supplierName,
         brokerName: form.brokerName,
         warehouseName: form.warehouseName,
@@ -203,7 +206,7 @@ function closeInvoiceModal() {
           const qty = Number(item.qty || 0)
           const weight = Number(item.weight || 0)
           const price = Number(item.price || 0)
-          const amount = weight > 0 ? weight * price : qty * price
+          const amount = lineAmount(item)
 
           return {
             itemName: item.itemName,
@@ -266,19 +269,72 @@ function closeInvoiceModal() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Supplier</label>
-              <select
-                value={form.supplierName}
-                onChange={(e) => setForm({ ...form, supplierName: e.target.value })}
-                className="border rounded-md px-3 py-2 w-full"
-                required
-              >
-                <option value="">Select Supplier</option>
-                {suppliers.map((sup) => (
-                  <option key={sup.id} value={sup.name}>
-                    {sup.name} {sup.company_name ? `(${sup.company_name})` : ''}
-                  </option>
-                ))}
-              </select>
+
+              <Select
+                options={suppliers.map((sup) => ({
+                  value: sup.id,
+                  label: `${sup.name}${sup.company_name ? ` (${sup.company_name})` : ""
+                    }`,
+                  searchText: `
+                  ${sup.name || ""}
+                  ${sup.company_name || ""}
+                  ${sup.first_name || ""}
+                  ${sup.middle_name || ""}
+                  ${sup.last_name || ""}
+                `.toLowerCase(),
+                }))}
+                value={
+                  form.supplierId
+                    ? suppliers
+                      .map((sup) => ({
+                        value: sup.id,
+                        label: `${sup.name}${sup.company_name ? ` (${sup.company_name})` : ""
+                          }`,
+                      }))
+                      .find((option) => String(option.value) === String(form.supplierId))
+                    : null
+                }
+                onChange={(selected) =>
+                  {
+                    const supplier = suppliers.find(
+                      (item) => String(item.id) === String(selected?.value)
+                    )
+
+                    setForm({
+                      ...form,
+                      supplierId: selected?.value ? String(selected.value) : '',
+                      supplierName: supplier?.name || '',
+                    })
+                  }
+                }
+                isSearchable
+                placeholder="Search Supplier..."
+                // className="border rounded-md px-3 py-2 w-full"
+                styles={{
+                  control: (provided) => ({
+                    ...provided,
+                    border: '1px solid black',
+                    borderRadius: '8px',
+                    padding: '2px',
+                    width: '100%',
+                  }),
+                  input: (provided) => ({
+                    ...provided,
+                    border: 'none',
+                    outline: 'none',
+                    padding: '0',
+                  }),
+                  option: (provided, state) => ({
+                    ...provided,
+                    backgroundColor: state.isSelected ? '#007BFF' : 'transparent',
+                    color: state.isSelected ? '#fff' : '#333',
+                    padding: '8px',
+                  })
+                }}
+                filterOption={(option, inputValue) =>
+                  option.data.searchText.includes(inputValue.toLowerCase())
+                }
+              />
             </div>
 
             <div>
@@ -306,7 +362,7 @@ function closeInvoiceModal() {
               <select
                 value={form.invoiceType}
                 onChange={(e) => setForm({ ...form, invoiceType: e.target.value })}
-                className="border rounded-md px-3 py-2 w-full"
+                className="border rounded-md px-3 py-2 h-11 w-full"
               >
                 <option value="purchase">Purchase</option>
                 <option value="sale">Sale</option>
@@ -341,24 +397,24 @@ function closeInvoiceModal() {
               </select>
             </div>
             {form.paymentType === 'partial' && (
-            <div>
-              <label className="block text-sm mb-1">
-                Paid Amount
-              </label>
+              <div>
+                <label className="block text-sm mb-1">
+                  Paid Amount
+                </label>
 
-              <input
-                type="number"
-                value={form.paidAmount}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    paidAmount: e.target.value,
-                  })
-                }
-                className="border rounded px-3 py-2 w-full"
-              />
-            </div>
-          )}
+                <input
+                  type="number"
+                  value={form.paidAmount}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      paidAmount: e.target.value,
+                    })
+                  }
+                  className="border rounded px-3 py-2 w-full"
+                />
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium mb-1">Transport Expense</label>
               <input
@@ -545,16 +601,16 @@ function closeInvoiceModal() {
         </div>
       </form>
       {invoiceModalOpen && (
-  <InvoicePreviewModal
-    open={invoiceModalOpen}
-    onClose={closeInvoiceModal}
-    invoice={invoiceLoading ? null : invoiceDetail}
-    company={company}
-    title={invoiceDetail?.purchase_no || 'Purchase Invoice'}
-    message={message}
-    setMessage={setMessage}
-  />
-)}
+        <InvoicePreviewModal
+          open={invoiceModalOpen}
+          onClose={closeInvoiceModal}
+          invoice={invoiceLoading ? null : invoiceDetail}
+          company={company}
+          title={invoiceDetail?.purchase_no || 'Purchase Invoice'}
+          message={message}
+          setMessage={setMessage}
+        />
+      )}
     </div>
   )
 }

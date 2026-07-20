@@ -22,7 +22,7 @@ export async function GET(_req, context) {
       `
       SELECT *
       FROM purchase_invoices
-      WHERE id = ?
+      WHERE id = ? AND (deleted_at IS NULL OR deleted_at = '')
       LIMIT 1
       `,
       [id]
@@ -57,6 +57,9 @@ export async function GET(_req, context) {
         ...invoice,
         invoice_no: invoice.purchase_no || invoice.invoice_no,
         purchase_no: invoice.purchase_no || invoice.invoice_no,
+        supplier_id: invoice.supplier_id || null,
+        supplier_name: invoice.supplier_name || 'Supplier',
+        invoice_type: 'purchase',
         invoice_date: invoice.invoice_date,
         purchase_date: invoice.invoice_date,
         customer_name: invoice.supplier_name || 'Supplier',

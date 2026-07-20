@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+body {
+  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+}
+
 @media print {
   body * {
     visibility: hidden !important;

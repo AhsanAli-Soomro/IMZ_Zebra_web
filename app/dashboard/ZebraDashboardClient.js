@@ -16,18 +16,23 @@ import DashboardPage from '../components/Dashboard'
 import NotFound from '../components/404'
 import DataImportExport from '../db/page'
 import CustomerKhata from '../components/CustomerKhata'
+import SupplierKhata from '../components/SupplierKhata'
 import InvoiceCreate from '../components/InvoiceCreate'
 import ActivationGate from '../components/ActivationGate'
 import PurchaseInvoice from '../components/PurchaseInvoice'
 import CashInformation from '../components/CashInformation'
+import CounterClosing from '../components/CounterClosing'
 import ReportsDashboard from '../components/ReportsDashboard'
 import Footer from '../components/Footer'
 import ProfitLossCalculator from '../components/Calculator'
+import ExpensesPage from '../components/Expenses'
+import BankManagement from '../components/BankManagement'
 
 export default function ZebraDashboardClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [selectedCustomerId, setSelectedCustomerId] = useState(null)
+  const [selectedSupplierId, setSelectedSupplierId] = useState(null)
   const [active, setActive] = useState(null)
   const [isAuth, setIsAuth] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -100,7 +105,14 @@ export default function ZebraDashboardClient() {
       case 'purchase invoice':
         return <PurchaseInvoice />
       case 'suppliers':
-        return <Suppliers />
+        return (
+          <Suppliers
+            setActive={setActive}
+            setSelectedSupplierId={setSelectedSupplierId}
+          />
+        )
+      case 'supplier khata':
+        return <SupplierKhata supplierId={selectedSupplierId} />
       case 'categories':
         return <Categories />
       case 'employees':
@@ -109,6 +121,10 @@ export default function ZebraDashboardClient() {
         return <History />
       case 'cash information':
         return <CashInformation />
+      case 'galla closing':
+        return <CounterClosing />
+      case 'bank management':
+        return <BankManagement />
       case 'report and analytics':
         return <ReportsDashboard />
       case 'import export data':
@@ -117,6 +133,8 @@ export default function ZebraDashboardClient() {
         return <CompanyProfilePage />
       case 'calculator':
         return <ProfitLossCalculator />
+      case 'expenses':
+        return <ExpensesPage />
       default:
         return <DashboardPage />
     }

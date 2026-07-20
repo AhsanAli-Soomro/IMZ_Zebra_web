@@ -109,6 +109,42 @@ CREATE TABLE IF NOT EXISTS stocks (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS bank_accounts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_name TEXT NOT NULL,
+  bank_name TEXT,
+  account_number TEXT,
+  opening_balance REAL DEFAULT 0,
+  current_balance REAL DEFAULT 0,
+  status TEXT DEFAULT 'Active',
+  notes TEXT,
+  deleted_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS bank_transactions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id INTEGER NOT NULL,
+  to_account_id INTEGER,
+  tx_date TEXT NOT NULL,
+  tx_type TEXT NOT NULL CHECK (tx_type IN ('deposit', 'withdrawal', 'transfer_in', 'transfer_out')),
+  amount REAL DEFAULT 0,
+  balance_after REAL DEFAULT 0,
+  reference_type TEXT,
+  reference_id INTEGER,
+  description TEXT,
+  notes TEXT,
+  created_by INTEGER,
+  deleted_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (account_id) REFERENCES bank_accounts(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_bank_transactions_account_id ON bank_transactions(account_id);
+CREATE INDEX IF NOT EXISTS idx_bank_transactions_tx_date ON bank_transactions(tx_date);
+
 CREATE TABLE IF NOT EXISTS suppliers (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -145,7 +181,9 @@ CREATE TABLE IF NOT EXISTS sales_invoice_items (
   sku TEXT,
   unit TEXT,
   qty REAL DEFAULT 0,
+  weight REAL DEFAULT 0,
   price REAL DEFAULT 0,
+  amount REAL DEFAULT 0,
   discount REAL DEFAULT 0,
   tax REAL DEFAULT 0,
   total REAL DEFAULT 0,
@@ -199,15 +237,32 @@ CREATE TABLE IF NOT EXISTS cash_transactions (
   reference_id INTEGER,
   amount REAL DEFAULT 0,
   payment_method TEXT,
+  source_of_payment TEXT,
   description TEXT,
   notes TEXT,
   created_by INTEGER,
+  deleted_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_cash_transactions_tx_date ON cash_transactions(tx_date);
 CREATE INDEX IF NOT EXISTS idx_cash_transactions_reference ON cash_transactions(reference_type, reference_id);
+
+CREATE TABLE IF NOT EXISTS counter_closings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  closing_date TEXT NOT NULL UNIQUE,
+  physical_amount REAL NOT NULL DEFAULT 0 CHECK (physical_amount >= 0),
+  expected_amount REAL NOT NULL DEFAULT 0,
+  variance REAL NOT NULL DEFAULT 0,
+  notes TEXT,
+  created_by INTEGER,
+  updated_by INTEGER,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_counter_closings_date ON counter_closings(closing_date);
 
 CREATE TABLE IF NOT EXISTS stock_movements (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -261,18 +316,27 @@ CREATE TABLE IF NOT EXISTS expenses (
 CREATE TABLE IF NOT EXISTS purchase_invoices (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   invoice_no TEXT,
+  purchase_no TEXT,
   supplier_id INTEGER,
+  supplier_name TEXT,
+  invoice_type TEXT,
   invoice_date TEXT,
+  purchase_date TEXT,
   subtotal REAL DEFAULT 0,
   discount REAL DEFAULT 0,
   tax REAL DEFAULT 0,
   shipping REAL DEFAULT 0,
+  transport_expense REAL DEFAULT 0,
   total REAL DEFAULT 0,
   paid_amount REAL DEFAULT 0,
   remaining_amount REAL DEFAULT 0,
+  payment_type TEXT,
   payment_status TEXT,
+  broker_name TEXT,
+  warehouse_name TEXT,
   notes TEXT,
   created_by INTEGER,
+  deleted_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -282,8 +346,12 @@ CREATE TABLE IF NOT EXISTS purchase_invoice_items (
   purchase_invoice_id INTEGER NOT NULL,
   stock_id INTEGER,
   product_name TEXT,
+  item_name TEXT,
   qty REAL DEFAULT 0,
+  weight REAL DEFAULT 0,
+  weight_unit TEXT DEFAULT 'kg',
   price REAL DEFAULT 0,
+  amount REAL DEFAULT 0,
   discount REAL DEFAULT 0,
   tax REAL DEFAULT 0,
   total REAL DEFAULT 0,

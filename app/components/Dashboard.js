@@ -42,30 +42,30 @@ export default function DashboardPage() {
     }, [])
 
     const cards = [
-        { label: 'Invoices', value: total.total_invoices, color: 'from-blue-400 to-blue-600', icon: '📄' },
-        { label: 'Revenue', value: total.total_revenue, color: 'from-green-400 to-green-600', icon: '💰' },
-        { label: 'Profit', value: total.total_profit, color: 'from-yellow-400 to-yellow-500', icon: '📈' },
-        { label: 'Products Sold', value: total.total_products_sold, color: 'from-pink-400 to-pink-600', icon: '🛒' },
-        { label: 'Stock Amount', value: total.total_stock_amount, color: 'from-purple-400 to-purple-600', icon: '📦' },
+        { label: 'Sales Amount', value: total.total_revenue, color: 'from-green-500 to-green-700' },
+        { label: 'Purchase Amount', value: total.total_purchase_amount, color: 'from-red-500 to-red-700' },
+        { label: 'Net Profit', value: total.net_profit, color: 'from-blue-500 to-blue-700' },
+        { label: 'Available Stock', value: total.available_stock, color: 'from-indigo-500 to-indigo-700' },
+        { label: 'Low Stock Alerts', value: total.low_stock_count, color: 'from-orange-500 to-orange-700' },
+        { label: 'Bank Balance', value: total.bank_balance, color: 'from-cyan-500 to-cyan-700' },
+        { label: 'Transport Expense', value: total.total_transport_expenses, color: 'from-gray-500 to-gray-700' },
+        { label: 'Products Sold', value: total.total_products_sold, color: 'from-pink-500 to-pink-700' },
     ]
 
     return (
         <div className="p-6 bg-gray-100 min-h-screen space-y-10">
-            <h1 className="text-3xl font-bold text-gray-800">📊 Sales Dashboard</h1>
+            <h1 className="text-3xl font-bold text-gray-800">Inventory Dashboard</h1>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-                {cards.map(({ label, value, color, icon }, idx) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                {cards.map(({ label, value, color }, idx) => (
                     <div
                         key={idx}
-                        className={`bg-gradient-to-br ${color} text-white rounded-xl p-5 shadow-md flex items-center gap-4`}
+                        className={`bg-gradient-to-br ${color} text-white rounded-xl p-5 shadow-md`}
                     >
-                        <div className="text-4xl">{icon}</div>
-                        <div>
-                            <div className="text-sm uppercase tracking-widest">{label}</div>
-                            <div className="text-2xl font-bold">
-                                {value != null ? Number(value).toLocaleString() : '...'}
-                            </div>
+                        <div className="text-sm uppercase tracking-widest">{label}</div>
+                        <div className="text-2xl font-bold mt-2">
+                            {value != null ? Number(value).toLocaleString() : '...'}
                         </div>
                     </div>
                 ))}

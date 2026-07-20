@@ -8,6 +8,8 @@ const reports = [
     { key: 'yearlySales', label: 'Yearly Sales' },
     { key: 'purchaseReports', label: 'Purchase Reports' },
     { key: 'itemProfit', label: 'Per Item Profit/Loss' },
+    { key: 'stockMovements', label: 'Stock Movement History' },
+    { key: 'recentTransactions', label: 'Recent Transactions' },
 ]
 
 function money(value) {
@@ -92,10 +94,16 @@ export default function ReportsDashboard() {
     }, [rawRows, activeReport, itemProfitTab])
     const profit = data?.profitSummary || {}
 
+    const stockSummary = data?.stockSummary || {}
+    const bankSummary = data?.bankSummary || {}
+
     const totalSummary = {
         totalSales: profit.total_sales || 0,
         totalPurchases: profit.total_purchases || 0,
-        difference: Number(profit.total_sales || 0) - Number(profit.total_purchases || 0),
+        transport: profit.total_transport_expenses || 0,
+        grossProfit: profit.gross_profit || 0,
+        netProfit: profit.net_profit || 0,
+        loss: profit.loss || 0,
     }
 
     const soldSummary = {
@@ -121,17 +129,32 @@ export default function ReportsDashboard() {
                 },
                 {
                     title: 'Sales - Purchases',
-                    subtitle: 'Business cash/inventory difference',
-                    value: totalSummary.difference,
+                    subtitle: 'Gross profit from sold items',
+                    value: totalSummary.grossProfit,
                     className:
-                        totalSummary.difference >= 0
+                        totalSummary.grossProfit >= 0
                             ? 'bg-blue-50 text-blue-800 border-blue-200'
                             : 'bg-orange-50 text-orange-800 border-orange-200',
                 },
                 {
-                    title: 'Rows',
-                    subtitle: 'Current report rows',
-                    value: rows.length,
+                    title: 'Net Profit',
+                    subtitle: 'Gross profit - transport',
+                    value: totalSummary.netProfit,
+                    className:
+                        totalSummary.netProfit >= 0
+                            ? 'bg-cyan-50 text-cyan-800 border-cyan-200'
+                            : 'bg-red-50 text-red-800 border-red-200',
+                },
+                {
+                    title: 'Bank Balance',
+                    subtitle: `${bankSummary.account_count || 0} bank accounts`,
+                    value: bankSummary.bank_balance || 0,
+                    className: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+                },
+                {
+                    title: 'Available Stock',
+                    subtitle: `${stockSummary.low_stock_count || 0} low stock alerts`,
+                    value: stockSummary.available_stock || 0,
                     className: 'bg-gray-50 text-gray-800 border-gray-200',
                     isCount: true,
                 },
@@ -161,11 +184,10 @@ export default function ReportsDashboard() {
                         : 'bg-red-50 text-red-800 border-red-200',
             },
             {
-                title: 'Rows',
-                subtitle: 'Current report rows',
-                value: rows.length,
+                title: 'Transport Expense',
+                subtitle: 'Purchase + sales transport',
+                value: totalSummary.transport,
                 className: 'bg-gray-50 text-gray-800 border-gray-200',
-                isCount: true,
             },
         ]
     }, [profitView, data, rows])
@@ -207,7 +229,7 @@ export default function ReportsDashboard() {
                 </div>
             </div>
 
-            <div className="grid md:grid-cols-4 gap-4">
+            <div className="grid md:grid-cols-5 gap-4">
                 {currentSummary.map((card) => (
                     <div key={card.title} className={`rounded-xl border p-4 ${card.className}`}>
                         <p className="text-sm font-semibold">{card.title}</p>

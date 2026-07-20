@@ -33,7 +33,10 @@ export default function Sidebar({ active, setActive, isOpen }) {
     ...(userType === 'Employee' ? [] : ['Employees']),
     'Billing History',
     'Cash Information',
+    'Galla Closing',
+    'Bank Management',
     'Report and Analytics',
+    'Expenses',
     'Calculator',
     // 'Import Export Data',
     // 'Settings',
@@ -41,18 +44,17 @@ export default function Sidebar({ active, setActive, isOpen }) {
 
   return (
     <aside
-      className={`bg-gray-900 text-white w-64 p-4 pb-10 flex-col overflow-hidden ${isOpen ? 'flex' : 'hidden md:flex'
+      className={`bg-gray-900 text-white w-64 p-4 pb-6 flex flex-col h-full overflow-hidden ${isOpen ? 'flex' : 'hidden md:flex'
         }`}
-      style={{ height: 'calc(100dvh - 64px)' }}
+      style={{ height: 'calc(100dvh - 130px)' }}
     >
       <h2 className="text-xl font-bold mb-6 shrink-0">Menu</h2>
-
-      <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-2">
+      <div className="flex-1 overflow-y-auto max-h-full h-0 pr-1 space-y-2 custom-scrollbar">
         {menuItems.map((item) => (
           <button
             key={item}
             onClick={() => setActive(item)}
-            className={`block w-full text-left px-3 py-2 rounded ${active === item ? 'bg-indigo-600' : 'hover:bg-gray-800'
+            className={`block w-full text-left px-3 py-2 rounded shrink-0 ${active === item ? 'bg-indigo-600' : 'hover:bg-gray-800'
               }`}
           >
             {item}

@@ -2,7 +2,12 @@ import db from '@/lib/db'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
-  const data = await db.query('SELECT * FROM suppliers ORDER BY created_at DESC')
+  const data = await db.query(`
+    SELECT *
+    FROM suppliers
+    WHERE deleted_at IS NULL OR deleted_at = ''
+    ORDER BY created_at DESC
+  `)
   return NextResponse.json({ success: true, data })
 }
 
@@ -35,6 +40,11 @@ export async function PUT(req) {
 
 export async function DELETE(req) {
   const { id } = await req.json()
-  await db.query('DELETE FROM suppliers WHERE id = ?', [id])
+  await db.query(
+    `UPDATE suppliers
+     SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [id]
+  )
   return NextResponse.json({ success: true, message: 'Supplier deleted' })
 }

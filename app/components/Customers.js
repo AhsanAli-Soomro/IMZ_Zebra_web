@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 
 export default function Customers({ setActive, setSelectedCustomerId }) {
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(false)
+  const [search, setSearch] = useState('')
   const [form, setForm] = useState({
     id: null,
     name: '',
@@ -30,6 +31,30 @@ export default function Customers({ setActive, setSelectedCustomerId }) {
   useEffect(() => {
     fetchCustomers()
   }, [])
+
+  const filteredCustomers = useMemo(() => {
+    const keyword = search.trim().toLowerCase()
+
+    if (!keyword) return customers
+
+    return customers.filter((cus) =>
+      [cus.name, cus.email, cus.phone, cus.address, cus.status]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(keyword))
+    )
+  }, [customers, search])
+
+  const stats = useMemo(() => {
+    const active = customers.filter((customer) =>
+      String(customer.status || '').toLowerCase() === 'active'
+    ).length
+
+    return {
+      total: customers.length,
+      active,
+      inactive: customers.length - active,
+    }
+  }, [customers])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -92,13 +117,39 @@ export default function Customers({ setActive, setSelectedCustomerId }) {
   }
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-lg">
+    <div className="space-y-5">
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Customer Management</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Add customers, open khata, and create invoices from one place.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 min-w-full lg:min-w-[360px]">
+            <div className="border rounded-lg p-3 bg-gray-50">
+              <p className="text-xs text-gray-500">Total</p>
+              <p className="text-xl font-bold text-gray-900">{stats.total}</p>
+            </div>
+            <div className="border rounded-lg p-3 bg-green-50">
+              <p className="text-xs text-gray-500">Active</p>
+              <p className="text-xl font-bold text-green-700">{stats.active}</p>
+            </div>
+            <div className="border rounded-lg p-3 bg-red-50">
+              <p className="text-xs text-gray-500">Inactive</p>
+              <p className="text-xl font-bold text-red-700">{stats.inactive}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-5 bg-white border border-gray-200 rounded-lg shadow-sm">
       <div className="flex items-center justify-between mb-6 gap-4">
         <div>
-          <h1 className="text-xl font-bold text-indigo-700">👥 Customer Management</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Add, update, manage customers, open khata, and create invoices.
-          </p>
+          <h2 className="text-lg font-semibold text-gray-900">
+            {form.id ? 'Update Customer' : 'Add Customer'}
+          </h2>
         </div>
       </div>
 
@@ -166,7 +217,25 @@ export default function Customers({ setActive, setSelectedCustomerId }) {
           </button>
         </div>
       </form>
+      </div>
 
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Customer List</h2>
+          <p className="text-sm text-gray-500">
+            Showing {filteredCustomers.length} of {customers.length} customers
+          </p>
+        </div>
+
+        <input
+          type="search"
+          value={search}
+          placeholder="Search customers..."
+          className="border border-gray-300 p-2 rounded-md w-full md:max-w-sm"
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm rounded overflow-hidden">
           <thead className="bg-indigo-600 text-white">
@@ -186,14 +255,14 @@ export default function Customers({ setActive, setSelectedCustomerId }) {
                   Loading customers...
                 </td>
               </tr>
-            ) : customers.length === 0 ? (
+            ) : filteredCustomers.length === 0 ? (
               <tr>
                 <td colSpan="6" className="px-4 py-6 text-center text-gray-500">
                   No customers found.
                 </td>
               </tr>
             ) : (
-              customers.map((cus, idx) => (
+              filteredCustomers.map((cus, idx) => (
                 <tr
                   key={cus.id || idx}
                   className={`transition duration-200 ${
@@ -209,7 +278,13 @@ export default function Customers({ setActive, setSelectedCustomerId }) {
                       cus.status === 'Active' ? 'text-green-600' : 'text-red-600'
                     }`}
                   >
-                    {cus.status}
+                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                      String(cus.status || '').toLowerCase() === 'active'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-red-100 text-red-700'
+                    }`}>
+                      {cus.status || '-'}
+                    </span>
                   </td>
                   <td className="px-4 py-2">
                     <div className="flex flex-wrap gap-3">
@@ -247,6 +322,7 @@ export default function Customers({ setActive, setSelectedCustomerId }) {
             )}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   )

@@ -27,6 +27,7 @@
     "appId": "com.habibrice.corporation",
     "productName": "Habib Rice Corporation",
     "artifactName": "Habib-Rice-Corporation-Setup.${ext}",
+    "afterPack": "scripts/after-pack.js",
     "directories": {
       "output": "dist"
     },
@@ -106,6 +107,7 @@
     "react": "^19.0.0",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^19.0.0",
+    "react-select": "^5.10.2",
     "react-toastify": "^11.0.5"
   },
   "devDependencies": {

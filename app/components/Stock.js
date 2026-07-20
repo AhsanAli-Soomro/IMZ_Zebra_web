@@ -29,6 +29,8 @@ export default function Stocks() {
   const [searchCategory, setSearchCategory] = useState('')
   const [searchSupplier, setSearchSupplier] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [saving, setSaving] = useState(false)
+  const [notice, setNotice] = useState({ type: '', text: '' })
 
   const itemsPerPage = 10
 
@@ -97,24 +99,45 @@ export default function Stocks() {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    const formData = new FormData()
+    setSaving(true)
+    setNotice({ type: '', text: '' })
 
-    for (const key in form) {
-      formData.append(key, form[key])
+    try {
+      const formData = new FormData()
+
+      for (const key in form) {
+        formData.append(key, form[key])
+      }
+
+      if (imageFile) {
+        formData.append('image', imageFile)
+      }
+
+      const response = form.id
+        ? await axios.put('/api/stocks', formData)
+        : await axios.post('/api/stocks', formData)
+
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'Product save nahi ho saka')
+      }
+
+      resetForm()
+      await fetchStocks()
+      setNotice({
+        type: 'success',
+        text: form.id ? 'Product successfully update ho gaya.' : 'Product successfully add ho gaya.',
+      })
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        text:
+          error.response?.data?.message ||
+          error.message ||
+          'Product save nahi ho saka. Dobara try karein.',
+      })
+    } finally {
+      setSaving(false)
     }
-
-    if (imageFile) {
-      formData.append('image', imageFile)
-    }
-
-    if (form.id) {
-      await axios.put('/api/stocks', formData)
-    } else {
-      await axios.post('/api/stocks', formData)
-    }
-
-    resetForm()
-    fetchStocks()
   }
 
   const formatDate = (dateString) => {
@@ -165,6 +188,17 @@ export default function Stocks() {
         encType="multipart/form-data"
         className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-6 rounded-lg shadow mb-4"
       >
+        {notice.text ? (
+          <div
+            className={`md:col-span-4 rounded-md px-4 py-3 text-sm ${
+              notice.type === 'error'
+                ? 'bg-red-50 text-red-700 border border-red-200'
+                : 'bg-green-50 text-green-700 border border-green-200'
+            }`}
+          >
+            {notice.text}
+          </div>
+        ) : null}
         <input type="hidden" name="existing_image" value={form.existing_image} />
 
         <div>
@@ -260,7 +294,6 @@ export default function Stocks() {
             type="number"
             value={form.selling_price}
             onChange={(e) => setForm({ ...form, selling_price: e.target.value })}
-            required
             className="border border-gray-300 p-2 rounded-md w-full"
           />
         </div>
@@ -326,9 +359,10 @@ export default function Stocks() {
         <div className="col-span-1 md:col-span-2 lg:col-span-1 flex items-end">
           <button
             type="submit"
-            className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-md shadow"
+            disabled={saving}
+            className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2 rounded-md shadow"
           >
-            {form.id ? 'Update Stock' : 'Add Stock'}
+            {saving ? 'Saving...' : form.id ? 'Update Stock' : 'Add Stock'}
           </button>
         </div>
       </form>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import InvoicePreviewModal from './InvoicePreviewModal'
+import Select from "react-select";
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -188,12 +189,7 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
   function handleStockSelect(index, stockId) {
     const stock = stocks.find((s) => String(s.id) === String(stockId))
 
-    const autoPrice =
-      Number(stock?.sale_price || 0) > 0
-        ? Number(stock.sale_price)
-        : Number(stock?.selling_price || 0) > 0
-          ? Number(stock.selling_price)
-          : 0
+    const autoPrice = 0
 
     const weight = Number(stock?.weight || 0)
     const weightUnit = stock?.weight_unit || 'kg'
@@ -201,14 +197,14 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
       prev.map((item, i) =>
         i === index
           ? {
-              ...item,
-              stockId,
-              itemName: stock?.item_name || '',
-              price: autoPrice,
-              weight,
-              weight_unit: weightUnit,
-              amount: weight > 0 ? weight * autoPrice : Number(item.qty || 1) * autoPrice,
-            }
+            ...item,
+            stockId,
+            itemName: stock?.item_name || '',
+            price: autoPrice,
+            weight,
+            weight_unit: weightUnit,
+            amount: lineAmount({ ...item, price: autoPrice }),
+          }
           : item
       )
     )
@@ -383,7 +379,7 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
       tax: String(invoiceDetail.tax || ''),
       shipping: String(invoiceDetail.shipping || ''),
       notes: invoiceDetail.notes || '',
-      
+
     })
 
     const mappedItems =
@@ -490,18 +486,48 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
               <div>
                 <label className={labelClass}>Customer</label>
-                <select
-                  value={form.customerId}
-                  onChange={(e) => setForm({ ...form, customerId: e.target.value })}
-                  className={fieldClass}
-                >
-                  <option value="">Walk-in Customer</option>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.name || customer.customer_name}
-                    </option>
-                  ))}
-                </select>
+
+                <Select
+                  options={[
+                    {
+                      value: "",
+                      label: "Walk-in Customer",
+                    },
+                    ...customers.map((customer) => ({
+                      value: customer.id,
+                      label:
+                        customer.name ||
+                        customer.customer_name ||
+                        `${customer.first_name || ""} ${customer.middle_name || ""} ${customer.last_name || ""}`.trim(),
+                    })),
+                  ]}
+                  value={
+                    form.customerId
+                      ? {
+                        value: form.customerId,
+                        label:
+                          customers.find(
+                            (c) => String(c.id) === String(form.customerId)
+                          )?.name ||
+                          customers.find(
+                            (c) => String(c.id) === String(form.customerId)
+                          )?.customer_name,
+                      }
+                      : {
+                        value: "",
+                        label: "Walk-in Customer",
+                      }
+                  }
+                  onChange={(selected) =>
+                    setForm({
+                      ...form,
+                      customerId: selected?.value || "",
+                    })
+                  }
+                  isSearchable
+                  placeholder="Search Customer..."
+                  className="text-sm"
+                />
               </div>
 
               <div>
@@ -548,9 +574,8 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
                   value={form.paidAmount}
                   disabled={form.paymentType !== 'partial'}
                   onChange={(e) => setForm({ ...form, paidAmount: e.target.value })}
-                  className={`${fieldClass} ${
-                    form.paymentType !== 'partial' ? 'bg-gray-100 cursor-not-allowed' : ''
-                  }`}
+                  className={`${fieldClass} ${form.paymentType !== 'partial' ? 'bg-gray-100 cursor-not-allowed' : ''
+                    }`}
                 />
               </div>
 

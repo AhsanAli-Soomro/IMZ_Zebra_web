@@ -45,6 +45,8 @@ export default function CustomerKhata({ customerId }) {
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [activeTab, setActiveTab] = useState('receive')
   const [visibleCount, setVisibleCount] = useState(10)
   const [selectedInvoice, setSelectedInvoice] = useState(null)
@@ -78,7 +80,7 @@ export default function CustomerKhata({ customerId }) {
 
   useEffect(() => {
     setVisibleCount(10)
-  }, [search, typeFilter, customerId])
+  }, [search, typeFilter, dateFrom, dateTo, customerId])
 
   const summary = data?.summary || {}
   const customer = data?.customer || {}
@@ -92,6 +94,8 @@ export default function CustomerKhata({ customerId }) {
         !keyword ||
         String(entry.entry_date || '').toLowerCase().includes(keyword) ||
         String(entry.entry_type || '').toLowerCase().includes(keyword) ||
+        String(entry.reference_type || '').toLowerCase().includes(keyword) ||
+        String(entry.reference_id || '').toLowerCase().includes(keyword) ||
         String(entry.description || '').toLowerCase().includes(keyword) ||
         String(entry.notes || '').toLowerCase().includes(keyword)
 
@@ -101,12 +105,16 @@ export default function CustomerKhata({ customerId }) {
         (typeFilter === 'debit' && Number(entry.debit || 0) > 0) ||
         (typeFilter === 'credit' && Number(entry.credit || 0) > 0)
 
-      return matchSearch && matchType
+      const entryDate = String(entry.entry_date || '')
+      const matchFrom = !dateFrom || entryDate >= dateFrom
+      const matchTo = !dateTo || entryDate <= dateTo
+
+      return matchSearch && matchType && matchFrom && matchTo
     })
-  }, [entries, search, typeFilter])
+  }, [entries, search, typeFilter, dateFrom, dateTo])
 
   const visibleEntries = filteredEntries.slice(0, visibleCount)
-  async function openInvoice(invoiceId) {
+  async function openInvoice(invoiceId, printAfterOpen = false) {
     try {
       setInvoiceLoading(true)
 
@@ -119,6 +127,10 @@ export default function CustomerKhata({ customerId }) {
 
       setSelectedInvoice(json.data)
       setInvoiceModalOpen(true)
+
+      if (printAfterOpen) {
+        setTimeout(() => window.print(), 250)
+      }
     } catch (err) {
       alert(err.message || 'Invoice load failed')
     } finally {
@@ -162,11 +174,21 @@ export default function CustomerKhata({ customerId }) {
             </div>
           </div>
 
-          <div className="bg-gray-50 border rounded-xl px-4 py-3 min-w-[260px]">
-            <p className="text-sm text-gray-500">Current Status</p>
-            <p className={`text-lg font-bold ${getBalanceColor(summary.balance)}`}>
-              {getBalanceLabel(summary.balance)}
-            </p>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="h-fit rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              Print Statement
+            </button>
+
+            <div className="bg-gray-50 border rounded-xl px-4 py-3 min-w-[260px]">
+              <p className="text-sm text-gray-500">Current Status</p>
+              <p className={`text-lg font-bold ${getBalanceColor(summary.balance)}`}>
+                {getBalanceLabel(summary.balance)}
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -251,11 +273,25 @@ export default function CustomerKhata({ customerId }) {
               </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search ledger..."
+                placeholder="Search date, ref, notes..."
+                className="border rounded px-3 py-2 text-sm"
+              />
+
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="border rounded px-3 py-2 text-sm"
+              />
+
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
                 className="border rounded px-3 py-2 text-sm"
               />
 
@@ -295,7 +331,7 @@ export default function CustomerKhata({ customerId }) {
             <tbody>
               {visibleEntries.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan="9" className="px-4 py-8 text-center text-gray-500">
                     No ledger entries found.
                   </td>
                 </tr>
@@ -369,7 +405,10 @@ export default function CustomerKhata({ customerId }) {
                             : 'text-green-700'
                           }`}
                       >
-                        {formatAmount(balance)}
+                        <div>{formatAmount(balance)}</div>
+                        <div className="text-[11px] font-medium">
+                          {balance > 0 ? 'Receivable' : balance < 0 ? 'Payable' : 'Clear'}
+                        </div>
                       </td>
 
                       <td className="px-4 py-3 text-gray-600">
@@ -378,11 +417,12 @@ export default function CustomerKhata({ customerId }) {
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-2">
 
-                          {entry.reference_type === 'bill' && (
+                          {entry.reference_type === 'bill' ? (
                             <>
                               <button
                                 type="button"
                                 onClick={() => openInvoice(entry.reference_id)}
+                                disabled={invoiceLoading}
                                 className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 py-1 rounded"
                               >
                                 View
@@ -390,12 +430,15 @@ export default function CustomerKhata({ customerId }) {
 
                               <button
                                 type="button"
-                                onClick={() => openInvoice(entry.reference_id)}
+                                onClick={() => openInvoice(entry.reference_id, true)}
+                                disabled={invoiceLoading}
                                 className="bg-gray-900 hover:bg-black text-white text-xs px-3 py-1 rounded"
                               >
                                 Print
                               </button>
                             </>
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
                           )}
 
                         </div>
