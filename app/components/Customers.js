@@ -7,6 +7,7 @@ export default function Customers({ setActive, setSelectedCustomerId }) {
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
+  const [pendingCustomers, setPendingCustomers] = useState([])
   const [form, setForm] = useState({
     id: null,
     name: '',
@@ -62,8 +63,12 @@ export default function Customers({ setActive, setSelectedCustomerId }) {
     try {
       if (form.id) {
         await axios.put('/api/customers', form)
+        fetchCustomers()
       } else {
-        await axios.post('/api/customers', form)
+        setPendingCustomers((items) => [
+          ...items,
+          { ...form, id: `pending-${Date.now()}-${items.length}` },
+        ])
       }
 
       setForm({
@@ -75,10 +80,25 @@ export default function Customers({ setActive, setSelectedCustomerId }) {
         status: 'Active',
       })
 
-      fetchCustomers()
     } catch (error) {
       console.error('Customer save failed:', error)
       alert(error?.response?.data?.message || 'Failed to save customer')
+    }
+  }
+
+  const saveCustomerList = async () => {
+    if (!pendingCustomers.length) return
+    try {
+      setLoading(true)
+      await axios.post('/api/customers', {
+        items: pendingCustomers.map(({ id, ...customer }) => customer),
+      })
+      setPendingCustomers([])
+      await fetchCustomers()
+    } catch (error) {
+      alert(error?.response?.data?.message || 'Customer list save nahi ho saki')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -213,10 +233,28 @@ export default function Customers({ setActive, setSelectedCustomerId }) {
             type="submit"
             className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition"
           >
-            {form.id ? 'Update Customer' : 'Add Customer'}
+            {form.id ? 'Update Customer' : 'Add to List'}
           </button>
         </div>
       </form>
+      {!form.id && (
+        <div className="grid lg:grid-cols-[1fr_auto] gap-3 items-start border-t pt-4">
+          <div className="border rounded-lg overflow-hidden">
+            <div className="bg-gray-50 px-3 py-2 font-semibold text-sm">
+              Pending Customer List ({pendingCustomers.length})
+            </div>
+            {pendingCustomers.length ? pendingCustomers.map((customer, index) => (
+              <div key={customer.id} className="flex justify-between gap-3 px-3 py-2 border-t text-sm">
+                <span>{index + 1}. {customer.name} {customer.phone ? `— ${customer.phone}` : ''}</span>
+                <button type="button" onClick={() => setPendingCustomers((rows) => rows.filter((row) => row.id !== customer.id))} className="text-red-600">Remove</button>
+              </div>
+            )) : <p className="px-3 py-4 text-sm text-gray-500">Form fill karke Add to List karein.</p>}
+          </div>
+          <button type="button" disabled={!pendingCustomers.length || loading} onClick={saveCustomerList} className="bg-green-600 disabled:bg-gray-400 text-white font-semibold rounded-lg px-5 py-2">
+            Save Customer List
+          </button>
+        </div>
+      )}
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5">

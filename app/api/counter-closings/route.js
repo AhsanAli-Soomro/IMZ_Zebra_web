@@ -75,7 +75,7 @@ export async function GET(request) {
       previewExpected: validDate(previewDate) ? await expectedCashOn(previewDate) : null,
     })
   } catch (error) {
-    return NextResponse.json({ success: false, message: error.message || 'Failed to load Galla closings' }, { status: 500 })
+    return NextResponse.json({ success: false, message: error.message || 'Failed to load Cash in Hand records' }, { status: 500 })
   }
 }
 
@@ -103,9 +103,9 @@ export async function POST(request) {
        VALUES (?, ?, ?, ?, ?, ?)`,
       [body.closing_date, physical, expected, physical - expected, String(body.notes || '').trim() || null, body.created_by || null]
     )
-    return NextResponse.json({ success: true, id: result.insertId, message: 'Galla closing saved successfully.' }, { status: 201 })
+    return NextResponse.json({ success: true, id: result.insertId, message: 'Cash in Hand saved successfully.' }, { status: 201 })
   } catch (error) {
-    return NextResponse.json({ success: false, message: error.message || 'Failed to save Galla closing' }, { status: 500 })
+    return NextResponse.json({ success: false, message: error.message || 'Failed to save Cash in Hand' }, { status: 500 })
   }
 }
 
@@ -131,8 +131,8 @@ export async function PUT(request) {
       [body.closing_date, physical, expected, physical - expected, String(body.notes || '').trim() || null, body.updated_by || null, id]
     )
     if (!result.changes) return NextResponse.json({ success: false, message: 'Closing record not found.' }, { status: 404 })
-    return NextResponse.json({ success: true, message: 'Galla closing updated successfully.' })
+    return NextResponse.json({ success: true, message: 'Cash in Hand updated successfully.' })
   } catch (error) {
-    return NextResponse.json({ success: false, message: error.message || 'Failed to update Galla closing' }, { status: 500 })
+    return NextResponse.json({ success: false, message: error.message || 'Failed to update Cash in Hand' }, { status: 500 })
   }
 }

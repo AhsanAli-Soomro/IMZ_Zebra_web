@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Select from 'react-select'
 
 function money(value) {
   return Number(value || 0).toLocaleString('en-PK')
@@ -29,6 +30,97 @@ const emptyTransaction = {
   notes: '',
 }
 
+const pakistanBankGroups = [
+  {
+    label: 'Commercial & Specialized Banks',
+    banks: [
+      'Allied Bank Limited',
+      'Askari Bank Limited',
+      'Bank Alfalah Limited',
+      'Bank Al Habib Limited',
+      'Bank Makramah Limited',
+      'Bank of Khyber',
+      'Bank of Punjab',
+      'First Women Bank Limited',
+      'Habib Bank Limited (HBL)',
+      'Habib Metropolitan Bank Limited',
+      'JS Bank Limited',
+      'MCB Bank Limited',
+      'National Bank of Pakistan',
+      'Punjab Provincial Cooperative Bank Limited',
+      'Samba Bank Limited',
+      'Sindh Bank Limited',
+      'Soneri Bank Limited',
+      'United Bank Limited (UBL)',
+      'Zarai Taraqiati Bank Limited',
+    ],
+  },
+  {
+    label: 'Islamic Banks',
+    banks: [
+      'Al Baraka Bank (Pakistan) Limited',
+      'BankIslami Pakistan Limited',
+      'Dubai Islamic Bank Pakistan Limited',
+      'Faysal Bank Limited',
+      'MCB Islamic Bank Limited',
+      'Meezan Bank Limited',
+    ],
+  },
+  {
+    label: 'Foreign Banks in Pakistan',
+    banks: [
+      'Bank of China Limited – Pakistan',
+      'Citibank N.A. – Pakistan',
+      'Deutsche Bank AG – Pakistan',
+      'Industrial and Commercial Bank of China – Pakistan',
+      'Standard Chartered Bank (Pakistan) Limited',
+    ],
+  },
+  {
+    label: 'Digital Banks',
+    banks: [
+      'Easypaisa Bank Limited',
+      'Mashreq Bank Pakistan Limited',
+      'Raqami Islamic Digital Bank Limited',
+    ],
+  },
+  {
+    label: 'Microfinance Banks',
+    banks: [
+      'ABHI Microfinance Bank Limited',
+      'APNA Microfinance Bank Limited',
+      'ASA Microfinance Bank (Pakistan) Limited',
+      'Halan Microfinance Bank Limited',
+      'HBL Microfinance Bank Limited',
+      'Khushhali Microfinance Bank Limited',
+      'LOLC Microfinance Bank Limited',
+      'Mobilink Microfinance Bank Limited (JazzCash)',
+      'NRSP Microfinance Bank Limited',
+      'Sindh Microfinance Bank Limited',
+      'U Microfinance Bank Limited (UPaisa)',
+    ],
+  },
+]
+
+const searchableBankOptions = [
+  ...pakistanBankGroups.map((group) => ({
+    label: group.label,
+    options: group.banks.map((bank) => ({ value: bank, label: bank })),
+  })),
+  {
+    label: 'Custom Bank',
+    options: [{ value: '__new__', label: '+ Add New Bank' }],
+  },
+]
+
+function findBankOption(value) {
+  for (const group of searchableBankOptions) {
+    const option = group.options.find((item) => item.value === value)
+    if (option) return option
+  }
+  return null
+}
+
 export default function BankManagement() {
   const [accounts, setAccounts] = useState([])
   const [transactions, setTransactions] = useState([])
@@ -36,6 +128,7 @@ export default function BankManagement() {
   const [transactionForm, setTransactionForm] = useState(emptyTransaction)
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [customBank, setCustomBank] = useState(false)
 
   async function loadBankData() {
     const [accountsRes, txRes] = await Promise.all([
@@ -83,6 +176,7 @@ export default function BankManagement() {
       if (!res.ok || !json.success) throw new Error(json.message || 'Account save failed')
 
       setAccountForm(emptyAccount)
+      setCustomBank(false)
       await loadBankData()
       setMessage('Bank account saved')
     } catch (error) {
@@ -158,12 +252,39 @@ export default function BankManagement() {
               required
               className="border rounded px-3 py-2 text-sm"
             />
-            <input
-              value={accountForm.bankName}
-              onChange={(e) => setAccountForm({ ...accountForm, bankName: e.target.value })}
-              placeholder="Bank name"
-              className="border rounded px-3 py-2 text-sm"
-            />
+            <div className="space-y-2">
+              <Select
+                options={searchableBankOptions}
+                value={
+                  customBank
+                    ? findBankOption('__new__')
+                    : findBankOption(accountForm.bankName)
+                }
+                onChange={(selected) => {
+                  const isNew = selected?.value === '__new__'
+                  setCustomBank(isNew)
+                  setAccountForm({
+                    ...accountForm,
+                    bankName: isNew ? '' : selected?.value || '',
+                  })
+                }}
+                isSearchable
+                isClearable
+                placeholder="Type karke bank search karein..."
+                noOptionsMessage={() => 'Koi matching bank nahi mila'}
+                className="text-sm"
+                classNamePrefix="bank-select"
+              />
+              {customBank && (
+                <input
+                  value={accountForm.bankName}
+                  onChange={(e) => setAccountForm({ ...accountForm, bankName: e.target.value })}
+                  placeholder="New bank name"
+                  required
+                  className="border rounded px-3 py-2 text-sm w-full"
+                />
+              )}
+            </div>
             <input
               value={accountForm.accountNumber}
               onChange={(e) => setAccountForm({ ...accountForm, accountNumber: e.target.value })}

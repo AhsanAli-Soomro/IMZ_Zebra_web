@@ -13,10 +13,10 @@ function money(value) {
 }
 
 function lineAmount(item) {
-  const qty = Number(item.qty || 0)
+  const weight = Number(item.weight || 0)
   const price = Number(item.price || 0)
 
-  return qty * price
+  return weight * price
 }
 
 export default function InvoiceCreate({ selectedCustomerId = null }) {
@@ -188,11 +188,12 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
 
   function handleStockSelect(index, stockId) {
     const stock = stocks.find((s) => String(s.id) === String(stockId))
-
-    const autoPrice = 0
-
     const weight = Number(stock?.weight || 0)
     const weightUnit = stock?.weight_unit || 'kg'
+    const autoPrice = Number(
+      stock?.selling_rate ||
+      (weight > 0 ? Number(stock?.selling_price || 0) / weight : 0)
+    )
     setItems((prev) =>
       prev.map((item, i) =>
         i === index
@@ -203,7 +204,7 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
             price: autoPrice,
             weight,
             weight_unit: weightUnit,
-            amount: lineAmount({ ...item, price: autoPrice }),
+            amount: lineAmount({ ...item, weight, price: autoPrice }),
           }
           : item
       )
@@ -274,7 +275,7 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
           const qty = Number(item.qty || 0)
           const weight = Number(item.weight || stock?.weight || 0)
           const price = Number(item.price || 0)
-          const amount = qty * price
+          const amount = weight * price
           const name = stock?.item_name || item.itemName || ''
 
           return {
@@ -635,7 +636,7 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
                 onClick={addItemRow}
                 className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
               >
-                Add New
+                Add Item to List
               </button>
             </div>
 
@@ -692,7 +693,7 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
                       </select>
                     </div>
                     <div className="w-[110px]">
-                      <label className={labelClass}>Price</label>
+                      <label className={labelClass}>Rate / Kg</label>
                       <input
                         type="number"
                         value={item.price}
@@ -783,7 +784,7 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
                 ? 'Saving Invoice...'
                 : editingInvoiceId
                   ? 'Save as New Invoice'
-                  : 'Create Invoice'}
+                  : 'Save Sale Invoice List'}
             </button>
 
             <button

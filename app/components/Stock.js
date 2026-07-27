@@ -13,7 +13,9 @@ export default function Stocks() {
     quantity: '',
     weight: '',
     weight_unit: 'kg',
+    purchase_rate: '',
     purchase_price: '',
+    selling_rate: '',
     selling_price: '',
     expire_date: '',
     supplier_name: '',
@@ -30,6 +32,7 @@ export default function Stocks() {
   const [searchSupplier, setSearchSupplier] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [saving, setSaving] = useState(false)
+  const [pendingStocks, setPendingStocks] = useState([])
   const [notice, setNotice] = useState({ type: '', text: '' })
 
   const itemsPerPage = 10
@@ -84,7 +87,9 @@ export default function Stocks() {
       quantity: '',
       weight: '',
       weight_unit: 'kg',
+      purchase_rate: '',
       purchase_price: '',
+      selling_rate: '',
       selling_price: '',
       expire_date: '',
       supplier_name: '',
@@ -99,10 +104,23 @@ export default function Stocks() {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    setSaving(true)
     setNotice({ type: '', text: '' })
 
     try {
+      if (!form.id) {
+        setPendingStocks((items) => [
+          ...items,
+          {
+            key: `pending-${Date.now()}-${items.length}`,
+            data: { ...form },
+            imageFile,
+          },
+        ])
+        resetForm()
+        return
+      }
+
+      setSaving(true)
       const formData = new FormData()
 
       for (const key in form) {
@@ -113,9 +131,7 @@ export default function Stocks() {
         formData.append('image', imageFile)
       }
 
-      const response = form.id
-        ? await axios.put('/api/stocks', formData)
-        : await axios.post('/api/stocks', formData)
+      const response = await axios.put('/api/stocks', formData)
 
       if (!response.data?.success) {
         throw new Error(response.data?.message || 'Product save nahi ho saka')
@@ -125,7 +141,7 @@ export default function Stocks() {
       await fetchStocks()
       setNotice({
         type: 'success',
-        text: form.id ? 'Product successfully update ho gaya.' : 'Product successfully add ho gaya.',
+        text: 'Product successfully update ho gaya.',
       })
     } catch (error) {
       setNotice({
@@ -134,6 +150,33 @@ export default function Stocks() {
           error.response?.data?.message ||
           error.message ||
           'Product save nahi ho saka. Dobara try karein.',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveStockList = async () => {
+    if (!pendingStocks.length) return
+    setSaving(true)
+    setNotice({ type: '', text: '' })
+    try {
+      for (const pending of pendingStocks) {
+        const formData = new FormData()
+        Object.entries(pending.data).forEach(([key, value]) => formData.append(key, value))
+        if (pending.imageFile) formData.append('image', pending.imageFile)
+
+        const response = await axios.post('/api/stocks', formData)
+        if (!response.data?.success) throw new Error(response.data?.message || 'Stock save failed')
+      }
+      const count = pendingStocks.length
+      setPendingStocks([])
+      await fetchStocks()
+      setNotice({ type: 'success', text: `${count} products ki list successfully save ho gayi.` })
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        text: error.response?.data?.message || error.message || 'Stock list save nahi ho saki.',
       })
     } finally {
       setSaving(false)
@@ -162,7 +205,17 @@ export default function Stocks() {
       quantity: stock.quantity || '',
       weight: stock.weight || '',
       weight_unit: stock.weight_unit || 'kg',
+      purchase_rate:
+        stock.purchase_rate ||
+        (Number(stock.weight || 0) > 0
+          ? Number(stock.purchase_price || 0) / Number(stock.weight)
+          : ''),
       purchase_price: stock.purchase_price || '',
+      selling_rate:
+        stock.selling_rate ||
+        (Number(stock.weight || 0) > 0
+          ? Number(stock.selling_price || 0) / Number(stock.weight)
+          : ''),
       selling_price: stock.selling_price || '',
       expire_date: stock.expire_date ? formatDate(stock.expire_date) : '',
       supplier_name: stock.supplier_name || '',
@@ -204,21 +257,35 @@ export default function Stocks() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Item Code</label>
           <input
+            list="existing-item-codes"
             value={form.item_code}
             onChange={(e) => setForm({ ...form, item_code: e.target.value })}
             required
             className="border border-gray-300 p-2 rounded-md w-full"
+            placeholder="New code manually likhein"
           />
+          <datalist id="existing-item-codes">
+            {stocks.map((stock) => (
+              <option key={stock.id} value={stock.item_code}>{stock.item_name}</option>
+            ))}
+          </datalist>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
           <input
+            list="existing-item-names"
             value={form.item_name}
             onChange={(e) => setForm({ ...form, item_name: e.target.value })}
             required
             className="border border-gray-300 p-2 rounded-md w-full"
+            placeholder="List se dekhein ya new name likhein"
           />
+          <datalist id="existing-item-names">
+            {stocks.map((stock) => (
+              <option key={stock.id} value={stock.item_name}>{stock.item_code}</option>
+            ))}
+          </datalist>
         </div>
 
         <div>
@@ -255,7 +322,15 @@ export default function Stocks() {
             type="number"
             step="0.01"
             value={form.weight}
-            onChange={(e) => setForm({ ...form, weight: e.target.value })}
+            onChange={(e) => {
+              const weight = e.target.value
+              setForm({
+                ...form,
+                weight,
+                purchase_price: Number(weight || 0) * Number(form.purchase_rate || 0),
+                selling_price: Number(weight || 0) * Number(form.selling_rate || 0),
+              })
+            }}
             className="border border-gray-300 p-2 rounded-md w-full"
           />
         </div>
@@ -275,12 +350,21 @@ export default function Stocks() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Purchase Price (PKR)
+            Rate Per Kg (PKR)
           </label>
           <input
             type="number"
-            value={form.purchase_price}
-            onChange={(e) => setForm({ ...form, purchase_price: e.target.value })}
+            min="0"
+            step="0.01"
+            value={form.purchase_rate}
+            onChange={(e) => {
+              const purchase_rate = e.target.value
+              setForm({
+                ...form,
+                purchase_rate,
+                purchase_price: Number(form.weight || 0) * Number(purchase_rate || 0),
+              })
+            }}
             required
             className="border border-gray-300 p-2 rounded-md w-full"
           />
@@ -288,14 +372,55 @@ export default function Stocks() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Selling Price (PKR)
+            Total Purchase Price (Kg × Rate)
+          </label>
+          <input
+            type="number"
+            value={form.purchase_price}
+            readOnly
+            className="border border-gray-300 bg-gray-100 p-2 rounded-md w-full font-semibold"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            {Number(form.weight || 0).toLocaleString()} kg × Rs{' '}
+            {Number(form.purchase_rate || 0).toLocaleString()}
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Selling Rate Per Kg (PKR)
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.selling_rate}
+            onChange={(e) => {
+              const selling_rate = e.target.value
+              setForm({
+                ...form,
+                selling_rate,
+                selling_price: Number(form.weight || 0) * Number(selling_rate || 0),
+              })
+            }}
+            className="border border-gray-300 p-2 rounded-md w-full"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Total Selling Price (Kg × Rate)
           </label>
           <input
             type="number"
             value={form.selling_price}
-            onChange={(e) => setForm({ ...form, selling_price: e.target.value })}
-            className="border border-gray-300 p-2 rounded-md w-full"
+            readOnly
+            className="border border-gray-300 bg-gray-100 p-2 rounded-md w-full font-semibold"
           />
+          <p className="mt-1 text-xs text-gray-500">
+            {Number(form.weight || 0).toLocaleString()} kg × Rs{' '}
+            {Number(form.selling_rate || 0).toLocaleString()}
+          </p>
         </div>
 
         <div>
@@ -362,10 +487,32 @@ export default function Stocks() {
             disabled={saving}
             className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2 rounded-md shadow"
           >
-            {saving ? 'Saving...' : form.id ? 'Update Stock' : 'Add Stock'}
+            {saving ? 'Saving...' : form.id ? 'Update Stock' : 'Add to List'}
           </button>
         </div>
       </form>
+
+      {!form.id && (
+        <div className="bg-white border rounded-lg shadow mb-4 p-4 grid lg:grid-cols-[1fr_auto] gap-3 items-start">
+          <div>
+            <h2 className="font-semibold">Pending Stock List ({pendingStocks.length})</h2>
+            <div className="mt-2 divide-y border rounded-lg">
+              {pendingStocks.length ? pendingStocks.map((pending, index) => (
+                <div key={pending.key} className="flex justify-between gap-3 p-3 text-sm">
+                  <span>
+                    {index + 1}. {pending.data.item_code} — {pending.data.item_name}
+                    {' '}({Number(pending.data.weight || 0).toLocaleString()} kg)
+                  </span>
+                  <button type="button" onClick={() => setPendingStocks((rows) => rows.filter((row) => row.key !== pending.key))} className="text-red-600">Remove</button>
+                </div>
+              )) : <p className="p-3 text-sm text-gray-500">Stock form fill karke Add to List karein.</p>}
+            </div>
+          </div>
+          <button type="button" onClick={saveStockList} disabled={!pendingStocks.length || saving} className="bg-green-600 disabled:bg-gray-400 text-white font-semibold rounded-lg px-5 py-2">
+            Save Stock List
+          </button>
+        </div>
+      )}
 
       <div className="overflow-x-auto bg-white p-4 rounded-lg shadow-lg">
         <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -427,6 +574,7 @@ export default function Stocks() {
                 <th className="p-3">Supplier</th>
                 <th className="p-3">Purchase</th>
                 <th className="p-3">Selling</th>
+                <th className="p-3">Profit / Loss</th>
                 <th className="p-3">Expire Date</th>
                 <th className="p-3">Status</th>
                 <th className="p-3 text-center">Actions</th>
@@ -465,11 +613,30 @@ export default function Stocks() {
                   <td className="p-3">{stock.supplier_name || '-'}</td>
 
                   <td className="p-3 text-blue-700 font-semibold">
-                    Rs {Number(stock.purchase_price || 0).toLocaleString()}
+                    <div>Rs {Number(stock.purchase_price || 0).toLocaleString()}</div>
+                    <div className="text-xs font-normal text-gray-500">
+                      Rate: Rs {Number(stock.purchase_rate || 0).toLocaleString()} / kg
+                    </div>
                   </td>
 
                   <td className="p-3 text-blue-700 font-semibold">
-                    Rs {Number(stock.selling_price || 0).toLocaleString()}
+                    <div>Rs {Number(stock.selling_price || 0).toLocaleString()}</div>
+                    <div className="text-xs font-normal text-gray-500">
+                      Rate: Rs {Number(stock.selling_rate || 0).toLocaleString()} / kg
+                    </div>
+                  </td>
+
+                  <td className={`p-3 font-semibold ${
+                    Number(stock.profit_loss || 0) >= 0 ? 'text-green-700' : 'text-red-700'
+                  }`}>
+                    <div>
+                      {Number(stock.profit_loss || 0) >= 0 ? 'Profit' : 'Loss'}: Rs{' '}
+                      {Math.abs(Number(stock.profit_loss || 0)).toLocaleString()}
+                    </div>
+                    <div className="text-xs font-normal text-gray-500">
+                      Sale Rs {Number(stock.sales_amount || 0).toLocaleString()} · Cost Rs{' '}
+                      {Number(stock.cost_amount || 0).toLocaleString()}
+                    </div>
                   </td>
 
                   <td className="p-3">
@@ -504,7 +671,7 @@ export default function Stocks() {
 
               {!paginatedStocks.length && (
                 <tr>
-                  <td colSpan={13} className="p-6 text-center text-gray-500">
+                  <td colSpan={14} className="p-6 text-center text-gray-500">
                     No stock found.
                   </td>
                 </tr>

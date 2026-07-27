@@ -27,6 +27,7 @@ import Footer from '../components/Footer'
 import ProfitLossCalculator from '../components/Calculator'
 import ExpensesPage from '../components/Expenses'
 import BankManagement from '../components/BankManagement'
+import DailyLedger from '../components/DailyLedger'
 
 export default function ZebraDashboardClient() {
   const router = useRouter()
@@ -119,9 +120,11 @@ export default function ZebraDashboardClient() {
         return userType === 'Employee' ? <NotFound /> : <Employees />
       case 'billing history':
         return <History />
+      case 'daily ledger':
+        return <DailyLedger />
       case 'cash information':
         return <CashInformation />
-      case 'galla closing':
+      case 'cash in hand':
         return <CounterClosing />
       case 'bank management':
         return <BankManagement />

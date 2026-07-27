@@ -55,21 +55,26 @@ export async function POST(req) {
     }
 
     const safeItems = items.map((item, index) => {
+      const stockId = toNumber(item.stockId || item.stock_id)
+      const itemCode = clean(item.itemCode || item.item_code)
       const itemName = clean(item.itemName || item.item_name || item.productName || item.product_name)
       const qty = toNumber(item.qty || 1)
       const weight = toNumber(item.weight)
       const weightUnit = clean(item.weightUnit || item.weight_unit, 'kg')
       const price = toNumber(item.price || item.cost_price || item.purchase_price)
-      const amount = qty * price
+      const amount = weight * price
       const discount = toNumber(item.discount)
       const tax = toNumber(item.tax)
       const total = amount - discount + tax
 
       if (!itemName) throw new Error(`Item #${index + 1}: item name required hai`)
       if (qty <= 0) throw new Error(`Item #${index + 1}: qty required hai`)
+      if (weight <= 0) throw new Error(`Item #${index + 1}: weight (kg) required hai`)
       if (price < 0) throw new Error(`Item #${index + 1}: price invalid hai`)
 
       return {
+        stockId,
+        itemCode,
         itemName,
         qty,
         weight,
@@ -204,7 +209,9 @@ export async function POST(req) {
       const findStock = sqlite.prepare(`
         SELECT *
         FROM stocks
-        WHERE LOWER(item_name) = LOWER(?)
+        WHERE id = ?
+           OR (? <> '' AND LOWER(item_code) = LOWER(?))
+           OR LOWER(item_name) = LOWER(?)
         LIMIT 1
       `)
 
@@ -215,6 +222,7 @@ export async function POST(req) {
           category,
           quantity,
           qty,
+          purchase_rate,
           purchase_price,
           selling_price,
           sale_price,
@@ -226,7 +234,7 @@ export async function POST(req) {
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `)
 
       const stockUpdate = sqlite.prepare(`
@@ -234,10 +242,12 @@ export async function POST(req) {
         SET
           quantity = quantity + ?,
           qty = qty + ?,
+          purchase_rate = ?,
+          purchase_price = ?,
           purchase_date = ?,
-          supplier_name = '',
-          weight = 0,
-          weight_unit = 'kg',
+          supplier_name = ?,
+          weight = COALESCE(weight, 0) + ?,
+          weight_unit = ?,
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `)
@@ -257,7 +267,12 @@ export async function POST(req) {
       `)
 
       for (const item of safeItems) {
-        const existingStock = findStock.get(item.itemName)
+        const existingStock = findStock.get(
+          item.stockId || -1,
+          item.itemCode,
+          item.itemCode,
+          item.itemName
+        )
         let stockId = null
 
         if (existingStock) {
@@ -266,11 +281,16 @@ export async function POST(req) {
           stockUpdate.run(
             item.qty,
             item.qty,
+            item.price,
+            item.amount,
             purchaseDate,
+            supplierName,
+            item.weight,
+            item.weightUnit,
             stockId
           )
         } else {
-          const code = `ITM-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+          const code = item.itemCode || `ITM-${Date.now()}-${Math.floor(Math.random() * 1000)}`
 
           const stockResult = stockInsert.run(
             code,
@@ -278,13 +298,14 @@ export async function POST(req) {
             '',
             item.qty,
             item.qty,
+            item.price,
+            item.amount,
             0,
             0,
-            0,
-            '',
+            supplierName,
             purchaseDate,
-            0,
-            'kg'
+            item.weight,
+            item.weightUnit
           )
 
           stockId = Number(stockResult.lastInsertRowid)

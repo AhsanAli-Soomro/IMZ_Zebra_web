@@ -18,7 +18,10 @@ export async function GET() {
       SELECT
         s.*,
         COALESCE(purchased.total_purchased_qty, 0) AS total_purchased_qty,
-        COALESCE(sold.total_sold_qty, 0) AS total_sold_qty
+        COALESCE(sold.total_sold_qty, 0) AS total_sold_qty,
+        COALESCE(sales.sales_amount, 0) AS sales_amount,
+        COALESCE(sales.cost_amount, 0) AS cost_amount,
+        COALESCE(sales.sales_amount, 0) - COALESCE(sales.cost_amount, 0) AS profit_loss
       FROM stocks s
       LEFT JOIN (
         SELECT stock_id, SUM(qty) AS total_purchased_qty
@@ -32,6 +35,22 @@ export async function GET() {
         WHERE movement_type IN ('sale_out', 'purchase_return_out', 'adjustment_out', 'damage_out')
         GROUP BY stock_id
       ) sold ON sold.stock_id = s.id
+      LEFT JOIN (
+        SELECT
+          sii.stock_id,
+          SUM(COALESCE(sii.amount, sii.qty * sii.price, 0)) AS sales_amount,
+          SUM(
+            CASE WHEN COALESCE(sii.weight, 0) > 0
+              THEN sii.weight * COALESCE(NULLIF(st.purchase_rate, 0), st.purchase_price, 0)
+              ELSE sii.qty * COALESCE(NULLIF(st.purchase_rate, 0), st.purchase_price, 0)
+            END
+          ) AS cost_amount
+        FROM sales_invoice_items sii
+        LEFT JOIN stocks st ON st.id = sii.stock_id
+        LEFT JOIN bills b ON b.id = sii.bill_id
+        WHERE b.id IS NULL OR b.deleted_at IS NULL OR b.deleted_at = ''
+        GROUP BY sii.stock_id
+      ) sales ON sales.stock_id = s.id
       WHERE (s.deleted_at IS NULL OR s.deleted_at = '')
       ORDER BY date(s.purchase_date) DESC, s.id DESC
     `)
@@ -50,7 +69,12 @@ export async function GET() {
         current_stock_balance: qty,
         total_purchased_qty: Number(row.total_purchased_qty || 0),
         total_sold_qty: Number(row.total_sold_qty || 0),
+        sales_amount: Number(row.sales_amount || 0),
+        cost_amount: Number(row.cost_amount || 0),
+        profit_loss: Number(row.profit_loss || 0),
         purchase_price: Number(row.purchase_price || 0),
+        purchase_rate: Number(row.purchase_rate || 0),
+        selling_rate: Number(row.selling_rate || 0),
         sale_price: Number(row.sale_price || row.selling_price || 0),
         selling_price: Number(row.selling_price || row.sale_price || 0),
         weight: Number(row.weight || 0),
@@ -80,7 +104,9 @@ export async function POST(req) {
     const quantity = toNumber(formData.get('quantity'), 0)
     const entryDate = clean(formData.get('purchase_date'), new Date().toISOString().slice(0, 10))
     const purchasePrice = toNumber(formData.get('purchase_price'), 0)
+    const purchaseRate = toNumber(formData.get('purchase_rate'), 0)
     const sellingPrice = toNumber(formData.get('selling_price'), 0)
+    const sellingRate = toNumber(formData.get('selling_rate'), 0)
     const weight = toNumber(formData.get('weight'), 0)
 
     if (quantity < 0) {
@@ -91,18 +117,20 @@ export async function POST(req) {
     const result = sqlite.transaction(() => {
       const insert = sqlite.prepare(`
         INSERT INTO stocks (
-          item_code, item_name, category, quantity, qty, purchase_price,
-          selling_price, sale_price, expire_date, supplier_name, purchase_date,
+          item_code, item_name, category, quantity, qty, purchase_rate, purchase_price,
+          selling_rate, selling_price, sale_price, expire_date, supplier_name, purchase_date,
           status, image_path, weight, weight_unit, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `).run(
         clean(formData.get('item_code'), `STK-${Date.now()}`),
         itemName,
         clean(formData.get('category')),
         quantity,
         quantity,
+        purchaseRate,
         purchasePrice,
+        sellingRate,
         sellingPrice,
         sellingPrice,
         clean(formData.get('expire_date')) || null,
@@ -163,6 +191,8 @@ export async function PUT(req) {
       weight: toNumber(formData.get('weight'), 0),
       weight_unit: clean(formData.get('weight_unit'), 'kg'),
       purchase_price: toNumber(formData.get('purchase_price'), 0),
+      purchase_rate: toNumber(formData.get('purchase_rate'), 0),
+      selling_rate: toNumber(formData.get('selling_rate'), 0),
       selling_price: toNumber(formData.get('selling_price'), 0),
       expire_date: clean(formData.get('expire_date')) || null,
       supplier_name: clean(formData.get('supplier_name')),
@@ -187,7 +217,7 @@ export async function PUT(req) {
       sqlite.prepare(`
         UPDATE stocks
         SET item_code = ?, item_name = ?, category = ?, quantity = ?, qty = ?,
-            purchase_price = ?, selling_price = ?, sale_price = ?, expire_date = ?,
+            purchase_rate = ?, purchase_price = ?, selling_rate = ?, selling_price = ?, sale_price = ?, expire_date = ?,
             supplier_name = ?, purchase_date = ?, status = ?, image_path = ?,
             weight = ?, weight_unit = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
@@ -197,7 +227,9 @@ export async function PUT(req) {
         stock.category,
         stock.quantity,
         stock.quantity,
+        stock.purchase_rate,
         stock.purchase_price,
+        stock.selling_rate,
         stock.selling_price,
         stock.selling_price,
         stock.expire_date,

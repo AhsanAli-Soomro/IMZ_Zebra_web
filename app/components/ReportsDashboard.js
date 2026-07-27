@@ -49,6 +49,7 @@ export default function ReportsDashboard() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
     const [itemProfitTab, setItemProfitTab] = useState('all')
+    const [itemSearch, setItemSearch] = useState('')
     async function loadReports() {
         setLoading(true)
         setError('')
@@ -82,16 +83,31 @@ export default function ReportsDashboard() {
     const rows = useMemo(() => {
         if (activeReport !== 'itemProfit') return rawRows
 
+        const query = itemSearch.trim().toLowerCase()
+        const searchedRows = query
+            ? rawRows.filter((row) =>
+                [
+                    row.item_name,
+                    row.product_name,
+                    row.item_code,
+                    row.sku,
+                    row.stock_id,
+                ]
+                    .filter((value) => value !== null && value !== undefined)
+                    .some((value) => String(value).toLowerCase().includes(query))
+            )
+            : rawRows
+
         if (itemProfitTab === 'profit') {
-            return rawRows.filter((row) => Number(row.profit_loss || 0) > 0)
+            return searchedRows.filter((row) => Number(row.profit_loss || 0) > 0)
         }
 
         if (itemProfitTab === 'loss') {
-            return rawRows.filter((row) => Number(row.profit_loss || 0) < 0)
+            return searchedRows.filter((row) => Number(row.profit_loss || 0) < 0)
         }
 
-        return rawRows
-    }, [rawRows, activeReport, itemProfitTab])
+        return searchedRows
+    }, [rawRows, activeReport, itemProfitTab, itemSearch])
     const profit = data?.profitSummary || {}
 
     const stockSummary = data?.stockSummary || {}
@@ -261,6 +277,13 @@ export default function ReportsDashboard() {
                     </div>
                     {activeReport === 'itemProfit' && (
                         <div className="flex flex-wrap gap-2 border-t pt-3">
+                            <input
+                                type="search"
+                                value={itemSearch}
+                                onChange={(event) => setItemSearch(event.target.value)}
+                                placeholder="Search item name, code or ID..."
+                                className="min-w-[260px] flex-1 border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+                            />
                             <button
                                 type="button"
                                 onClick={() => setItemProfitTab('all')}
@@ -293,6 +316,15 @@ export default function ReportsDashboard() {
                             >
                                 Loss Items
                             </button>
+                            {itemSearch && (
+                                <button
+                                    type="button"
+                                    onClick={() => setItemSearch('')}
+                                    className="border rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                                >
+                                    Clear Search
+                                </button>
+                            )}
                         </div>
                     )}
                     <button

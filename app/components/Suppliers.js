@@ -7,6 +7,7 @@ export default function Suppliers({ setActive, setSelectedSupplierId }) {
   const [suppliers, setSuppliers] = useState([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
+  const [pendingSuppliers, setPendingSuppliers] = useState([])
   const [form, setForm] = useState({
     id: null,
     name: '',
@@ -36,8 +37,12 @@ export default function Suppliers({ setActive, setSelectedSupplierId }) {
 
     if (form.id) {
       await axios.put('/api/suppliers', form)
+      fetchSuppliers()
     } else {
-      await axios.post('/api/suppliers', form)
+      setPendingSuppliers((items) => [
+        ...items,
+        { ...form, id: `pending-${Date.now()}-${items.length}` },
+      ])
     }
 
     setForm({
@@ -50,7 +55,22 @@ export default function Suppliers({ setActive, setSelectedSupplierId }) {
       status: 'Active'
     })
 
-    fetchSuppliers()
+  }
+
+  const saveSupplierList = async () => {
+    if (!pendingSuppliers.length) return
+    try {
+      setLoading(true)
+      await axios.post('/api/suppliers', {
+        items: pendingSuppliers.map(({ id, ...supplier }) => supplier),
+      })
+      setPendingSuppliers([])
+      await fetchSuppliers()
+    } catch (error) {
+      alert(error?.response?.data?.message || 'Supplier list save nahi ho saki')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleEdit = (supplier) => {
@@ -196,10 +216,28 @@ export default function Suppliers({ setActive, setSelectedSupplierId }) {
         type="submit"
         className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition"
       >
-        {form.id ? 'Update Supplier' : 'Add Supplier'}
+        {form.id ? 'Update Supplier' : 'Add to List'}
       </button>
     </div>
   </form>
+  {!form.id && (
+    <div className="grid lg:grid-cols-[1fr_auto] gap-3 items-start border-t pt-4">
+      <div className="border rounded-lg overflow-hidden">
+        <div className="bg-gray-50 px-3 py-2 font-semibold text-sm">
+          Pending Supplier List ({pendingSuppliers.length})
+        </div>
+        {pendingSuppliers.length ? pendingSuppliers.map((supplier, index) => (
+          <div key={supplier.id} className="flex justify-between gap-3 px-3 py-2 border-t text-sm">
+            <span>{index + 1}. {supplier.name} {supplier.company_name ? `— ${supplier.company_name}` : ''}</span>
+            <button type="button" onClick={() => setPendingSuppliers((rows) => rows.filter((row) => row.id !== supplier.id))} className="text-red-600">Remove</button>
+          </div>
+        )) : <p className="px-3 py-4 text-sm text-gray-500">Form fill karke Add to List karein.</p>}
+      </div>
+      <button type="button" disabled={!pendingSuppliers.length || loading} onClick={saveSupplierList} className="bg-green-600 disabled:bg-gray-400 text-white font-semibold rounded-lg px-5 py-2">
+        Save Supplier List
+      </button>
+    </div>
+  )}
   </div>
 
   <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5">

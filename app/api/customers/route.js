@@ -22,15 +22,21 @@ export async function GET() {
 export async function POST(req) {
   try {
     const body = await req.json()
-    const { name, email, phone, address, status } = body
+    const items = Array.isArray(body.items) ? body.items : [body]
+    const sqlite = db.getConnection()
 
-    await db.query(
-      `INSERT INTO customers (name, email, phone, address, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      [name, email, phone, address, status]
-    )
+    sqlite.transaction(() => {
+      const insert = sqlite.prepare(
+        `INSERT INTO customers (name, email, phone, address, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+      )
+      items.forEach(({ name, email, phone, address, status }) => {
+        if (!String(name || '').trim()) throw new Error('Customer name required hai')
+        insert.run(name, email || '', phone || '', address || '', status || 'Active')
+      })
+    })()
 
-    return NextResponse.json({ success: true, message: 'Customer added' })
+    return NextResponse.json({ success: true, message: `${items.length} customer(s) added` })
   } catch (error) {
     return NextResponse.json(
       { success: false, message: error.message || 'Failed to add customer' },

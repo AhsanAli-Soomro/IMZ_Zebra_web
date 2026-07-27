@@ -13,15 +13,21 @@ export async function GET() {
 
 export async function POST(req) {
   const body = await req.json()
-  const { name, company_name, email, phone, address, status } = body
+  const items = Array.isArray(body.items) ? body.items : [body]
+  const sqlite = db.getConnection()
 
-  await db.query(
-    `INSERT INTO suppliers (name, company_name, email, phone, address, status)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [name, company_name, email, phone, address, status]
-  )
+  sqlite.transaction(() => {
+    const insert = sqlite.prepare(
+      `INSERT INTO suppliers (name, company_name, email, phone, address, status)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    items.forEach(({ name, company_name, email, phone, address, status }) => {
+      if (!String(name || '').trim()) throw new Error('Supplier name required hai')
+      insert.run(name, company_name || '', email || '', phone || '', address || '', status || 'Active')
+    })
+  })()
 
-  return NextResponse.json({ success: true, message: 'Supplier added' })
+  return NextResponse.json({ success: true, message: `${items.length} supplier(s) added` })
 }
 
 export async function PUT(req) {

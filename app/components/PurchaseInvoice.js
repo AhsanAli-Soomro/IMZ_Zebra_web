@@ -14,14 +14,15 @@ function money(value) {
 }
 
 function lineAmount(item) {
-  const qty = Number(item.qty || 0)
+  const weight = Number(item.weight || 0)
   const price = Number(item.price || 0)
 
-  return qty * price
+  return weight * price
 }
 
 export default function PurchaseInvoice() {
   const [suppliers, setSuppliers] = useState([])
+  const [stocks, setStocks] = useState([])
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false)
@@ -43,6 +44,8 @@ export default function PurchaseInvoice() {
   })
 
   const emptyItem = () => ({
+    stockId: '',
+    itemCode: '',
     itemName: '',
     qty: 1,
     weight: '',
@@ -77,6 +80,13 @@ export default function PurchaseInvoice() {
     }
 
     loadCompany()
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/stocks', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => setStocks(data?.data || []))
+      .catch((err) => console.error('Products load failed', err))
   }, [])
 
   useEffect(() => {
@@ -129,7 +139,7 @@ export default function PurchaseInvoice() {
 
         const updated = { ...item, [key]: value }
 
-        if (key === 'qty' || key === 'price') {
+        if (key === 'weight' || key === 'price') {
           updated.amount = lineAmount(updated)
         }
 
@@ -209,6 +219,8 @@ export default function PurchaseInvoice() {
           const amount = lineAmount(item)
 
           return {
+            stockId: item.stockId ? Number(item.stockId) : null,
+            itemCode: item.itemCode,
             itemName: item.itemName,
             item_name: item.itemName,
             qty,
@@ -449,22 +461,53 @@ export default function PurchaseInvoice() {
               onClick={addItem}
               className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-md px-4 py-2 text-sm"
             >
-              Add Item
+              Add Item to List
             </button>
           </div>
 
           <div className="space-y-3">
             {items.map((item, index) => (
               <div key={index} className="border rounded-lg p-3 bg-gray-50">
-                <div className="grid grid-cols-1 md:grid-cols-9 gap-3 items-end">
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium mb-1">Item Name</label>
+                <div className="grid grid-cols-1 md:grid-cols-10 gap-3 items-end">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Item Code</label>
                     <input
-                      value={item.itemName}
-                      onChange={(e) => updateItem(index, 'itemName', e.target.value)}
+                      value={item.itemCode}
+                      onChange={(e) => updateItem(index, 'itemCode', e.target.value)}
                       className="border rounded-md px-3 py-2 w-full"
-                      placeholder="Item name"
+                      placeholder="Manual code"
                     />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium mb-1">Item Name / Product List</label>
+                    <input
+                      list={`product-list-${index}`}
+                      value={item.itemName}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        const selected = stocks.find(
+                          (stock) => String(stock.item_name).toLowerCase() === value.toLowerCase()
+                        )
+                        setItems((prev) => prev.map((row, i) => i === index ? {
+                          ...row,
+                          itemName: value,
+                          stockId: selected?.id || '',
+                          itemCode: selected?.item_code || (row.stockId ? '' : row.itemCode),
+                          weight_unit: selected?.weight_unit || row.weight_unit,
+                          price: selected?.purchase_price || row.price,
+                        } : row))
+                      }}
+                      className="border rounded-md px-3 py-2 w-full"
+                      placeholder="List se select ya new name likhein"
+                    />
+                    <datalist id={`product-list-${index}`}>
+                      {stocks.map((stock) => (
+                        <option key={stock.id} value={stock.item_name}>
+                          {stock.item_code} — {stock.item_name}
+                        </option>
+                      ))}
+                    </datalist>
                   </div>
 
                   <div>
@@ -505,7 +548,7 @@ export default function PurchaseInvoice() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">Price</label>
+                    <label className="block text-sm font-medium mb-1">Rate / Kg</label>
                     <input
                       type="number"
                       min="0"
@@ -517,7 +560,7 @@ export default function PurchaseInvoice() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">Amount</label>
+                    <label className="block text-sm font-medium mb-1">Purchase Price</label>
                     <input
                       type="number"
                       value={lineAmount(item)}
@@ -587,7 +630,7 @@ export default function PurchaseInvoice() {
               disabled={loading}
               className="bg-green-600 hover:bg-green-700 text-white rounded-md px-5 py-2"
             >
-              {loading ? 'Saving...' : 'Save Purchase Invoice'}
+              {loading ? 'Saving...' : 'Save Purchase Invoice List'}
             </button>
 
             <button
