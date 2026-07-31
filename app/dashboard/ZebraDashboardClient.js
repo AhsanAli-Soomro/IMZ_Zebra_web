@@ -28,6 +28,8 @@ import ProfitLossCalculator from '../components/Calculator'
 import ExpensesPage from '../components/Expenses'
 import BankManagement from '../components/BankManagement'
 import DailyLedger from '../components/DailyLedger'
+import CustomerLedger from '../components/CustomerLedger'
+import SupplierLedger from '../components/SupplierLedger'
 
 export default function ZebraDashboardClient() {
   const router = useRouter()
@@ -101,6 +103,8 @@ export default function ZebraDashboardClient() {
         )
       case 'customer khata':
         return <CustomerKhata customerId={selectedCustomerId} />
+      case 'customer ledger':
+        return <CustomerLedger />
       case 'sale invoice':
         return <InvoiceCreate />
       case 'purchase invoice':
@@ -114,6 +118,8 @@ export default function ZebraDashboardClient() {
         )
       case 'supplier khata':
         return <SupplierKhata supplierId={selectedSupplierId} />
+      case 'supplier ledger':
+        return <SupplierLedger />
       case 'categories':
         return <Categories />
       case 'employees':

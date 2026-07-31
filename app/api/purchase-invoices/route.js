@@ -62,7 +62,7 @@ export async function POST(req) {
       const weight = toNumber(item.weight)
       const weightUnit = clean(item.weightUnit || item.weight_unit, 'kg')
       const price = toNumber(item.price || item.cost_price || item.purchase_price)
-      const amount = weight * price
+      const amount = qty * weight * price
       const discount = toNumber(item.discount)
       const tax = toNumber(item.tax)
       const total = amount - discount + tax
@@ -206,12 +206,23 @@ export async function POST(req) {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `)
 
-      const findStock = sqlite.prepare(`
+      const findStockById = sqlite.prepare(`
         SELECT *
         FROM stocks
         WHERE id = ?
-           OR (? <> '' AND LOWER(item_code) = LOWER(?))
-           OR LOWER(item_name) = LOWER(?)
+          AND (deleted_at IS NULL OR deleted_at = '')
+        LIMIT 1
+      `)
+
+      const findStockByIdentity = sqlite.prepare(`
+        SELECT *
+        FROM stocks
+        WHERE (deleted_at IS NULL OR deleted_at = '')
+          AND (
+            (? <> '' AND LOWER(item_code) = LOWER(?))
+            OR LOWER(item_name) = LOWER(?)
+          )
+        ORDER BY id ASC
         LIMIT 1
       `)
 
@@ -240,8 +251,8 @@ export async function POST(req) {
       const stockUpdate = sqlite.prepare(`
         UPDATE stocks
         SET
-          quantity = quantity + ?,
-          qty = qty + ?,
+          quantity = COALESCE(quantity, 0) + ?,
+          qty = COALESCE(qty, 0) + ?,
           purchase_rate = ?,
           purchase_price = ?,
           purchase_date = ?,
@@ -267,12 +278,9 @@ export async function POST(req) {
       `)
 
       for (const item of safeItems) {
-        const existingStock = findStock.get(
-          item.stockId || -1,
-          item.itemCode,
-          item.itemCode,
-          item.itemName
-        )
+        const existingStock = item.stockId
+          ? findStockById.get(item.stockId)
+          : findStockByIdentity.get(item.itemCode, item.itemCode, item.itemName)
         let stockId = null
 
         if (existingStock) {

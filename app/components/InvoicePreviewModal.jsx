@@ -242,6 +242,17 @@ export default function InvoicePreviewModal({
               </p>
             </div>
 
+            {invoice && invoice.invoice_type !== 'purchase' && (
+              <div className="ml-auto mr-4 rounded-xl border border-green-200 bg-green-50 px-4 py-2 text-right">
+                <p className="text-xs font-medium uppercase tracking-wide text-green-700">
+                  Invoice Profit
+                </p>
+                <p className="text-xl font-bold text-green-800">
+                  Rs {money(invoice.invoice_profit)}
+                </p>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={onClose}

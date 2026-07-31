@@ -115,30 +115,30 @@ export default function CounterClosing() {
           <label className="text-sm font-medium">Closing Date
             <input required type="date" max={today()} value={form.closing_date} onChange={(e) => setForm({ ...form, closing_date: e.target.value })} className="mt-1 w-full border rounded-lg px-3 py-2.5 font-normal" />
           </label>
-          <label className="text-sm font-medium">Physical Cash in Hand (PKR)
+          <label className="text-sm font-medium">Cash in Hand (PKR)
             <input required min="0" step="0.01" type="number" value={form.physical_amount} onChange={(e) => setForm({ ...form, physical_amount: e.target.value })} placeholder="Enter counted amount" className="mt-1 w-full border rounded-lg px-3 py-2.5 font-normal" />
           </label>
           <label className="text-sm font-medium">Notes (optional)
             <input maxLength="500" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Shift or reconciliation note" className="mt-1 w-full border rounded-lg px-3 py-2.5 font-normal" />
           </label>
         </div>
-        <div className="grid sm:grid-cols-3 gap-3 bg-gray-50 rounded-xl p-4">
+        {/* <div className="grid sm:grid-cols-3 gap-3 bg-gray-50 rounded-xl p-4">
           <div><p className="text-xs text-gray-500">System Expected Cash</p><p className="font-bold">{money(expected)}</p></div>
           <div><p className="text-xs text-gray-500">Physical Cash</p><p className="font-bold">{entered === null ? '—' : money(entered)}</p></div>
           <div><p className="text-xs text-gray-500">Difference</p><p className={`font-bold ${variance < 0 ? 'text-red-600' : variance > 0 ? 'text-amber-600' : 'text-green-600'}`}>{variance === null ? '—' : money(variance)}</p></div>
-        </div>
-        {message.text && <div className={`rounded-lg px-4 py-3 text-sm ${message.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>{message.text}</div>}
+        </div> */}
+        {/* {message.text && <div className={`rounded-lg px-4 py-3 text-sm ${message.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>{message.text}</div>} */}
         <button disabled={saving} className="rounded-lg bg-indigo-600 text-white px-5 py-2.5 font-medium hover:bg-indigo-700 disabled:opacity-60">{saving ? 'Saving...' : form.id ? 'Update Closing' : 'Save Closing'}</button>
       </form>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           ['Filtered Closings', summary.count, 'bg-slate-50 text-slate-800'],
           ['Total Physical', money(summary.physical), 'bg-blue-50 text-blue-800'],
           ['Total Expected', money(summary.expected), 'bg-indigo-50 text-indigo-800'],
           ['Net Difference', money(summary.variance), Number(summary.variance) < 0 ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'],
         ].map(([label, value, color]) => <div key={label} className={`border rounded-xl p-4 ${color}`}><p className="text-xs opacity-75">{label}</p><p className="text-xl font-bold mt-1">{value}</p></div>)}
-      </div>
+      </div> */}
 
       <section className="bg-white border rounded-2xl shadow-sm overflow-hidden">
         <div className="p-4 border-b">
@@ -147,19 +147,38 @@ export default function CounterClosing() {
             <input value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} placeholder="Search notes or user" className="border rounded-lg px-3 py-2 text-sm lg:col-span-2" />
             <input type="date" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} className="border rounded-lg px-3 py-2 text-sm" title="From date" />
             <input type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} className="border rounded-lg px-3 py-2 text-sm" title="To date" />
-            <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="border rounded-lg px-3 py-2 text-sm"><option value="">All Statuses</option><option value="matched">Matched</option><option value="short">Short</option><option value="excess">Excess</option></select>
-            <input type="number" min="0" value={filters.minAmount} onChange={(e) => setFilters({ ...filters, minAmount: e.target.value })} placeholder="Min amount" className="border rounded-lg px-3 py-2 text-sm" />
-            <input type="number" min="0" value={filters.maxAmount} onChange={(e) => setFilters({ ...filters, maxAmount: e.target.value })} placeholder="Max amount" className="border rounded-lg px-3 py-2 text-sm" />
+            {/* <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="border rounded-lg px-3 py-2 text-sm"><option value="">All Statuses</option><option value="matched">Matched</option><option value="short">Short</option><option value="excess">Excess</option></select> */}
+            {/* <input type="number" min="0" value={filters.minAmount} onChange={(e) => setFilters({ ...filters, minAmount: e.target.value })} placeholder="Min amount" className="border rounded-lg px-3 py-2 text-sm" /> */}
+            {/* <input type="number" min="0" value={filters.maxAmount} onChange={(e) => setFilters({ ...filters, maxAmount: e.target.value })} placeholder="Max amount" className="border rounded-lg px-3 py-2 text-sm" /> */}
           </div>
           <button type="button" onClick={() => setFilters({ search: '', dateFrom: '', dateTo: '', status: '', minAmount: '', maxAmount: '' })} className="mt-2 text-sm text-indigo-600 hover:underline">Clear all filters</button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600"><tr><th className="text-left p-3">Date</th><th className="text-right p-3">Expected</th><th className="text-right p-3">Physical</th><th className="text-right p-3">Difference</th><th className="text-left p-3">Status</th><th className="text-left p-3">Closed By</th><th className="text-left p-3">Notes</th><th className="text-right p-3">Action</th></tr></thead>
+            <thead className="bg-gray-50 text-gray-600">
+              <tr>
+                <th className="text-left p-3">Date</th>
+                {/* <th className="text-right p-3">Expected</th> */}
+                <th className="text-right p-3">Closed Cash</th>
+                {/* <th className="text-right p-3">Difference</th> */}
+                {/* <th className="text-left p-3">Status</th> */}
+                <th className="text-left p-3">Closed By</th>
+                <th className="text-left p-3">Notes</th>
+                <th className="text-right p-3">Action</th>
+              </tr>
+            </thead>
             <tbody>
               {loading ? <tr><td colSpan="8" className="p-8 text-center text-gray-500">Loading cash history...</td></tr> : rows.length === 0 ? <tr><td colSpan="8" className="p-8 text-center text-gray-500">No Cash in Hand record found for these filters.</td></tr> : rows.map((row) => {
                 const status = statusFor(row.variance)
-                return <tr key={row.id} className="border-t hover:bg-gray-50"><td className="p-3 whitespace-nowrap font-medium">{row.closing_date}</td><td className="p-3 text-right">{money(row.expected_amount)}</td><td className="p-3 text-right font-semibold">{money(row.physical_amount)}</td><td className={`p-3 text-right font-semibold ${row.variance < 0 ? 'text-red-600' : row.variance > 0 ? 'text-amber-600' : 'text-green-600'}`}>{money(row.variance)}</td><td className="p-3"><span className={`px-2 py-1 rounded-full text-xs ${status.classes}`}>{status.label}</span></td><td className="p-3 whitespace-nowrap">{row.closed_by_name}</td><td className="p-3 max-w-56 truncate" title={row.notes || ''}>{row.notes || '—'}</td><td className="p-3 text-right"><button type="button" onClick={() => edit(row)} className="text-indigo-600 font-medium hover:underline">Edit</button></td></tr>
+                return <tr key={row.id} className="border-t hover:bg-gray-50">
+                  <td className="p-3 whitespace-nowrap font-medium">{row.closing_date}</td>
+                  {/* <td className="p-3 text-right">{money(row.expected_amount)}</td> */}
+                  <td className="p-3 text-right font-semibold">{money(row.physical_amount)}</td>
+                  {/* <td className={`p-3 text-right font-semibold ${row.variance < 0 ? 'text-red-600' : row.variance > 0 ? 'text-amber-600' : 'text-green-600'}`}>{money(row.variance)}</td> */}
+                  {/* <td className="p-3"><span className={`px-2 py-1 rounded-full text-xs ${status.classes}`}>{status.label}</span></td> */}
+                  <td className="p-3 whitespace-nowrap">{row.closed_by_name}</td><td className="p-3 max-w-56 truncate" title={row.notes || ''}>{row.notes || '—'}</td>
+                  <td className="p-3 text-right"><button type="button" onClick={() => edit(row)} className="text-indigo-600 font-medium hover:underline">Edit</button></td>
+                </tr>
               })}
             </tbody>
           </table>

@@ -22,6 +22,7 @@ export async function POST(request, context) {
       createdBy: body.createdBy || null,
       paymentMethod: body.paymentMethod || 'cash',
       sourceOfPayment: body.sourceOfPayment || 'Business',
+      bankAccountId: body.bankAccountId || null,
     })
 
     return NextResponse.json({

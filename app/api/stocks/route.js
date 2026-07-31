@@ -15,6 +15,23 @@ function clean(value, fallback = '') {
 export async function GET() {
   try {
     const rows = await db.query(`
+      WITH purchase_cost_by_stock AS (
+        SELECT
+          stock_id,
+          SUM(qty * price) / NULLIF(SUM(qty), 0)
+            AS avg_purchase_price
+        FROM purchase_invoice_items
+        WHERE stock_id IS NOT NULL
+        GROUP BY stock_id
+      ),
+      purchase_cost_by_name AS (
+        SELECT
+          LOWER(TRIM(COALESCE(item_name, product_name, ''))) AS item_key,
+          SUM(qty * price) / NULLIF(SUM(qty), 0)
+            AS avg_purchase_price
+        FROM purchase_invoice_items
+        GROUP BY LOWER(TRIM(COALESCE(item_name, product_name, '')))
+      )
       SELECT
         s.*,
         COALESCE(purchased.total_purchased_qty, 0) AS total_purchased_qty,
@@ -38,15 +55,19 @@ export async function GET() {
       LEFT JOIN (
         SELECT
           sii.stock_id,
-          SUM(COALESCE(sii.amount, sii.qty * sii.price, 0)) AS sales_amount,
-          SUM(
-            CASE WHEN COALESCE(sii.weight, 0) > 0
-              THEN sii.weight * COALESCE(NULLIF(st.purchase_rate, 0), st.purchase_price, 0)
-              ELSE sii.qty * COALESCE(NULLIF(st.purchase_rate, 0), st.purchase_price, 0)
-            END
-          ) AS cost_amount
+          SUM(COALESCE(NULLIF(sii.amount, 0), sii.qty * CASE WHEN COALESCE(sii.weight, 0) > 0 THEN sii.weight ELSE 1 END * sii.price)) AS sales_amount,
+          SUM((CASE WHEN sii.price > 0 THEN COALESCE(NULLIF(sii.amount, 0), sii.qty * CASE WHEN COALESCE(sii.weight, 0) > 0 THEN sii.weight ELSE 1 END * sii.price) / sii.price ELSE sii.qty * CASE WHEN COALESCE(sii.weight, 0) > 0 THEN sii.weight ELSE 1 END END) * COALESCE(
+            NULLIF(pc_stock.avg_purchase_price, 0),
+            NULLIF(pc_name.avg_purchase_price, 0),
+            NULLIF(st.purchase_rate, 0),
+            NULLIF(st.purchase_price, 0),
+            0
+          )) AS cost_amount
         FROM sales_invoice_items sii
         LEFT JOIN stocks st ON st.id = sii.stock_id
+        LEFT JOIN purchase_cost_by_stock pc_stock ON pc_stock.stock_id = sii.stock_id
+        LEFT JOIN purchase_cost_by_name pc_name
+          ON pc_name.item_key = LOWER(TRIM(COALESCE(sii.item_name, sii.product_name, st.item_name, '')))
         LEFT JOIN bills b ON b.id = sii.bill_id
         WHERE b.id IS NULL OR b.deleted_at IS NULL OR b.deleted_at = ''
         GROUP BY sii.stock_id

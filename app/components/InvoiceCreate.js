@@ -13,10 +13,11 @@ function money(value) {
 }
 
 function lineAmount(item) {
+  const qty = Number(item.qty || 0)
   const weight = Number(item.weight || 0)
   const price = Number(item.price || 0)
 
-  return weight * price
+  return qty * weight * price
 }
 
 export default function InvoiceCreate({ selectedCustomerId = null }) {
@@ -75,6 +76,31 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
       total,
     }
   }, [items, form.discount, form.tax, form.shipping])
+
+  const stockShortages = useMemo(() => {
+    const selectedByStock = items.reduce((totalsByStock, item) => {
+      const stockId = String(item.stockId || '')
+      if (!stockId) return totalsByStock
+
+      totalsByStock[stockId] =
+        Number(totalsByStock[stockId] || 0) + Number(item.qty || 0)
+      return totalsByStock
+    }, {})
+
+    return stocks
+      .map((stock) => {
+        const selectedQty = Number(selectedByStock[String(stock.id)] || 0)
+        const availableQty = Number(stock.quantity ?? stock.qty ?? 0)
+
+        return {
+          stockId: String(stock.id),
+          itemName: stock.item_name || `Stock ${stock.id}`,
+          selectedQty,
+          availableQty,
+        }
+      })
+      .filter((stock) => stock.selectedQty > stock.availableQty)
+  }, [items, stocks])
 
   const fieldClass =
     'w-full border border-gray-300 rounded-md px-3 py-2 text-sm outline-none focus:border-indigo-500'
@@ -237,6 +263,13 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
         throw new Error('Invoice items mein valid product aur qty required hai')
       }
 
+      if (stockShortages.length) {
+        const shortage = stockShortages[0]
+        throw new Error(
+          `Stock is low for "${shortage.itemName}". Available: ${shortage.availableQty}, Selected: ${shortage.selectedQty}`
+        )
+      }
+
       if (form.paymentType === 'partial') {
         const partialPaid = Number(form.paidAmount || 0)
 
@@ -275,7 +308,7 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
           const qty = Number(item.qty || 0)
           const weight = Number(item.weight || stock?.weight || 0)
           const price = Number(item.price || 0)
-          const amount = weight * price
+          const amount = lineAmount({ qty, weight, price })
           const name = stock?.item_name || item.itemName || ''
 
           return {
@@ -664,9 +697,17 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
                       <label className={labelClass}>Qty</label>
                       <input
                         type="number"
+                        min="0.01"
+                        step="0.01"
                         value={item.qty}
                         onChange={(e) => updateItem(index, 'qty', e.target.value)}
-                        className={fieldClass}
+                        className={`${fieldClass} ${
+                          stockShortages.some(
+                            (stock) => stock.stockId === String(item.stockId)
+                          )
+                            ? 'border-red-500 bg-red-50'
+                            : ''
+                        }`}
                       />
                     </div>
 
@@ -747,6 +788,17 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
                       )}
                     </div>
                   </div>
+                  {stockShortages
+                    .filter((stock) => stock.stockId === String(item.stockId))
+                    .map((stock) => (
+                      <div
+                        key={stock.stockId}
+                        className="mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700"
+                      >
+                        Stock is low. Available: {stock.availableQty}, Selected:{' '}
+                        {stock.selectedQty}
+                      </div>
+                    ))}
                 </div>
               ))}
             </div>
@@ -777,8 +829,8 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
           <div className="flex flex-row gap-3 sm:flex-row sm:items-center">
             <button
               type="submit"
-              disabled={loading}
-              className="border border-green-600 text-white bg-green-600 rounded-md px-3 py-2 text-sm"
+              disabled={loading || stockShortages.length > 0}
+              className="border border-green-600 text-white bg-green-600 rounded-md px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading
                 ? 'Saving Invoice...'

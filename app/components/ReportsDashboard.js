@@ -214,7 +214,7 @@ export default function ReportsDashboard() {
         <div className="p-6 space-y-5">
             <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold">Reports</h1>
+                    <h1 className="text-2xl font-bold"></h1>
                     <p className="text-sm text-gray-500">
                         Daily, monthly, yearly sales, purchases, total comparison and sold-item profit.
                     </p>

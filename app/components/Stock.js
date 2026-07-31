@@ -3,6 +3,10 @@
 import { useEffect, useState } from 'react'
 import axios from 'axios'
 
+function stockTotal(quantity, weight, rate) {
+  return Number(quantity || 0) * Number(weight || 0) * Number(rate || 0)
+}
+
 export default function Stocks() {
   const [stocks, setStocks] = useState([])
   const [form, setForm] = useState({
@@ -207,14 +211,16 @@ export default function Stocks() {
       weight_unit: stock.weight_unit || 'kg',
       purchase_rate:
         stock.purchase_rate ||
-        (Number(stock.weight || 0) > 0
-          ? Number(stock.purchase_price || 0) / Number(stock.weight)
+        (Number(stock.quantity || 0) * Number(stock.weight || 0) > 0
+          ? Number(stock.purchase_price || 0) /
+            (Number(stock.quantity) * Number(stock.weight))
           : ''),
       purchase_price: stock.purchase_price || '',
       selling_rate:
         stock.selling_rate ||
-        (Number(stock.weight || 0) > 0
-          ? Number(stock.selling_price || 0) / Number(stock.weight)
+        (Number(stock.quantity || 0) * Number(stock.weight || 0) > 0
+          ? Number(stock.selling_price || 0) /
+            (Number(stock.quantity) * Number(stock.weight))
           : ''),
       selling_price: stock.selling_price || '',
       expire_date: stock.expire_date ? formatDate(stock.expire_date) : '',
@@ -310,7 +316,15 @@ export default function Stocks() {
           <input
             type="number"
             value={form.quantity}
-            onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+            onChange={(e) => {
+              const quantity = e.target.value
+              setForm({
+                ...form,
+                quantity,
+                purchase_price: stockTotal(quantity, form.weight, form.purchase_rate),
+                selling_price: stockTotal(quantity, form.weight, form.selling_rate),
+              })
+            }}
             required
             className="border border-gray-300 p-2 rounded-md w-full"
           />
@@ -327,8 +341,8 @@ export default function Stocks() {
               setForm({
                 ...form,
                 weight,
-                purchase_price: Number(weight || 0) * Number(form.purchase_rate || 0),
-                selling_price: Number(weight || 0) * Number(form.selling_rate || 0),
+                purchase_price: stockTotal(form.quantity, weight, form.purchase_rate),
+                selling_price: stockTotal(form.quantity, weight, form.selling_rate),
               })
             }}
             className="border border-gray-300 p-2 rounded-md w-full"
@@ -362,7 +376,7 @@ export default function Stocks() {
               setForm({
                 ...form,
                 purchase_rate,
-                purchase_price: Number(form.weight || 0) * Number(purchase_rate || 0),
+                purchase_price: stockTotal(form.quantity, form.weight, purchase_rate),
               })
             }}
             required
@@ -372,7 +386,7 @@ export default function Stocks() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Total Purchase Price (Kg × Rate)
+            Total Purchase Price (Qty × Weight × Rate)
           </label>
           <input
             type="number"
@@ -381,6 +395,7 @@ export default function Stocks() {
             className="border border-gray-300 bg-gray-100 p-2 rounded-md w-full font-semibold"
           />
           <p className="mt-1 text-xs text-gray-500">
+            {Number(form.quantity || 0).toLocaleString()} ×{' '}
             {Number(form.weight || 0).toLocaleString()} kg × Rs{' '}
             {Number(form.purchase_rate || 0).toLocaleString()}
           </p>
@@ -400,7 +415,7 @@ export default function Stocks() {
               setForm({
                 ...form,
                 selling_rate,
-                selling_price: Number(form.weight || 0) * Number(selling_rate || 0),
+                selling_price: stockTotal(form.quantity, form.weight, selling_rate),
               })
             }}
             className="border border-gray-300 p-2 rounded-md w-full"
@@ -409,7 +424,7 @@ export default function Stocks() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Total Selling Price (Kg × Rate)
+            Total Selling Price (Qty × Weight × Rate)
           </label>
           <input
             type="number"
@@ -418,6 +433,7 @@ export default function Stocks() {
             className="border border-gray-300 bg-gray-100 p-2 rounded-md w-full font-semibold"
           />
           <p className="mt-1 text-xs text-gray-500">
+            {Number(form.quantity || 0).toLocaleString()} ×{' '}
             {Number(form.weight || 0).toLocaleString()} kg × Rs{' '}
             {Number(form.selling_rate || 0).toLocaleString()}
           </p>

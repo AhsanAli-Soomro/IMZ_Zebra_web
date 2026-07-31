@@ -14,10 +14,11 @@ function money(value) {
 }
 
 function lineAmount(item) {
+  const qty = Number(item.qty || 0)
   const weight = Number(item.weight || 0)
   const price = Number(item.price || 0)
 
-  return weight * price
+  return qty * weight * price
 }
 
 export default function PurchaseInvoice() {
@@ -39,7 +40,7 @@ export default function PurchaseInvoice() {
     purchaseDate: today(),
     transportExpense: '',
     notes: '',
-    paymentType: 'credit',
+    paymentType: 'cash',
     paidAmount: '',
   })
 
@@ -82,11 +83,15 @@ export default function PurchaseInvoice() {
     loadCompany()
   }, [])
 
-  useEffect(() => {
-    fetch('/api/stocks', { cache: 'no-store' })
+  async function loadStocks() {
+    return fetch('/api/stocks', { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => setStocks(data?.data || []))
       .catch((err) => console.error('Products load failed', err))
+  }
+
+  useEffect(() => {
+    loadStocks()
   }, [])
 
   useEffect(() => {
@@ -139,7 +144,7 @@ export default function PurchaseInvoice() {
 
         const updated = { ...item, [key]: value }
 
-        if (key === 'weight' || key === 'price') {
+        if (key === 'qty' || key === 'weight' || key === 'price') {
           updated.amount = lineAmount(updated)
         }
 
@@ -169,7 +174,7 @@ export default function PurchaseInvoice() {
       purchaseDate: today(),
       transportExpense: '',
       notes: '',
-      paymentType: 'credit',
+      paymentType: 'cash',
       paidAmount: '',
     })
 
@@ -247,6 +252,7 @@ export default function PurchaseInvoice() {
         throw new Error(data?.message || 'Purchase invoice save failed')
       }
       setMessage(`Purchase invoice saved: ${data.data?.purchase_no || ''}`)
+      await loadStocks()
       resetForm()
 
       if (data.data?.id) {
@@ -495,7 +501,10 @@ export default function PurchaseInvoice() {
                           stockId: selected?.id || '',
                           itemCode: selected?.item_code || (row.stockId ? '' : row.itemCode),
                           weight_unit: selected?.weight_unit || row.weight_unit,
-                          price: selected?.purchase_price || row.price,
+                          price:
+                            selected?.purchase_rate ||
+                            selected?.purchase_price ||
+                            row.price,
                         } : row))
                       }}
                       className="border rounded-md px-3 py-2 w-full"
@@ -504,7 +513,8 @@ export default function PurchaseInvoice() {
                     <datalist id={`product-list-${index}`}>
                       {stocks.map((stock) => (
                         <option key={stock.id} value={stock.item_name}>
-                          {stock.item_code} — {stock.item_name}
+                          {stock.item_code} — {stock.item_name} — Current Stock:{' '}
+                          {Number(stock.quantity ?? stock.qty ?? 0).toLocaleString()}
                         </option>
                       ))}
                     </datalist>
@@ -520,6 +530,24 @@ export default function PurchaseInvoice() {
                       onChange={(e) => updateItem(index, 'qty', e.target.value)}
                       className="border rounded-md px-3 py-2 w-full"
                     />
+                    {item.stockId && (
+                      <p className="mt-1 text-xs font-medium text-green-700">
+                        Current:{' '}
+                        {Number(
+                          stocks.find(
+                            (stock) => String(stock.id) === String(item.stockId)
+                          )?.quantity || 0
+                        ).toLocaleString()}{' '}
+                        → After purchase:{' '}
+                        {(
+                          Number(
+                            stocks.find(
+                              (stock) => String(stock.id) === String(item.stockId)
+                            )?.quantity || 0
+                          ) + Number(item.qty || 0)
+                        ).toLocaleString()}
+                      </p>
+                    )}
                   </div>
 
                   <div>
