@@ -1,6 +1,6 @@
 {
   "name": "habib-rice-corporation",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Habib Rice Corporation IMS desktop application",
   "author": "Ahsan Ali Soomro",
@@ -28,7 +28,7 @@
   "build": {
     "appId": "com.habibrice.corporation",
     "productName": "Habib Rice Corporation",
-    "artifactName": "Habib-Rice-Corporation-Setup.${ext}",
+    "artifactName": "Habib-Rice-Corporation-Setup-${version}.${ext}",
     "afterPack": "scripts/after-pack.js",
     "directories": {
       "output": "dist"
