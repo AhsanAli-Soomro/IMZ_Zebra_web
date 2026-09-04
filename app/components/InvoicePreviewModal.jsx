@@ -81,12 +81,12 @@ export default function InvoicePreviewModal({
   async function handlePrint() {
     try {
       if (!invoice?.id) {
-        setMessage?.('Invoice available nahi hai')
+        setMessage?.('Invoice is not available.')
         return
       }
 
       if (!window.electronAPI?.printInvoice) {
-        setMessage?.('Electron print API available nahi hai')
+        setMessage?.('Electron print API is not available.')
         return
       }
 
@@ -96,7 +96,7 @@ export default function InvoicePreviewModal({
       if (!result?.success) {
         if (result?.code === 'NO_PRINTER') {
           setPrinterAvailable(false)
-          setMessage?.('Printer available nahi hai. Download PDF use karein.')
+          setMessage?.('Printer is not available. Please download the PDF.')
           return
         }
 
@@ -113,12 +113,12 @@ export default function InvoicePreviewModal({
   async function handleDownloadPdf() {
     try {
       if (!invoice?.id) {
-        setMessage?.('Invoice available nahi hai')
+        setMessage?.('Invoice is not available.')
         return
       }
 
       if (!window.electronAPI?.downloadInvoicePdf) {
-        setMessage?.('Electron PDF API available nahi hai')
+        setMessage?.('Electron PDF API is not available.')
         return
       }
 
@@ -238,7 +238,7 @@ export default function InvoicePreviewModal({
               </h3>
               <p className="text-sm text-gray-500">
                 View, print, download PDF
-                {showEditButton ? ', ya form mein load karke edit karein' : ''}
+                {showEditButton ? ', or load it into the form to edit' : ''}
               </p>
             </div>
 

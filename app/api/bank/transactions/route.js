@@ -81,13 +81,13 @@ export async function POST(req) {
     const notes = clean(body.notes)
     const description = clean(body.description)
 
-    if (!accountId) throw new Error('Bank account required hai')
+    if (!accountId) throw new Error('A bank account is required.')
     if (!['deposit', 'withdrawal', 'transfer'].includes(txType)) {
-      throw new Error('Valid transaction type required hai')
+      throw new Error('A valid transaction type is required.')
     }
-    if (amount <= 0) throw new Error('Valid amount required hai')
+    if (amount <= 0) throw new Error('A valid amount is required.')
     if (txType === 'transfer' && (!toAccountId || toAccountId === accountId)) {
-      throw new Error('Transfer ke liye different target account required hai')
+      throw new Error('A different target account is required for a transfer.')
     }
 
     const sqlite = db.getConnection()

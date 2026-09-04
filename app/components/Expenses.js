@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import Select from 'react-select'
+import CreatableSelect from 'react-select/creatable'
 
 export default function ExpensesPage() {
     const [expenses, setExpenses] = useState([])
@@ -23,15 +24,22 @@ export default function ExpensesPage() {
     })
 
     // Pakistani Market Categories
-    const categoryOptions = [
-        { value: 'Groceries / Rashan', label: 'Groceries / Rashan' },
+    const baseCategoryOptions = [
+        { value: 'Groceries', label: 'Groceries' },
         { value: 'Utilities (Electricity/Gas/Water)', label: 'Utilities (Electricity/Gas/Water)' },
         { value: 'Fuel / Bike / Car Maintenance', label: 'Fuel / Bike / Car Maintenance' },
         { value: 'Rent / Maintenance', label: 'Rent / Maintenance' },
-        { value: 'Dine Out / Chai / Foodpanda', label: 'Dine Out / Chai / Foodpanda' },
+        { value: 'Dining / Food Delivery', label: 'Dining / Food Delivery' },
         { value: 'Mobile Load / Internet', label: 'Mobile Load / Internet' },
         { value: 'Medical / Healthcare', label: 'Medical / Healthcare' },
         { value: 'Miscellaneous / Other', label: 'Miscellaneous / Other' },
+    ]
+
+    const categoryOptions = [
+        ...baseCategoryOptions,
+        ...[...new Set(expenses.map((expense) => expense.category).filter(Boolean))]
+            .filter((category) => !baseCategoryOptions.some((option) => option.value === category))
+            .map((category) => ({ value: category, label: category })),
     ]
 
     // Pakistani Payment Options
@@ -89,7 +97,7 @@ export default function ExpensesPage() {
                 fetchExpenses()
                 closeModal()
             } else {
-                alert(result.message || 'Kuch galat ho gaya.')
+                alert(result.message || 'Something went wrong.')
             }
         } catch (err) {
             console.error('Error saving expense:', err)
@@ -97,7 +105,7 @@ export default function ExpensesPage() {
     }
 
     const handleDelete = async (id) => {
-        if (!confirm('Kya aap waqai yeh expense delete karna chahte hain?')) return
+        if (!confirm('Are you sure you want to delete this expense?')) return
 
         try {
             const res = await fetch('/api/expenses', {
@@ -110,7 +118,7 @@ export default function ExpensesPage() {
             if (result.success) {
                 fetchExpenses()
             } else {
-                alert(result.message || 'Delete nahi ho saka.')
+                alert(result.message || 'Expense could not be deleted.')
             }
         } catch (err) {
             console.error('Error deleting expense:', err)
@@ -145,13 +153,13 @@ export default function ExpensesPage() {
 
     return (
         <div className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-12">
-            <div className="max-w-6xl mx-auto">
+            <div className="">
 
                 {/* Header Section */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 md:mb-8">
                     <div>
                         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Expense Tracker</h1>
-                        <p className="text-xs sm:text-sm text-gray-500 mt-1">Apne rozana ke kharche asani se manage karein.</p>
+                        <p className="text-xs sm:text-sm text-gray-500 mt-1">Track and manage daily expenses in one place.</p>
                     </div>
                     <button
                         onClick={() => setIsModalOpen(true)}
@@ -160,7 +168,7 @@ export default function ExpensesPage() {
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                         </svg>
-                        Naya Expense Add Karein
+                        Add New Expense
                     </button>
                 </div>
 
@@ -169,7 +177,7 @@ export default function ExpensesPage() {
                     {/* Total Box */}
                     <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
                         <div>
-                            <p className="text-xs sm:text-sm font-medium text-gray-400 uppercase tracking-wider">Kul Akhrajaat (Total)</p>
+                            <p className="text-xs sm:text-sm font-medium text-gray-400 uppercase tracking-wider">Total Expenses</p>
                             <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">
                                 Rs. {totalAmount.toLocaleString('en-PK', { minimumFractionDigits: 0 })}
                             </h3>
@@ -184,7 +192,7 @@ export default function ExpensesPage() {
                     {/* Filter Dropdown */}
                     <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm md:col-span-2 flex flex-col justify-center">
                         <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">
-                            Category Ke Mutabiq Filter Karein
+                            Filter by Category
                         </label>
                         <div className="flex items-center gap-3">
                             <div className="w-full">
@@ -193,7 +201,7 @@ export default function ExpensesPage() {
                                     value={selectedCategoryFilter}
                                     onChange={setSelectedCategoryFilter}
                                     isClearable
-                                    placeholder="Tamam Categories"
+                                    placeholder="All Categories"
                                     className="react-select-container text-sm"
                                     classNamePrefix="react-select"
                                 />
@@ -204,9 +212,9 @@ export default function ExpensesPage() {
 
                 {/* Expenses List Component (Desktop: Table, Mobile: Card List) */}
                 {loading ? (
-                    <div className="bg-white p-12 rounded-2xl text-center border text-gray-500">Kharche load ho rahe hain...</div>
+                    <div className="bg-white p-12 rounded-2xl text-center border text-gray-500">Loading expenses...</div>
                 ) : filteredExpenses.length === 0 ? (
-                    <div className="bg-white p-12 rounded-2xl text-center border text-gray-400">Kharchon ka koi record nahi mila.</div>
+                    <div className="bg-white p-12 rounded-2xl text-center border text-gray-400">No expense records found.</div>
                 ) : (
                     <>
                         {/* 1. MOBILE RESPONSIVE CARD VIEW (Visible only on smaller screens) */}
@@ -266,11 +274,11 @@ export default function ExpensesPage() {
                                 <table className="w-full text-left border-collapse min-w-[800px]">
                                     <thead>
                                         <tr className="bg-gray-50 border-b border-gray-100 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                                            <th className="py-4 px-6">Tareekh (Date)</th>
+                                            <th className="py-4 px-6">Date</th>
                                             <th className="py-4 px-6">Category</th>
                                             <th className="py-4 px-6">Payment Method</th>
-                                            <th className="py-4 px-6">Tafseel (Notes)</th>
-                                            <th className="py-4 px-6 text-right">Raqam (Amount)</th>
+                                            <th className="py-4 px-6">Notes</th>
+                                            <th className="py-4 px-6 text-right">Amount</th>
                                             <th className="py-4 px-6 text-center">Actions</th>
                                         </tr>
                                     </thead>
@@ -352,19 +360,22 @@ export default function ExpensesPage() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Category Select Karein</label>
-                                    <Select
+                                    <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Select Category</label>
+                                    <CreatableSelect
                                         options={categoryOptions}
-                                        value={categoryOptions.find(opt => opt.value === formData.category) || null}
-                                        onChange={(opt) => setFormData({ ...formData, category: opt ? opt.value : '' })}
-                                        placeholder="Select karein..."
+                                        value={formData.category ? categoryOptions.find(opt => opt.value === formData.category) || { value: formData.category, label: formData.category } : null}
+                                        onChange={(opt) => setFormData({ ...formData, category: opt?.value || '' })}
+                                        onCreateOption={(value) => setFormData({ ...formData, category: value.trim() })}
+                                        isClearable
+                                        formatCreateLabel={(value) => `Use "${value}" as category`}
+                                        placeholder="Type or select a category..."
                                         className="text-sm"
                                     />
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Raqam (PKR)</label>
+                                    <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Amount (PKR)</label>
                                         <input
                                             type="number"
                                             required
@@ -386,10 +397,10 @@ export default function ExpensesPage() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Tafseel / Wajah (Notes)</label>
+                                    <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Notes</label>
                                     <textarea
                                         rows="3"
-                                        placeholder="Kharche ki mazed tafseel (optional)..."
+                                        placeholder="Optional details..."
                                         value={formData.notes}
                                         onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                                         className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 transition-colors resize-none text-sm"
@@ -408,7 +419,7 @@ export default function ExpensesPage() {
                                         type="submit"
                                         className="w-full sm:w-auto px-5 py-2.5 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm transition-colors"
                                     >
-                                        {editingId ? 'Tabdeeli Save Karein' : 'Save Karein'}
+                                        {editingId ? 'Save Changes' : 'Save Expense'}
                                     </button>
                                 </div>
                             </form>

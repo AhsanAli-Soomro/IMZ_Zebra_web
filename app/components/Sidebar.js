@@ -7,24 +7,11 @@ import { getStoredUser } from '@/lib/storage'
 export default function Sidebar({ active, setActive, isOpen }) {
   const router = useRouter()
   const [userType, setUserType] = useState(null)
-  const [openMenus, setOpenMenus] = useState({
-    Customers: false,
-    Suppliers: false,
-  })
 
   useEffect(() => {
     const user = getStoredUser()
     setUserType(user?.user_type || null)
   }, [])
-
-  useEffect(() => {
-    if (['Customers', 'Customer Ledger'].includes(active)) {
-      setOpenMenus((current) => ({ ...current, Customers: true }))
-    }
-    if (['Suppliers', 'Supplier Ledger'].includes(active)) {
-      setOpenMenus((current) => ({ ...current, Suppliers: true }))
-    }
-  }, [active])
 
   const handleLogout = () => {
     if (typeof window !== 'undefined') {
@@ -38,16 +25,10 @@ export default function Sidebar({ active, setActive, isOpen }) {
     'Dashboard',
     'Stock',
     'Inventory',
-    {
-      label: 'Customers',
-      children: ['Customers', 'Customer Ledger'],
-    },
+    'Customers',
     'Sale Invoice',
     'Purchase Invoice',
-    {
-      label: 'Suppliers',
-      children: ['Suppliers', 'Supplier Ledger'],
-    },
+    'Suppliers',
     'Categories',
     ...(userType === 'Employee' ? [] : ['Employees']),
     'Billing History',
@@ -85,48 +66,7 @@ export default function Sidebar({ active, setActive, isOpen }) {
             )
           }
 
-          const isExpanded = openMenus[item.label]
-
-          return (
-            <div key={item.label}>
-              <button
-                type="button"
-                onClick={() =>
-                  setOpenMenus((current) => ({
-                    ...current,
-                    [item.label]: !isExpanded,
-                  }))
-                }
-                className={`flex w-full items-center justify-between rounded px-3 py-2 text-left ${
-                  item.children.some((child) => active === child)
-                    ? 'bg-gray-800'
-                    : 'hover:bg-gray-800'
-                }`}
-              >
-                <span>{item.label}</span>
-                <span className={`text-xs transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
-                  ▼
-                </span>
-              </button>
-
-              {isExpanded && (
-                <div className="mt-1 space-y-1 border-l border-gray-700 pl-3">
-                  {item.children.map((child) => (
-                    <button
-                      key={child}
-                      type="button"
-                      onClick={() => setActive(child)}
-                      className={`block w-full rounded px-3 py-2 text-left text-sm ${
-                        active === child ? 'bg-indigo-600' : 'text-gray-300 hover:bg-gray-800'
-                      }`}
-                    >
-                      {child === item.label ? `${item.label} List` : child}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
+          return null
         })}
       </div>
     </aside>

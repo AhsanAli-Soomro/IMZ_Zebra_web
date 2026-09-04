@@ -153,6 +153,8 @@ export async function GET(request) {
        SELECT
         sii.stock_id,
         COALESCE(sii.item_name, sii.product_name, s.item_name, 'Item') AS item_name,
+        COALESCE(NULLIF(TRIM(s.category), ''), 'Uncategorized') AS category,
+        COALESCE(s.qty, s.quantity, 0) AS available_stock,
         COALESCE(SUM(sii.qty), 0) AS qty_sold,
         COALESCE(SUM(COALESCE(NULLIF(sii.amount, 0), sii.qty * CASE WHEN COALESCE(sii.weight, 0) > 0 THEN sii.weight ELSE 1 END * sii.price)), 0) AS sales_amount,
         COALESCE(SUM((CASE WHEN sii.price > 0 THEN COALESCE(NULLIF(sii.amount, 0), sii.qty * CASE WHEN COALESCE(sii.weight, 0) > 0 THEN sii.weight ELSE 1 END * sii.price) / sii.price ELSE sii.qty * CASE WHEN COALESCE(sii.weight, 0) > 0 THEN sii.weight ELSE 1 END END) * COALESCE(
@@ -178,7 +180,9 @@ export async function GET(request) {
        ${whereSql}
        GROUP BY
          sii.stock_id,
-         COALESCE(sii.item_name, sii.product_name, s.item_name, 'Item')
+         COALESCE(sii.item_name, sii.product_name, s.item_name, 'Item'),
+         COALESCE(NULLIF(TRIM(s.category), ''), 'Uncategorized'),
+         COALESCE(s.qty, s.quantity, 0)
        ORDER BY profit_loss DESC`,
       dateParams
     )

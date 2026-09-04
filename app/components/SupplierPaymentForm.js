@@ -84,7 +84,7 @@ export default function SupplierPaymentForm({ supplierId, supplierName, onSucces
         }
 
         if (selectedInvoice && paymentAmount > Number(selectedInvoice.remaining_amount || 0)) {
-          throw new Error('Amount purchase remaining se zyada nahi ho sakta')
+          throw new Error('Amount cannot exceed the purchase balance.')
         }
       }
 

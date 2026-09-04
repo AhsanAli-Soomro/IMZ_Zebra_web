@@ -372,22 +372,22 @@ export default function BillingPage({ selectedCustomerId = null }) {
       const validItems = items.filter((item) => Number(item.stockId) && Number(item.qty) > 0)
 
       if (!validItems.length) {
-        throw new Error('Invoice items mein valid product aur qty required hai')
+        throw new Error('Each invoice item requires a valid product and quantity.')
       }
 
       if (selectedCustomerMode === 'existing' && !form.customerId) {
-        throw new Error('Customer select karein')
+        throw new Error('Select a customer.')
       }
 
       if (selectedCustomerMode === 'manual' && !manualCustomer.name.trim()) {
-        throw new Error('Manual customer name required hai')
+        throw new Error('A manual customer name is required.')
       }
 
       if (form.paymentType === 'partial') {
         const partialPaid = Number(form.paidAmount || 0)
 
         if (partialPaid <= 0) {
-          throw new Error('Partial payment ke liye valid paid amount enter karein')
+          throw new Error('Enter a valid paid amount for a partial payment.')
         }
 
         if (partialPaid >= totals.total) {
@@ -467,7 +467,7 @@ export default function BillingPage({ selectedCustomerId = null }) {
       try {
         data = await res.json()
       } catch {
-        throw new Error('Server se valid response nahi mila')
+        throw new Error('The server returned an invalid response.')
       }
 
       if (!res.ok || !data?.success) {
@@ -581,7 +581,7 @@ export default function BillingPage({ selectedCustomerId = null }) {
     })
 
     setMessage(
-      'Invoice form mein load ho gayi hai. Save karne par abhi nayi invoice create hogi jab tak update API add nahi hoti.'
+      'The invoice has been loaded into the form. Saving currently creates a new invoice until an update API is added.'
     )
   }
 

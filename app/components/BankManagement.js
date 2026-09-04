@@ -30,6 +30,8 @@ const emptyTransaction = {
   notes: '',
 }
 
+const emptyBulkRow = () => ({ accountId: '', amount: '', note: '' })
+
 const pakistanBankGroups = [
   {
     label: 'Commercial & Specialized Banks',
@@ -129,6 +131,11 @@ export default function BankManagement() {
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [customBank, setCustomBank] = useState(false)
+  const [bulkType, setBulkType] = useState('deposit')
+  const [bulkDate, setBulkDate] = useState(today())
+  const [bulkRows, setBulkRows] = useState([emptyBulkRow()])
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const [menuPortalTarget, setMenuPortalTarget] = useState(null)
 
   async function loadBankData() {
     const [accountsRes, txRes] = await Promise.all([
@@ -152,6 +159,7 @@ export default function BankManagement() {
   }
 
   useEffect(() => {
+    setMenuPortalTarget(document.body)
     loadBankData().catch((error) => setMessage(error.message))
   }, [])
 
@@ -211,6 +219,55 @@ export default function BankManagement() {
     }
   }
 
+  const accountOptions = useMemo(() => accounts.map((account) => ({
+    value: String(account.id),
+    label: `${account.account_name}${account.bank_name ? ` — ${account.bank_name}` : ''}${account.account_number ? ` (${account.account_number})` : ''}`,
+    account,
+  })), [accounts])
+
+  function updateBulkRow(index, field, value) {
+    setBulkRows((current) => current.map((row, rowIndex) => (
+      rowIndex === index ? { ...row, [field]: value } : row
+    )))
+  }
+
+  async function saveBulkTransactions(event) {
+    event.preventDefault()
+    const validRows = bulkRows.filter((row) => row.accountId && Number(row.amount) > 0)
+    if (!validRows.length) {
+      setMessage('Select at least one bank and enter a valid amount.')
+      return
+    }
+
+    setBulkSaving(true)
+    setMessage('')
+    try {
+      for (const row of validRows) {
+        const response = await fetch('/api/bank/transactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accountId: row.accountId,
+            txType: bulkType,
+            amount: Number(row.amount),
+            txDate: bulkDate,
+            description: bulkType === 'deposit' ? 'Bulk bank credit' : 'Bulk bank debit',
+            notes: row.note,
+          }),
+        })
+        const json = await response.json()
+        if (!response.ok || !json.success) throw new Error(json.message || 'Bank transaction could not be saved.')
+      }
+      setBulkRows([emptyBulkRow()])
+      await loadBankData()
+      setMessage(`${validRows.length} bank ${bulkType === 'deposit' ? 'credit' : 'debit'} entries saved successfully.`)
+    } catch (error) {
+      setMessage(error.message || 'Bank entries could not be saved.')
+    } finally {
+      setBulkSaving(false)
+    }
+  }
+
   return (
     <div className="p-6 space-y-5">
       <div>
@@ -241,6 +298,37 @@ export default function BankManagement() {
         </div>
       </div>
 
+      <form onSubmit={saveBulkTransactions} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Bank Credit / Debit Entry</h2>
+            <p className="mt-1 text-sm text-gray-500">Image jaisa date-wise multiple bank entries add karein.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setBulkType('deposit')} className={`rounded-lg px-5 py-2.5 text-sm font-bold ${bulkType === 'deposit' ? 'bg-green-600 text-white' : 'border text-gray-700'}`}>Credit</button>
+            <button type="button" onClick={() => setBulkType('withdrawal')} className={`rounded-lg px-5 py-2.5 text-sm font-bold ${bulkType === 'withdrawal' ? 'bg-red-600 text-white' : 'border text-gray-700'}`}>Debit</button>
+            <label className="min-w-44"><span className="mb-1 block text-xs font-semibold text-gray-600">Date</span><input type="date" value={bulkDate} onChange={(event) => setBulkDate(event.target.value)} className="w-full rounded-lg border px-3 py-2" required /></label>
+          </div>
+        </div>
+
+        <div className="mt-5 overflow-x-auto rounded-xl border border-gray-200">
+          <div className="min-w-[760px]">
+            <div className="grid grid-cols-[minmax(280px,1.4fr)_minmax(180px,.7fr)_minmax(260px,1fr)_100px] gap-3 bg-gray-900 px-4 py-3 text-sm font-bold text-white">
+              <span>Bank Name</span><span>Amount</span><span>Note</span><span>Action</span>
+            </div>
+            {bulkRows.map((row, index) => (
+              <div key={index} className="grid grid-cols-[minmax(280px,1.4fr)_minmax(180px,.7fr)_minmax(260px,1fr)_100px] items-center gap-3 border-t px-4 py-3">
+                <Select value={accountOptions.find((option) => option.value === String(row.accountId)) || null} options={accountOptions} onChange={(option) => updateBulkRow(index, 'accountId', option?.value || '')} isSearchable isClearable placeholder="Type bank name to search..." noOptionsMessage={() => 'Bank account not found'} className="text-sm" menuPortalTarget={menuPortalTarget} menuPosition="fixed" styles={{ menuPortal: (base) => ({ ...base, zIndex: 9999 }), menu: (base) => ({ ...base, zIndex: 9999 }) }} />
+                <input type="number" min="0.01" step="0.01" value={row.amount} onChange={(event) => updateBulkRow(index, 'amount', event.target.value)} placeholder="Amount" className="rounded-lg border px-3 py-2.5" />
+                <input value={row.note} onChange={(event) => updateBulkRow(index, 'note', event.target.value)} placeholder="Anything / optional note" className="rounded-lg border px-3 py-2.5" />
+                {index === bulkRows.length - 1 ? <button type="button" onClick={() => setBulkRows((current) => [...current, emptyBulkRow()])} className="rounded-lg bg-indigo-600 px-3 py-2.5 text-sm font-bold text-white">Add Row</button> : <button type="button" onClick={() => setBulkRows((current) => current.filter((_, rowIndex) => rowIndex !== index))} className="rounded-lg px-3 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50">Remove</button>}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="mt-5 flex justify-end"><button disabled={bulkSaving || !accounts.length} className={`rounded-xl px-10 py-3 text-base font-extrabold text-white shadow-sm disabled:bg-gray-400 ${bulkType === 'deposit' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>{bulkSaving ? 'Saving...' : `Save ${bulkType === 'deposit' ? 'Credit' : 'Debit'} Entries`}</button></div>
+      </form>
+
       <div className="grid xl:grid-cols-2 gap-5">
         <form onSubmit={saveAccount} className="rounded-xl border bg-white p-4 space-y-3">
           <h2 className="font-semibold">Bank Account</h2>
@@ -270,10 +358,16 @@ export default function BankManagement() {
                 }}
                 isSearchable
                 isClearable
-                placeholder="Type karke bank search karein..."
-                noOptionsMessage={() => 'Koi matching bank nahi mila'}
+                placeholder="Type to search for a bank..."
+                noOptionsMessage={() => 'No matching bank found'}
                 className="text-sm"
                 classNamePrefix="bank-select"
+                menuPortalTarget={menuPortalTarget}
+                menuPosition="fixed"
+                styles={{
+                  menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                  menu: (base) => ({ ...base, zIndex: 9999 }),
+                }}
               />
               {customBank && (
                 <input

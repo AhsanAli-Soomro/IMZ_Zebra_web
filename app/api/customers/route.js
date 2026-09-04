@@ -1,16 +1,37 @@
 import db from '@/lib/db'
 import { NextResponse } from 'next/server'
 
-export async function GET() {
+export async function GET(request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const paginate = searchParams.get('paginate') === '1'
+    const page = Math.max(1, Number(searchParams.get('page')) || 1)
+    const limit = Math.max(1, Math.min(Number(searchParams.get('limit')) || 50, 200))
+    const search = String(searchParams.get('search') || '').trim()
+    const params = []
+    let searchSql = ''
+    if (search) {
+      searchSql = 'AND (name LIKE ? OR email LIKE ? OR phone LIKE ? OR address LIKE ?)'
+      const like = `%${search}%`
+      params.push(like, like, like, like)
+    }
+    const pagingSql = paginate ? `LIMIT ${limit} OFFSET ${(page - 1) * limit}` : ''
     const data = await db.query(`
       SELECT *
       FROM customers
-      WHERE deleted_at IS NULL OR deleted_at = ''
+      WHERE (deleted_at IS NULL OR deleted_at = '')
+      ${searchSql}
       ORDER BY created_at DESC
-    `)
+      ${pagingSql}
+    `, params)
 
-    return NextResponse.json({ success: true, data })
+    let pagination = null
+    if (paginate) {
+      const count = await db.query(`SELECT COUNT(*) AS total FROM customers WHERE (deleted_at IS NULL OR deleted_at = '') ${searchSql}`, params)
+      const total = Number(count[0]?.total || 0)
+      pagination = { page, limit, total, totalPages: Math.ceil(total / limit) }
+    }
+    return NextResponse.json({ success: true, data, pagination })
   } catch (error) {
     return NextResponse.json(
       { success: false, message: error.message || 'Failed to load customers' },
@@ -31,7 +52,7 @@ export async function POST(req) {
          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
       )
       items.forEach(({ name, email, phone, address, status }) => {
-        if (!String(name || '').trim()) throw new Error('Customer name required hai')
+        if (!String(name || '').trim()) throw new Error('Customer name is required.')
         insert.run(name, email || '', phone || '', address || '', status || 'Active')
       })
     })()

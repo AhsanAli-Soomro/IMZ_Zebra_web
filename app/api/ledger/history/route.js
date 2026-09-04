@@ -10,10 +10,12 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type')
+    const requestedLimit = Number(searchParams.get('limit') || 500)
+    const limit = Math.max(1, Math.min(Number.isFinite(requestedLimit) ? requestedLimit : 500, 2000))
 
     if (!['customer', 'supplier'].includes(type)) {
       return NextResponse.json(
-        { success: false, message: 'Ledger type customer ya supplier hona chahiye' },
+        { success: false, message: 'Ledger type must be customer or supplier.' },
         { status: 400 }
       )
     }
@@ -58,10 +60,11 @@ export async function GET(request) {
       WHERE la.owner_type = ?
         AND le.deleted_at IS NULL
         AND (p.deleted_at IS NULL OR p.deleted_at = '')
-      ORDER BY le.entry_date ASC, le.id ASC
+      ORDER BY le.entry_date DESC, le.id DESC
+      LIMIT ${limit}
     `, [type])
 
-    const normalizedEntries = entries.map((entry) => ({
+    const normalizedEntries = entries.reverse().map((entry) => ({
       ...entry,
       debit: number(entry.debit),
       credit: number(entry.credit),
@@ -79,11 +82,16 @@ export async function GET(request) {
           balance: isCustomer ? totalDebit - totalCredit : totalCredit - totalDebit,
         },
         entries: normalizedEntries,
+        pagination: {
+          limit,
+          returned: normalizedEntries.length,
+          has_more: normalizedEntries.length === limit,
+        },
       },
     })
   } catch (error) {
     return NextResponse.json(
-      { success: false, message: error.message || 'Ledger history load nahi hui' },
+      { success: false, message: error.message || 'Ledger history could not be loaded.' },
       { status: 500 }
     )
   }

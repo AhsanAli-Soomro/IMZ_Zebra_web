@@ -17,7 +17,7 @@ export async function GET(request) {
 
     if (!validDate(date)) {
       return NextResponse.json(
-        { success: false, message: 'Valid ledger date required hai' },
+        { success: false, message: 'A valid ledger date is required.' },
         { status: 400 }
       )
     }
@@ -147,7 +147,7 @@ export async function GET(request) {
     })
   } catch (error) {
     return NextResponse.json(
-      { success: false, message: error.message || 'Daily ledger load nahi ho saka' },
+      { success: false, message: error.message || 'Daily ledger could not be loaded.' },
       { status: 500 }
     )
   }

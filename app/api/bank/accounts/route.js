@@ -55,8 +55,8 @@ export async function POST(req) {
     const status = clean(body.status, 'Active')
     const notes = clean(body.notes)
 
-    if (!accountName) throw new Error('Account name required hai')
-    if (openingBalance < 0) throw new Error('Opening balance negative nahi ho sakta')
+    if (!accountName) throw new Error('Account name is required.')
+    if (openingBalance < 0) throw new Error('Opening balance cannot be negative.')
 
     const sqlite = db.getConnection()
     const result = sqlite.transaction(() => {
@@ -107,7 +107,7 @@ export async function PUT(req) {
     const notes = clean(body.notes)
 
     if (!id) throw new Error('Invalid account id')
-    if (!accountName) throw new Error('Account name required hai')
+    if (!accountName) throw new Error('Account name is required.')
 
     await db.query(`
       UPDATE bank_accounts

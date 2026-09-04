@@ -35,35 +35,25 @@ export default function Stocks() {
   const [searchCategory, setSearchCategory] = useState('')
   const [searchSupplier, setSearchSupplier] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalStocks, setTotalStocks] = useState(0)
   const [saving, setSaving] = useState(false)
   const [pendingStocks, setPendingStocks] = useState([])
   const [notice, setNotice] = useState({ type: '', text: '' })
 
   const itemsPerPage = 10
 
-  const filteredStocks = stocks.filter((stock) => {
-    const itemCode = String(stock.item_code || '').toLowerCase()
-    const itemName = String(stock.item_name || '').toLowerCase()
-    const q = searchTerm.toLowerCase()
-
-    const matchesCode = itemCode.includes(q)
-    const matchesName = itemName.includes(q)
-    const matchesCategory = searchCategory ? stock.category === searchCategory : true
-    const matchesSupplier = searchSupplier ? stock.supplier_name === searchSupplier : true
-
-    return (matchesCode || matchesName) && matchesCategory && matchesSupplier
-  })
-
-  const totalPages = Math.ceil(filteredStocks.length / itemsPerPage)
-
-  const paginatedStocks = filteredStocks.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  )
+  const paginatedStocks = stocks
 
   const fetchStocks = async () => {
-    const res = await axios.get('/api/stocks')
+    const params = { paginate: 1, page: currentPage, limit: itemsPerPage }
+    if (searchTerm.trim()) params.search = searchTerm.trim()
+    if (searchCategory) params.category = searchCategory
+    if (searchSupplier) params.supplier = searchSupplier
+    const res = await axios.get('/api/stocks', { params })
     setStocks(res.data.data || [])
+    setTotalPages(res.data.pagination?.totalPages || 1)
+    setTotalStocks(res.data.pagination?.total || 0)
   }
 
   const fetchCategories = async () => {
@@ -77,10 +67,14 @@ export default function Stocks() {
   }
 
   useEffect(() => {
-    fetchStocks()
     fetchCategories()
     fetchSuppliers()
   }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(fetchStocks, 250)
+    return () => clearTimeout(timer)
+  }, [currentPage, searchTerm, searchCategory, searchSupplier])
 
   const resetForm = () => {
     setForm({
@@ -138,7 +132,7 @@ export default function Stocks() {
       const response = await axios.put('/api/stocks', formData)
 
       if (!response.data?.success) {
-        throw new Error(response.data?.message || 'Product save nahi ho saka')
+        throw new Error(response.data?.message || 'Product could not be saved.')
       }
 
       resetForm()
@@ -153,7 +147,7 @@ export default function Stocks() {
         text:
           error.response?.data?.message ||
           error.message ||
-          'Product save nahi ho saka. Dobara try karein.',
+          'Product could not be saved. Please try again.',
       })
     } finally {
       setSaving(false)
@@ -180,7 +174,7 @@ export default function Stocks() {
     } catch (error) {
       setNotice({
         type: 'error',
-        text: error.response?.data?.message || error.message || 'Stock list save nahi ho saki.',
+        text: error.response?.data?.message || error.message || 'Stock list could not be saved.',
       })
     } finally {
       setSaving(false)
@@ -698,9 +692,9 @@ export default function Stocks() {
 
         <div className="flex justify-between items-center mt-6 text-sm text-gray-600">
           <p>
-            Showing {filteredStocks.length ? (currentPage - 1) * itemsPerPage + 1 : 0}–
-            {Math.min(currentPage * itemsPerPage, filteredStocks.length)} of{' '}
-            {filteredStocks.length}
+            Showing {totalStocks ? (currentPage - 1) * itemsPerPage + 1 : 0}–
+            {Math.min(currentPage * itemsPerPage, totalStocks)} of{' '}
+            {totalStocks}
           </p>
 
           <div className="space-x-2">

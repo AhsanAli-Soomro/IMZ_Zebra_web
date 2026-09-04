@@ -250,6 +250,7 @@ CREATE TABLE IF NOT EXISTS cash_transactions (
 
 CREATE INDEX IF NOT EXISTS idx_cash_transactions_tx_date ON cash_transactions(tx_date);
 CREATE INDEX IF NOT EXISTS idx_cash_transactions_reference ON cash_transactions(reference_type, reference_id);
+CREATE INDEX IF NOT EXISTS idx_cash_transactions_date_type_deleted ON cash_transactions(tx_date, tx_type, deleted_at);
 
 CREATE TABLE IF NOT EXISTS counter_closings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -292,6 +293,16 @@ CREATE TABLE IF NOT EXISTS stock_movements (
 
 CREATE INDEX IF NOT EXISTS idx_stock_movements_stock_id ON stock_movements(stock_id);
 CREATE INDEX IF NOT EXISTS idx_stock_movements_reference ON stock_movements(reference_type, reference_id);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_stock_type ON stock_movements(stock_id, movement_type);
+
+CREATE INDEX IF NOT EXISTS idx_bills_date_deleted ON bills(invoice_date, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_bills_customer_date ON bills(customer_id, invoice_date);
+CREATE INDEX IF NOT EXISTS idx_ledger_entries_account_date_deleted ON ledger_entries(account_id, entry_date, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_ledger_entries_date_deleted ON ledger_entries(entry_date, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_sales_invoice_items_stock_bill ON sales_invoice_items(stock_id, bill_id);
+CREATE INDEX IF NOT EXISTS idx_customers_deleted_id ON customers(deleted_at, id);
+CREATE INDEX IF NOT EXISTS idx_suppliers_deleted_id ON suppliers(deleted_at, id);
+CREATE INDEX IF NOT EXISTS idx_stocks_category_deleted ON stocks(category, deleted_at);
 
 CREATE TABLE IF NOT EXISTS audit_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -360,6 +371,10 @@ CREATE TABLE IF NOT EXISTS purchase_invoice_items (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_purchase_invoices_date_deleted ON purchase_invoices(invoice_date, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_purchase_invoices_supplier_date ON purchase_invoices(supplier_id, invoice_date);
+CREATE INDEX IF NOT EXISTS idx_purchase_invoice_items_stock_invoice ON purchase_invoice_items(stock_id, purchase_invoice_id);
 
 CREATE TABLE IF NOT EXISTS app_settings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

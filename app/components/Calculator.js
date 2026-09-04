@@ -31,31 +31,31 @@ export default function ProfitLossCalculator() {
     const errors = [];
 
     if (!costPrice || cp <= 0) {
-      errors.push("Cost price required hai aur 0 se zyada honi chahiye.");
+      errors.push("Cost price is required and must be greater than zero.");
     }
 
     if (!sellingPrice || sp <= 0) {
-      errors.push("Selling price required hai aur 0 se zyada honi chahiye.");
+      errors.push("Selling price is required and must be greater than zero.");
     }
 
     if (!quantity || qty <= 0) {
-      errors.push("Quantity required hai aur 1 ya us se zyada honi chahiye.");
+      errors.push("Quantity is required and must be at least one.");
     }
 
     if (disc < 0) {
-      errors.push("Discount negative nahi ho sakta.");
+      errors.push("Discount cannot be negative.");
     }
 
     if (tax < 0) {
-      errors.push("Tax percentage negative nahi ho sakta.");
+      errors.push("Tax percentage cannot be negative.");
     }
 
     if (expense < 0) {
-      errors.push("Extra cost negative nahi ho sakti.");
+      errors.push("Extra cost cannot be negative.");
     }
 
     if (desiredProfit < 0) {
-      errors.push("Desired profit percentage negative nahi ho sakta.");
+      errors.push("Desired profit percentage cannot be negative.");
     }
 
     if (errors.length > 0) {

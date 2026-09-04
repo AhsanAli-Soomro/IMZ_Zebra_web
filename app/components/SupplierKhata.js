@@ -23,8 +23,8 @@ function getEntryLabel(type) {
 function getBalanceLabel(balance) {
   const amount = Number(balance || 0)
 
-  if (amount > 0) return `Supplier ko dena hai: ${formatAmount(amount)}`
-  if (amount < 0) return `Supplier se lena hai: ${formatAmount(Math.abs(amount))}`
+  if (amount > 0) return `Payable to supplier: ${formatAmount(amount)}`
+  if (amount < 0) return `Receivable from supplier: ${formatAmount(Math.abs(amount))}`
 
   return 'Balance clear'
 }

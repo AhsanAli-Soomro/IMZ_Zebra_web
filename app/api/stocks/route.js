@@ -12,8 +12,30 @@ function clean(value, fallback = '') {
   return text || fallback
 }
 
-export async function GET() {
+export async function GET(request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const paginate = searchParams.get('paginate') === '1'
+    const page = Math.max(1, toNumber(searchParams.get('page'), 1))
+    const limit = Math.max(1, Math.min(toNumber(searchParams.get('limit'), 50), 200))
+    const search = clean(searchParams.get('search'))
+    const category = clean(searchParams.get('category'))
+    const supplier = clean(searchParams.get('supplier'))
+    const lowStock = searchParams.get('lowStock') === '1'
+    const expiringSoon = searchParams.get('expiringSoon') === '1'
+    const conditions = ["(s.deleted_at IS NULL OR s.deleted_at = '')"]
+    const params = []
+    if (search) {
+      conditions.push('(s.item_code LIKE ? OR s.item_name LIKE ?)')
+      params.push(`%${search}%`, `%${search}%`)
+    }
+    if (category) { conditions.push('s.category = ?'); params.push(category) }
+    if (supplier) { conditions.push('s.supplier_name = ?'); params.push(supplier) }
+    if (lowStock) conditions.push('COALESCE(NULLIF(s.qty, 0), s.quantity, 0) <= 5')
+    if (expiringSoon) conditions.push("date(s.expire_date) BETWEEN date('now') AND date('now', '+7 days')")
+    const whereSql = `WHERE ${conditions.join(' AND ')}`
+    const pagingSql = paginate ? `LIMIT ${limit} OFFSET ${(page - 1) * limit}` : ''
+
     const rows = await db.query(`
       WITH purchase_cost_by_stock AS (
         SELECT
@@ -72,9 +94,10 @@ export async function GET() {
         WHERE b.id IS NULL OR b.deleted_at IS NULL OR b.deleted_at = ''
         GROUP BY sii.stock_id
       ) sales ON sales.stock_id = s.id
-      WHERE (s.deleted_at IS NULL OR s.deleted_at = '')
+      ${whereSql}
       ORDER BY date(s.purchase_date) DESC, s.id DESC
-    `)
+      ${pagingSql}
+    `, params)
 
     const data = rows.map((row) => {
       const qty =
@@ -104,7 +127,13 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json({ success: true, data })
+    let pagination = null
+    if (paginate) {
+      const countRows = await db.query(`SELECT COUNT(*) AS total FROM stocks s ${whereSql}`, params)
+      const total = Number(countRows[0]?.total || 0)
+      pagination = { page, limit, total, totalPages: Math.ceil(total / limit) }
+    }
+    return NextResponse.json({ success: true, data, pagination })
   } catch (error) {
     return NextResponse.json(
       { success: false, message: error.message || 'Failed to load stocks' },
@@ -131,7 +160,7 @@ export async function POST(req) {
     const weight = toNumber(formData.get('weight'), 0)
 
     if (quantity < 0) {
-      throw new Error('Valid quantity required hai')
+      throw new Error('A valid quantity is required.')
     }
 
     const sqlite = db.getConnection()
@@ -224,7 +253,7 @@ export async function PUT(req) {
 
     if (!stock.id) throw new Error('Invalid stock id')
     if (stock.quantity < 0) {
-      throw new Error('Valid quantity required hai')
+      throw new Error('A valid quantity is required.')
     }
 
     const sqlite = db.getConnection()

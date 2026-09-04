@@ -24,8 +24,8 @@ function getEntryLabel(type) {
 function getBalanceLabel(balance) {
   const amount = Number(balance || 0)
 
-  if (amount > 0) return `Customer se lena hai: ${formatAmount(amount)}`
-  if (amount < 0) return `Customer ko dena hai: ${formatAmount(Math.abs(amount))}`
+  if (amount > 0) return `Receivable from customer: ${formatAmount(amount)}`
+  if (amount < 0) return `Payable to customer: ${formatAmount(Math.abs(amount))}`
 
   return 'Balance clear'
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Select from 'react-select'
 
 const reports = [
     { key: 'dailySales', label: 'Daily Sales' },
@@ -50,6 +51,9 @@ export default function ReportsDashboard() {
     const [error, setError] = useState('')
     const [itemProfitTab, setItemProfitTab] = useState('all')
     const [itemSearch, setItemSearch] = useState('')
+    const [stocks, setStocks] = useState([])
+    const [selectedCategory, setSelectedCategory] = useState(null)
+    const [selectedProduct, setSelectedProduct] = useState(null)
     async function loadReports() {
         setLoading(true)
         setError('')
@@ -59,14 +63,20 @@ export default function ReportsDashboard() {
             if (dateFrom) qs.set('dateFrom', dateFrom)
             if (dateTo) qs.set('dateTo', dateTo)
 
-            const res = await fetch(`/api/reports/all?${qs.toString()}`)
-            const json = await res.json()
+            const [res, stocksRes] = await Promise.all([
+                fetch(`/api/reports/all?${qs.toString()}`),
+                fetch('/api/stocks'),
+            ])
+            const [json, stocksJson] = await Promise.all([res.json(), stocksRes.json()])
 
             if (!res.ok || !json.success) {
                 throw new Error(json.message || 'Failed to load reports')
             }
 
             setData(json.data)
+            if (stocksRes.ok && stocksJson.success) {
+                setStocks(stocksJson.data || [])
+            }
         } catch (err) {
             setError(err.message || 'Something went wrong')
         } finally {
@@ -80,12 +90,60 @@ export default function ReportsDashboard() {
 
     const rawRows = data?.[activeReport] || []
 
+    const categoryOptions = useMemo(() => {
+        const categories = new Set()
+        stocks.forEach((stock) => categories.add(stock.category || 'Uncategorized'))
+        ;(data?.itemProfit || []).forEach((row) => categories.add(row.category || 'Uncategorized'))
+        return [...categories]
+            .sort((a, b) => a.localeCompare(b))
+            .map((category) => ({ value: category, label: category }))
+    }, [stocks, data])
+
+    const productOptions = useMemo(() => {
+        if (!selectedCategory) return []
+
+        return stocks
+            .filter((stock) => (stock.category || 'Uncategorized') === selectedCategory.value)
+            .map((stock) => ({
+                value: String(stock.id),
+                label: stock.item_name || stock.product_name || stock.name || `Stock #${stock.id}`,
+                stock,
+            }))
+            .sort((a, b) => a.label.localeCompare(b.label))
+    }, [stocks, selectedCategory])
+
+    const selectedCategoryRows = useMemo(() => {
+        if (!selectedCategory) return []
+        return (data?.itemProfit || []).filter(
+            (row) => (row.category || 'Uncategorized') === selectedCategory.value
+        )
+    }, [data, selectedCategory])
+
+    const categoryProfit = selectedCategoryRows.reduce(
+        (sum, row) => sum + Number(row.profit_loss || 0),
+        0
+    )
+
+    const selectedProductProfit = useMemo(() => {
+        if (!selectedProduct) return 0
+        const stockId = String(selectedProduct.value)
+        return (data?.itemProfit || [])
+            .filter((row) => String(row.stock_id ?? '') === stockId)
+            .reduce((sum, row) => sum + Number(row.profit_loss || 0), 0)
+    }, [data, selectedProduct])
+
     const rows = useMemo(() => {
         if (activeReport !== 'itemProfit') return rawRows
 
         const query = itemSearch.trim().toLowerCase()
+        const categoryRows = selectedCategory
+            ? rawRows.filter((row) => (row.category || 'Uncategorized') === selectedCategory.value)
+            : rawRows
+        const productRows = selectedProduct
+            ? categoryRows.filter((row) => String(row.stock_id ?? '') === selectedProduct.value)
+            : categoryRows
         const searchedRows = query
-            ? rawRows.filter((row) =>
+            ? productRows.filter((row) =>
                 [
                     row.item_name,
                     row.product_name,
@@ -96,7 +154,7 @@ export default function ReportsDashboard() {
                     .filter((value) => value !== null && value !== undefined)
                     .some((value) => String(value).toLowerCase().includes(query))
             )
-            : rawRows
+            : productRows
 
         if (itemProfitTab === 'profit') {
             return searchedRows.filter((row) => Number(row.profit_loss || 0) > 0)
@@ -107,7 +165,7 @@ export default function ReportsDashboard() {
         }
 
         return searchedRows
-    }, [rawRows, activeReport, itemProfitTab, itemSearch])
+    }, [rawRows, activeReport, itemProfitTab, itemSearch, selectedCategory, selectedProduct])
     const profit = data?.profitSummary || {}
 
     const stockSummary = data?.stockSummary || {}
@@ -276,14 +334,87 @@ export default function ReportsDashboard() {
 
                     </div>
                     {activeReport === 'itemProfit' && (
-                        <div className="flex flex-wrap gap-2 border-t pt-3">
-                            <input
-                                type="search"
-                                value={itemSearch}
-                                onChange={(event) => setItemSearch(event.target.value)}
-                                placeholder="Search item name, code or ID..."
-                                className="min-w-[260px] flex-1 border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
-                            />
+                        <div className="w-full space-y-3 border-t pt-4">
+                            <div className="grid gap-3 lg:grid-cols-2">
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-gray-600">
+                                        Category
+                                    </label>
+                                    <Select
+                                        value={selectedCategory}
+                                        options={categoryOptions}
+                                        onChange={(option) => {
+                                            setSelectedCategory(option)
+                                            setSelectedProduct(null)
+                                        }}
+                                        isSearchable
+                                        isClearable
+                                        placeholder="Type or select category..."
+                                        noOptionsMessage={() => 'Category not found'}
+                                        className="text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-gray-600">
+                                        Product / Stock Item
+                                    </label>
+                                    <Select
+                                        value={selectedProduct}
+                                        options={productOptions}
+                                        onChange={setSelectedProduct}
+                                        isSearchable
+                                        isClearable
+                                        isDisabled={!selectedCategory}
+                                        placeholder={selectedCategory ? 'Type or select product...' : 'Select a category first'}
+                                        noOptionsMessage={() => 'No stock found in this category'}
+                                        formatOptionLabel={(option) => (
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span>{option.label}</span>
+                                                <span className="text-xs text-gray-500">
+                                                    Stock: {money(option.stock?.available_stock ?? option.stock?.qty)}
+                                                </span>
+                                            </div>
+                                        )}
+                                        className="text-sm"
+                                    />
+                                </div>
+                            </div>
+
+                            {selectedCategory && (
+                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                    <div className={`rounded-lg border px-4 py-3 ${categoryProfit >= 0 ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
+                                        <p className="text-xs font-semibold">{selectedCategory.label} Profit/Loss</p>
+                                        <p className="mt-1 text-xl font-bold">
+                                            {categoryProfit >= 0 ? 'Profit' : 'Loss'}: Rs {money(Math.abs(categoryProfit))}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-blue-800">
+                                        <p className="text-xs font-semibold">Category Stock</p>
+                                        <p className="mt-1 text-xl font-bold">
+                                            {money(productOptions.reduce((sum, option) => sum + Number(option.stock?.available_stock ?? option.stock?.qty ?? 0), 0))}
+                                        </p>
+                                        <p className="text-xs">{productOptions.length} products</p>
+                                    </div>
+                                    {selectedProduct && (
+                                        <div className={`rounded-lg border px-4 py-3 ${selectedProductProfit >= 0 ? 'border-indigo-200 bg-indigo-50 text-indigo-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
+                                            <p className="truncate text-xs font-semibold">{selectedProduct.label} Profit/Loss</p>
+                                            <p className="mt-1 text-xl font-bold">
+                                                {selectedProductProfit >= 0 ? 'Profit' : 'Loss'}: Rs {money(Math.abs(selectedProductProfit))}
+                                            </p>
+                                            <p className="text-xs">Available stock: {money(selectedProduct.stock?.available_stock ?? selectedProduct.stock?.qty)}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="flex flex-wrap gap-2">
+                                <input
+                                    type="search"
+                                    value={itemSearch}
+                                    onChange={(event) => setItemSearch(event.target.value)}
+                                    placeholder="Search item name, code or ID..."
+                                    className="min-w-[260px] flex-1 border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+                                />
                             <button
                                 type="button"
                                 onClick={() => setItemProfitTab('all')}
@@ -325,6 +456,7 @@ export default function ReportsDashboard() {
                                     Clear Search
                                 </button>
                             )}
+                            </div>
                         </div>
                     )}
                     <button
@@ -372,12 +504,11 @@ export default function ReportsDashboard() {
                 <div className="rounded-lg bg-gray-50 border px-4 py-3 text-xs text-gray-600">
                     {profitView === 'total' ? (
                         <span>
-                            <b>Total View:</b> Total Sales aur Total Purchases poori invoices ke totals hain.
+                            <b>Total View:</b> Total Sales and Total Purchases show complete invoice totals.
                         </span>
                     ) : (
                         <span>
-                            <b>Sold Profit View:</b> Sirf sold items ka sale amount, purchase cost aur gross
-                            profit show hota hai. Cost column: <b>{data?.costColumn || 'purchase_price'}</b>
+                            <b>Sold Profit View:</b> Sale amount, purchase cost, and gross profit are shown only for sold items. Cost column: <b>{data?.costColumn || 'purchase_price'}</b>
                         </span>
                     )}
                 </div>

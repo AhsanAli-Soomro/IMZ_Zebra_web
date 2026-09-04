@@ -190,11 +190,11 @@ export default function PurchaseInvoice() {
       const validItems = items.filter((item) => item.itemName.trim())
 
       if (!form.supplierName.trim()) {
-        throw new Error('Supplier required hai')
+        throw new Error('A supplier is required.')
       }
 
       if (!validItems.length) {
-        throw new Error('Kam az kam 1 item required hai')
+        throw new Error('At least one item is required.')
       }
 
       const payload = {

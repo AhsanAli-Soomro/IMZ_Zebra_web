@@ -30,7 +30,7 @@ jobs:
         run: npm run dist:win
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          NEXT_PUBLIC_APP_URL: "http://localhost:3001"
+          NEXT_PUBLIC_APP_URL: "http://localhost:3002"
 
       - name: Show dist files and SHA256
         shell: bash

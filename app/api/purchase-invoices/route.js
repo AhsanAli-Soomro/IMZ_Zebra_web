@@ -51,7 +51,7 @@ export async function POST(req) {
     const items = Array.isArray(body.items) ? body.items : []
 
     if (!items.length) {
-      throw new Error('Purchase invoice items required hain')
+      throw new Error('Purchase invoice items are required.')
     }
 
     const safeItems = items.map((item, index) => {
@@ -67,10 +67,10 @@ export async function POST(req) {
       const tax = toNumber(item.tax)
       const total = amount - discount + tax
 
-      if (!itemName) throw new Error(`Item #${index + 1}: item name required hai`)
-      if (qty <= 0) throw new Error(`Item #${index + 1}: qty required hai`)
-      if (weight <= 0) throw new Error(`Item #${index + 1}: weight (kg) required hai`)
-      if (price < 0) throw new Error(`Item #${index + 1}: price invalid hai`)
+      if (!itemName) throw new Error(`Item #${index + 1}: item name is required.`)
+      if (qty <= 0) throw new Error(`Item #${index + 1}: quantity is required.`)
+      if (weight <= 0) throw new Error(`Item #${index + 1}: weight (kg) is required.`)
+      if (price < 0) throw new Error(`Item #${index + 1}: price is invalid.`)
 
       return {
         stockId,

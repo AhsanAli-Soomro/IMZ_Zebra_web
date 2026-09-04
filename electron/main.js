@@ -399,7 +399,7 @@ async function startApp() {
     const initialRoute = activation.ok ? '/login' : '/activate'
 
     if (isDev) {
-      const devPort = 3001
+      const devPort = 3002
       await waitForServer(`http://127.0.0.1:${devPort}`)
       createWindow(devPort, initialRoute)
       return

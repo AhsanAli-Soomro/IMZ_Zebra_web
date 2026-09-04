@@ -173,7 +173,7 @@ export default function History() {
       setMessage('')
 
       if (activeTab === 'purchase') {
-        setMessage('Purchase payment API abhi add nahi hui.')
+        setMessage('Purchase payment API is not available yet.')
         return
       }
 

@@ -82,7 +82,7 @@ export default function ReceivePaymentForm({ customerId, onSuccess }) {
         }
 
         if (selectedInvoice && paymentAmount > Number(selectedInvoice.remaining_amount || 0)) {
-          throw new Error('Amount invoice remaining se zyada nahi ho sakta')
+          throw new Error('Amount cannot exceed the invoice balance.')
         }
       }
 

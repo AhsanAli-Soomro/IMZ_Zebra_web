@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
+import PartyLedgerSnapshot from './PartyLedgerSnapshot'
 
 export default function Customers({ setActive, setSelectedCustomerId }) {
   const [customers, setCustomers] = useState([])
@@ -96,7 +97,7 @@ export default function Customers({ setActive, setSelectedCustomerId }) {
       setPendingCustomers([])
       await fetchCustomers()
     } catch (error) {
-      alert(error?.response?.data?.message || 'Customer list save nahi ho saki')
+      alert(error?.response?.data?.message || 'Customer list could not be saved.')
     } finally {
       setLoading(false)
     }
@@ -257,6 +258,8 @@ export default function Customers({ setActive, setSelectedCustomerId }) {
       )}
       </div>
 
+      <PartyLedgerSnapshot type="customer" onOpen={openKhata} />
+
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
         <div>
@@ -344,7 +347,7 @@ export default function Customers({ setActive, setSelectedCustomerId }) {
                         onClick={() => openKhata(cus.id)}
                         className="text-blue-700 hover:underline font-medium"
                       >
-                        Open Khata
+                        Open Ledger
                       </button>
 
                       <button

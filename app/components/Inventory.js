@@ -7,16 +7,21 @@ export default function Inventory() {
   const [stocks, setStocks] = useState([])
   const [currentPage, setCurrentPage] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [totalPages, setTotalPages] = useState(1)
   const [showLowStockOnly, setShowLowStockOnly] = useState(false)
   const [showExpiringSoonOnly, setShowExpiringSoonOnly] = useState(false)
 
   useEffect(() => {
     const fetchStocks = async () => {
       try {
-        const res = await fetch('/api/stocks')
+        const qs = new URLSearchParams({ paginate: '1', page: String(currentPage), limit: String(ITEMS_PER_PAGE) })
+        if (showLowStockOnly) qs.set('lowStock', '1')
+        if (showExpiringSoonOnly) qs.set('expiringSoon', '1')
+        const res = await fetch(`/api/stocks?${qs}`)
         const json = await res.json()
         if (json.success) {
           setStocks(json.data)
+          setTotalPages(json.pagination?.totalPages || 1)
         }
       } catch (err) {
         console.error('Error loading stock:', err)
@@ -26,7 +31,7 @@ export default function Inventory() {
     }
 
     fetchStocks()
-  }, [])
+  }, [currentPage, showLowStockOnly, showExpiringSoonOnly])
 
   const isExpiringSoon = (dateStr) => {
     const today = new Date()
@@ -37,26 +42,12 @@ export default function Inventory() {
 
   const isLowStock = (quantity) => Number(quantity) <= 5
 
-  const filteredStocks = stocks
-    .filter((stock) => {
-      const lowStock = isLowStock(stock.quantity)
-      const expiringSoon = isExpiringSoon(stock.expire_date)
-
-      if (showLowStockOnly && !lowStock) return false
-      if (showExpiringSoonOnly && !expiringSoon) return false
-
-      return true
-    })
+  const paginatedStocks = stocks
     .sort((a, b) => {
       const aExp = new Date(a.expire_date)
       const bExp = new Date(b.expire_date)
       return aExp - bExp
     })
-
-  const totalPages = Math.ceil(filteredStocks.length / ITEMS_PER_PAGE)
-  const start = (currentPage - 1) * ITEMS_PER_PAGE
-  const end = start + ITEMS_PER_PAGE
-  const paginatedStocks = filteredStocks.slice(start, end)
 
   const nextPage = () => {
     if (currentPage < totalPages) setCurrentPage(currentPage + 1)

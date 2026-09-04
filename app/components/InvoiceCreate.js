@@ -260,7 +260,7 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
 
     try {
       if (!items.length || items.some((item) => !Number(item.stockId) || Number(item.qty) <= 0)) {
-        throw new Error('Invoice items mein valid product aur qty required hai')
+        throw new Error('Each invoice item requires a valid product and quantity.')
       }
 
       if (stockShortages.length) {
@@ -274,7 +274,7 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
         const partialPaid = Number(form.paidAmount || 0)
 
         if (partialPaid <= 0) {
-          throw new Error('Partial payment ke liye valid paid amount enter karein')
+          throw new Error('Enter a valid paid amount for a partial payment.')
         }
 
         if (partialPaid >= totals.total) {
@@ -339,7 +339,7 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
       try {
         data = await res.json()
       } catch {
-        throw new Error('Server se valid response nahi mila')
+        throw new Error('The server returned an invalid response.')
       }
 
       if (!res.ok || !data?.success) {
@@ -439,7 +439,7 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
     })
 
     setMessage(
-      'Invoice form mein load ho gayi hai. Save karne par abhi nayi invoice create hogi jab tak update API add nahi hoti.'
+      'The invoice has been loaded into the form. Saving currently creates a new invoice until an update API is added.'
     )
   }
 

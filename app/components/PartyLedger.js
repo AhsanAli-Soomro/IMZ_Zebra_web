@@ -61,10 +61,10 @@ export default function PartyLedger({ type }) {
       const [partyJson, bankJson] = await Promise.all([partyRes.json(), bankRes.json()])
 
       if (!partyRes.ok || !partyJson.success) {
-        throw new Error(partyJson.message || `${partyLabel} list load nahi hui`)
+        throw new Error(partyJson.message || `${partyLabel} list could not be loaded.`)
       }
       if (!bankRes.ok || !bankJson.success) {
-        throw new Error(bankJson.message || 'Bank list load nahi hui')
+        throw new Error(bankJson.message || 'Bank list could not be loaded.')
       }
 
       const activeParties = (partyJson.data || []).filter(
@@ -73,7 +73,7 @@ export default function PartyLedger({ type }) {
       setParties(activeParties)
       setBanks((bankJson.data || []).filter((bank) => bank.status === 'Active'))
     } catch (error) {
-      setMessage({ type: 'error', text: error.message || 'Data load nahi ho saka' })
+      setMessage({ type: 'error', text: error.message || 'Data could not be loaded.' })
     } finally {
       setLoading(false)
     }
@@ -87,10 +87,10 @@ export default function PartyLedger({ type }) {
         : `/api/ledger/history?type=${type}`
       const res = await fetch(url, { cache: 'no-store' })
       const json = await res.json()
-      if (!res.ok || !json.success) throw new Error(json.message || 'Ledger load nahi hua')
+      if (!res.ok || !json.success) throw new Error(json.message || 'Ledger could not be loaded.')
       setLedger(json.data)
     } catch (error) {
-      setMessage({ type: 'error', text: error.message || 'Ledger load nahi hua' })
+      setMessage({ type: 'error', text: error.message || 'Ledger could not be loaded.' })
     } finally {
       setLoading(false)
     }
@@ -141,8 +141,8 @@ export default function PartyLedger({ type }) {
 
     try {
       const safeAmount = Number(amount || 0)
-      if (!partyId) throw new Error(`${partyLabel} select karein`)
-      if (safeAmount <= 0) throw new Error('Valid amount enter karein')
+      if (!partyId) throw new Error(`Select a ${partyLabel.toLowerCase()}.`)
+      if (safeAmount <= 0) throw new Error('Enter a valid amount.')
 
       const selectedBank =
         paymentAccount === 'cash'
@@ -150,7 +150,7 @@ export default function PartyLedger({ type }) {
           : banks.find((bank) => String(bank.id) === String(paymentAccount))
 
       if (paymentAccount !== 'cash' && !selectedBank) {
-        throw new Error('Valid bank/account select karein')
+        throw new Error('Select a valid bank account.')
       }
 
       const sourceOfPayment = selectedBank
@@ -171,7 +171,7 @@ export default function PartyLedger({ type }) {
         }),
       })
       const json = await res.json()
-      if (!res.ok || !json.success) throw new Error(json.message || 'Entry save nahi hui')
+      if (!res.ok || !json.success) throw new Error(json.message || 'Entry could not be saved.')
 
       setAmount('')
       setNotes('')
@@ -183,7 +183,7 @@ export default function PartyLedger({ type }) {
       })
       await Promise.all([loadLedger(partyId), loadInitialData()])
     } catch (error) {
-      setMessage({ type: 'error', text: error.message || 'Entry save nahi hui' })
+      setMessage({ type: 'error', text: error.message || 'Entry could not be saved.' })
     } finally {
       setSaving(false)
     }
@@ -198,8 +198,8 @@ export default function PartyLedger({ type }) {
         <h1 className="text-2xl font-bold text-gray-900">{partyLabel} Ledger</h1>
         <p className="mt-1 text-sm text-gray-600">
           {isCustomer
-            ? 'Customer se received payment aur complete account history manage karein.'
-            : 'Supplier ko paid amount aur complete account history manage karein.'}
+            ? 'Manage customer payments received and complete account history.'
+            : 'Manage supplier payments and complete account history.'}
         </p>
       </div>
 

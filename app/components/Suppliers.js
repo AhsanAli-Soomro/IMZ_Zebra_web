@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
+import PartyLedgerSnapshot from './PartyLedgerSnapshot'
 
 export default function Suppliers({ setActive, setSelectedSupplierId }) {
   const [suppliers, setSuppliers] = useState([])
@@ -67,7 +68,7 @@ export default function Suppliers({ setActive, setSelectedSupplierId }) {
       setPendingSuppliers([])
       await fetchSuppliers()
     } catch (error) {
-      alert(error?.response?.data?.message || 'Supplier list save nahi ho saki')
+      alert(error?.response?.data?.message || 'Supplier list could not be saved.')
     } finally {
       setLoading(false)
     }
@@ -240,6 +241,8 @@ export default function Suppliers({ setActive, setSelectedSupplierId }) {
   )}
   </div>
 
+  <PartyLedgerSnapshot type="supplier" onOpen={openKhata} />
+
   <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
       <div>
@@ -327,7 +330,7 @@ export default function Suppliers({ setActive, setSelectedSupplierId }) {
               onClick={() => openKhata(sup.id)}
               className="text-blue-700 hover:underline font-medium"
             >
-              Open Khata
+              Open Ledger
             </button>
             </div>
           </td>
