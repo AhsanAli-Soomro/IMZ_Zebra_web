@@ -30,7 +30,6 @@ import BankManagement from '../components/BankManagement'
 import DailyLedger from '../components/DailyLedger'
 import CustomerLedger from '../components/CustomerLedger'
 import SupplierLedger from '../components/SupplierLedger'
-import BulkBalanceEntry from '../components/BulkBalanceEntry'
 
 export default function ZebraDashboardClient() {
   const router = useRouter()
@@ -96,7 +95,12 @@ export default function ZebraDashboardClient() {
       case 'inventory':
         return <Inventory />
       case 'customers':
-        return <BulkBalanceEntry type="customer" onOpenLedger={() => setActive('Daily Ledger')} />
+        return (
+          <Customers
+            setActive={setActive}
+            setSelectedCustomerId={setSelectedCustomerId}
+          />
+        )
       case 'customer khata':
         return <CustomerKhata customerId={selectedCustomerId} />
       case 'customer ledger':
@@ -106,7 +110,12 @@ export default function ZebraDashboardClient() {
       case 'purchase invoice':
         return <PurchaseInvoice />
       case 'suppliers':
-        return <BulkBalanceEntry type="supplier" onOpenLedger={() => setActive('Daily Ledger')} />
+        return (
+          <Suppliers
+            setActive={setActive}
+            setSelectedSupplierId={setSelectedSupplierId}
+          />
+        )
       case 'supplier khata':
         return <SupplierKhata supplierId={selectedSupplierId} />
       case 'supplier ledger':
