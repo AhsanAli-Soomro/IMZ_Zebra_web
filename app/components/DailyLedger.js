@@ -43,6 +43,10 @@ export default function DailyLedger() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
+  const [editingRow, setEditingRow] = useState(null)
+  const [editedAmount, setEditedAmount] = useState('')
+  const [editError, setEditError] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -75,26 +79,37 @@ export default function DailyLedger() {
   const bankDebitRows = useMemo(() => bankRows(data?.cashTransactions || [], 'out'), [data])
   const summary = data?.summary || {}
 
-  async function editAmount(row) {
-    const entered = window.prompt(`Enter a new amount for ${row.name}`, String(row.amount || 0))
-    if (entered === null) return
-    const amount = Number(entered)
+  function startEditing(row) {
+    setEditingRow(row)
+    setEditedAmount(String(row.amount || 0))
+    setEditError('')
+  }
+
+  async function saveEdit(event) {
+    event.preventDefault()
+    if (!editingRow) return
+    const amount = Number(editedAmount)
     if (!Number.isFinite(amount) || amount < 0) {
-      window.alert('Enter a valid amount.')
+      setEditError('Enter a valid amount.')
       return
     }
 
     try {
+      setSavingEdit(true)
+      setEditError('')
       const response = await fetch('/api/daily-ledger/edit', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entity: row.entity, id: row.id, amount }),
+        body: JSON.stringify({ entity: editingRow.entity, id: editingRow.id, amount }),
       })
       const json = await response.json()
       if (!response.ok || !json.success) throw new Error(json.message || 'Amount could not be updated.')
       setRefreshKey((value) => value + 1)
+      setEditingRow(null)
     } catch (editError) {
-      window.alert(editError.message || 'Amount could not be updated.')
+      setEditError(editError.message || 'Amount could not be updated.')
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -130,11 +145,36 @@ export default function DailyLedger() {
       {loading && <div className="rounded-lg border bg-gray-50 p-3 text-sm text-gray-600">Loading daily ledger...</div>}
 
       <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <SnapshotList title="Customers" rows={customerRows} empty="No customer activity on this date." tone="indigo" onEdit={editAmount} />
-        <SnapshotList title="Suppliers" rows={supplierRows} empty="No supplier activity on this date." tone="orange" onEdit={editAmount} />
-        <SnapshotList title="Banks — Credit" rows={bankCreditRows} empty="No bank credit on this date." tone="green" onEdit={editAmount} />
-        <SnapshotList title="Banks — Debit" rows={bankDebitRows} empty="No bank debit on this date." tone="red" onEdit={editAmount} />
+        <SnapshotList title="Customers" rows={customerRows} empty="No customer activity on this date." tone="indigo" onEdit={startEditing} />
+        <SnapshotList title="Suppliers" rows={supplierRows} empty="No supplier activity on this date." tone="orange" onEdit={startEditing} />
+        <SnapshotList title="Banks — Credit" rows={bankCreditRows} empty="No bank credit on this date." tone="green" onEdit={startEditing} />
+        <SnapshotList title="Banks — Debit" rows={bankDebitRows} empty="No bank debit on this date." tone="red" onEdit={startEditing} />
       </section>
+
+      {editingRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <form onSubmit={saveEdit} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 className="text-xl font-bold text-gray-900">Edit Amount</h2>
+            <p className="mt-1 truncate text-sm text-gray-500">{editingRow.name}</p>
+            <label htmlFor="daily-ledger-edit-amount" className="mt-5 block text-sm font-bold text-gray-700">Amount</label>
+            <input
+              id="daily-ledger-edit-amount"
+              type="number"
+              min="0"
+              step="0.01"
+              autoFocus
+              value={editedAmount}
+              onChange={(event) => setEditedAmount(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+            />
+            {editError && <p className="mt-2 text-sm font-medium text-red-600">{editError}</p>}
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setEditingRow(null)} disabled={savingEdit} className="rounded-lg border border-gray-300 px-4 py-2 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">Cancel</button>
+              <button type="submit" disabled={savingEdit} className="rounded-lg bg-indigo-600 px-4 py-2 font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">{savingEdit ? 'Saving...' : 'Save Amount'}</button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }
