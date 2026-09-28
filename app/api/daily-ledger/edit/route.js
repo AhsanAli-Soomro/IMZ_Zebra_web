@@ -67,7 +67,7 @@ export async function PATCH(request) {
     })
 
     update()
-    return NextResponse.json({ success: true, message: 'Amount successfully update ho gaya' })
+    return NextResponse.json({ success: true, message: 'Amount was updated successfully.' })
   } catch (error) {
     return NextResponse.json({ success: false, message: error.message || 'Amount could not be updated.' }, { status: 500 })
   }
