@@ -5,6 +5,12 @@ import InvoicePreviewModal from './InvoicePreviewModal'
 
 const money = (value) => Number(value || 0).toLocaleString()
 
+const localToday = () => {
+  const now = new Date()
+  const offset = now.getTimezoneOffset() * 60000
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10)
+}
+
 const formatDate = (value) => {
   if (!value) return '—'
   const d = new Date(value)
@@ -25,6 +31,7 @@ export default function History() {
   const [purchaseError, setPurchaseError] = useState('')
 
   const [search, setSearch] = useState('')
+  const [historyDate, setHistoryDate] = useState(localToday())
 
   const [selectedGroup, setSelectedGroup] = useState(null)
   const [showGroupModal, setShowGroupModal] = useState(false)
@@ -46,7 +53,12 @@ export default function History() {
       setLoading(true)
       setError('')
 
-      const res = await fetch('/api/invoices', { cache: 'no-store' })
+      const query = new URLSearchParams({ limit: '500' })
+      if (historyDate) {
+        query.set('dateFrom', historyDate)
+        query.set('dateTo', historyDate)
+      }
+      const res = await fetch(`/api/invoices?${query.toString()}`, { cache: 'no-store' })
       const json = await res.json()
 
       if (!res.ok || !json.success) {
@@ -66,7 +78,12 @@ export default function History() {
       setPurchaseLoading(true)
       setPurchaseError('')
 
-      const res = await fetch('/api/purchase-invoices', { cache: 'no-store' })
+      const query = new URLSearchParams()
+      if (historyDate) {
+        query.set('dateFrom', historyDate)
+        query.set('dateTo', historyDate)
+      }
+      const res = await fetch(`/api/purchase-invoices?${query.toString()}`, { cache: 'no-store' })
       const json = await res.json()
 
       if (!res.ok || !json.success) {
@@ -358,7 +375,7 @@ export default function History() {
     loadInvoices()
     loadPurchaseInvoices()
     loadCompany()
-  }, [])
+  }, [historyDate])
 
   useEffect(() => {
     if (!showGroupModal) return
@@ -486,13 +503,27 @@ export default function History() {
                 </button>
               </div>
 
-              <input
-                type="text"
-                placeholder={`Search ${groupLabel.toLowerCase()} or invoice no...`}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full lg:w-80 border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200"
-              />
+              <div className="flex flex-1 flex-col gap-3 sm:flex-row lg:flex-none">
+                <label className="w-full sm:w-48">
+                  <span className="mb-1 block text-xs font-semibold text-gray-600">Billing Date</span>
+                  <input
+                    type="date"
+                    value={historyDate}
+                    onChange={(e) => setHistoryDate(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200"
+                  />
+                </label>
+                <label className="w-full lg:w-80">
+                  <span className="mb-1 block text-xs font-semibold text-gray-600">Search</span>
+                  <input
+                    type="text"
+                    placeholder={`Search ${groupLabel.toLowerCase()} or invoice no...`}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200"
+                  />
+                </label>
+              </div>
             </div>
           </div>
         </div>
@@ -506,6 +537,7 @@ export default function History() {
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
           <div className="px-5 py-4 border-b">
             <h2 className="text-lg font-semibold">{summaryTitle}</h2>
+            <p className="mt-1 text-sm text-gray-500">Showing billing history for {historyDate || 'all dates'}.</p>
           </div>
 
           {currentLoading ? (

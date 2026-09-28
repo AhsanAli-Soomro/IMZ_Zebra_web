@@ -17,14 +17,30 @@ function today() {
   return new Date().toISOString().slice(0, 10)
 }
 
-export async function GET() {
+export async function GET(request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const dateFrom = clean(searchParams.get('dateFrom'))
+    const dateTo = clean(searchParams.get('dateTo'))
+    const conditions = [`(deleted_at IS NULL OR deleted_at = '')`]
+    const params = []
+
+    if (dateFrom) {
+      conditions.push(`date(COALESCE(purchase_date, invoice_date)) >= date(?)`)
+      params.push(dateFrom)
+    }
+
+    if (dateTo) {
+      conditions.push(`date(COALESCE(purchase_date, invoice_date)) <= date(?)`)
+      params.push(dateTo)
+    }
+
     const rows = await db.query(`
       SELECT *
       FROM purchase_invoices
-      WHERE deleted_at IS NULL OR deleted_at = ''
-      ORDER BY id DESC
-    `)
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY date(COALESCE(purchase_date, invoice_date)) DESC, id DESC
+    `, params)
 
     return NextResponse.json({ success: true, data: rows })
   } catch (error) {
