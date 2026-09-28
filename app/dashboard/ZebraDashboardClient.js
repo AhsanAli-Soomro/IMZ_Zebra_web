@@ -124,7 +124,10 @@ export default function ZebraDashboardClient() {
       case 'cash in hand':
         return <CounterClosing />
       case 'bank management':
-        return <BankManagement />
+      case 'bank management credit':
+        return <BankManagement type="credit" />
+      case 'bank management debit':
+        return <BankManagement type="debit" />
       case 'report and analytics':
         return <ReportsDashboard />
       case 'import export data':

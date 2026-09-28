@@ -1,245 +1,130 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import Select from 'react-select'
-
-function money(value) {
-  return Number(value || 0).toLocaleString('en-PK')
-}
+import CreatableSelect from 'react-select/creatable'
 
 function today() {
-  return new Date().toISOString().slice(0, 10)
+  const now = new Date()
+  const offset = now.getTimezoneOffset() * 60000
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10)
 }
 
-const emptyAccount = {
-  accountName: '',
-  bankName: '',
-  accountNumber: '',
-  openingBalance: '',
-  status: 'Active',
-  notes: '',
+function money(value) {
+  return Number(value || 0).toLocaleString('en-PK', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })
 }
 
-const emptyTransaction = {
-  accountId: '',
-  toAccountId: '',
-  txType: 'deposit',
-  amount: '',
-  txDate: today(),
-  description: '',
-  notes: '',
-}
+const newRow = () => ({ accountId: '', amount: '', note: '' })
 
-const emptyBulkRow = () => ({ accountId: '', amount: '', note: '' })
-
-const pakistanBankGroups = [
-  {
-    label: 'Commercial & Specialized Banks',
-    banks: [
-      'Allied Bank Limited',
-      'Askari Bank Limited',
-      'Bank Alfalah Limited',
-      'Bank Al Habib Limited',
-      'Bank Makramah Limited',
-      'Bank of Khyber',
-      'Bank of Punjab',
-      'First Women Bank Limited',
-      'Habib Bank Limited (HBL)',
-      'Habib Metropolitan Bank Limited',
-      'JS Bank Limited',
-      'MCB Bank Limited',
-      'National Bank of Pakistan',
-      'Punjab Provincial Cooperative Bank Limited',
-      'Samba Bank Limited',
-      'Sindh Bank Limited',
-      'Soneri Bank Limited',
-      'United Bank Limited (UBL)',
-      'Zarai Taraqiati Bank Limited',
-    ],
-  },
-  {
-    label: 'Islamic Banks',
-    banks: [
-      'Al Baraka Bank (Pakistan) Limited',
-      'BankIslami Pakistan Limited',
-      'Dubai Islamic Bank Pakistan Limited',
-      'Faysal Bank Limited',
-      'MCB Islamic Bank Limited',
-      'Meezan Bank Limited',
-    ],
-  },
-  {
-    label: 'Foreign Banks in Pakistan',
-    banks: [
-      'Bank of China Limited – Pakistan',
-      'Citibank N.A. – Pakistan',
-      'Deutsche Bank AG – Pakistan',
-      'Industrial and Commercial Bank of China – Pakistan',
-      'Standard Chartered Bank (Pakistan) Limited',
-    ],
-  },
-  {
-    label: 'Digital Banks',
-    banks: [
-      'Easypaisa Bank Limited',
-      'Mashreq Bank Pakistan Limited',
-      'Raqami Islamic Digital Bank Limited',
-    ],
-  },
-  {
-    label: 'Microfinance Banks',
-    banks: [
-      'ABHI Microfinance Bank Limited',
-      'APNA Microfinance Bank Limited',
-      'ASA Microfinance Bank (Pakistan) Limited',
-      'Halan Microfinance Bank Limited',
-      'HBL Microfinance Bank Limited',
-      'Khushhali Microfinance Bank Limited',
-      'LOLC Microfinance Bank Limited',
-      'Mobilink Microfinance Bank Limited (JazzCash)',
-      'NRSP Microfinance Bank Limited',
-      'Sindh Microfinance Bank Limited',
-      'U Microfinance Bank Limited (UPaisa)',
-    ],
-  },
-]
-
-const searchableBankOptions = [
-  ...pakistanBankGroups.map((group) => ({
-    label: group.label,
-    options: group.banks.map((bank) => ({ value: bank, label: bank })),
-  })),
-  {
-    label: 'Custom Bank',
-    options: [{ value: '__new__', label: '+ Add New Bank' }],
-  },
-]
-
-function findBankOption(value) {
-  for (const group of searchableBankOptions) {
-    const option = group.options.find((item) => item.value === value)
-    if (option) return option
-  }
-  return null
-}
-
-export default function BankManagement() {
+export default function BankManagement({ type = 'credit' }) {
+  const isCredit = type === 'credit'
+  const title = `Bank Management — ${isCredit ? 'Credit' : 'Debit'}`
+  const transactionType = isCredit ? 'deposit' : 'withdrawal'
+  const [date, setDate] = useState(today())
   const [accounts, setAccounts] = useState([])
   const [transactions, setTransactions] = useState([])
-  const [accountForm, setAccountForm] = useState(emptyAccount)
-  const [transactionForm, setTransactionForm] = useState(emptyTransaction)
+  const [rows, setRows] = useState([newRow()])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [customBank, setCustomBank] = useState(false)
-  const [bulkType, setBulkType] = useState('deposit')
-  const [bulkDate, setBulkDate] = useState(today())
-  const [bulkRows, setBulkRows] = useState([emptyBulkRow()])
-  const [bulkSaving, setBulkSaving] = useState(false)
+  const [error, setError] = useState('')
   const [menuPortalTarget, setMenuPortalTarget] = useState(null)
+  const [creatingBankRow, setCreatingBankRow] = useState(null)
 
-  async function loadBankData() {
-    const [accountsRes, txRes] = await Promise.all([
-      fetch('/api/bank/accounts', { cache: 'no-store' }),
-      fetch('/api/bank/transactions', { cache: 'no-store' }),
-    ])
-
-    const accountsJson = await accountsRes.json()
-    const txJson = await txRes.json()
-
-    if (!accountsRes.ok || !accountsJson.success) {
-      throw new Error(accountsJson.message || 'Failed to load bank accounts')
+  async function loadData(selectedDate = date) {
+    setLoading(true)
+    setError('')
+    try {
+      const query = encodeURIComponent(selectedDate)
+      const [accountsResponse, transactionsResponse] = await Promise.all([
+        fetch('/api/bank/accounts', { cache: 'no-store' }),
+        fetch(`/api/bank/transactions?dateFrom=${query}&dateTo=${query}`, { cache: 'no-store' }),
+      ])
+      const accountsJson = await accountsResponse.json()
+      const transactionsJson = await transactionsResponse.json()
+      if (!accountsResponse.ok || !accountsJson.success) throw new Error(accountsJson.message || 'Bank accounts could not be loaded.')
+      if (!transactionsResponse.ok || !transactionsJson.success) throw new Error(transactionsJson.message || 'Bank transactions could not be loaded.')
+      setAccounts(accountsJson.data || [])
+      setTransactions(transactionsJson.data || [])
+    } catch (loadError) {
+      setError(loadError.message || 'Bank data could not be loaded.')
+    } finally {
+      setLoading(false)
     }
-
-    if (!txRes.ok || !txJson.success) {
-      throw new Error(txJson.message || 'Failed to load bank transactions')
-    }
-
-    setAccounts(accountsJson.data || [])
-    setTransactions(txJson.data || [])
   }
 
   useEffect(() => {
     setMenuPortalTarget(document.body)
-    loadBankData().catch((error) => setMessage(error.message))
   }, [])
 
-  const totalBalance = useMemo(
-    () => accounts.reduce((sum, account) => sum + Number(account.current_balance || 0), 0),
-    [accounts]
-  )
-
-  async function saveAccount(e) {
-    e.preventDefault()
-    setLoading(true)
-    setMessage('')
-
-    try {
-      const res = await fetch('/api/bank/accounts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(accountForm),
-      })
-
-      const json = await res.json()
-      if (!res.ok || !json.success) throw new Error(json.message || 'Account save failed')
-
-      setAccountForm(emptyAccount)
-      setCustomBank(false)
-      await loadBankData()
-      setMessage('Bank account saved')
-    } catch (error) {
-      setMessage(error.message || 'Account save failed')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function saveTransaction(e) {
-    e.preventDefault()
-    setLoading(true)
-    setMessage('')
-
-    try {
-      const res = await fetch('/api/bank/transactions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(transactionForm),
-      })
-
-      const json = await res.json()
-      if (!res.ok || !json.success) throw new Error(json.message || 'Transaction save failed')
-
-      setTransactionForm(emptyTransaction)
-      await loadBankData()
-      setMessage('Bank transaction saved')
-    } catch (error) {
-      setMessage(error.message || 'Transaction save failed')
-    } finally {
-      setLoading(false)
-    }
-  }
+  useEffect(() => {
+    loadData(date)
+  }, [date])
 
   const accountOptions = useMemo(() => accounts.map((account) => ({
     value: String(account.id),
     label: `${account.account_name}${account.bank_name ? ` — ${account.bank_name}` : ''}${account.account_number ? ` (${account.account_number})` : ''}`,
-    account,
   })), [accounts])
 
-  function updateBulkRow(index, field, value) {
-    setBulkRows((current) => current.map((row, rowIndex) => (
-      rowIndex === index ? { ...row, [field]: value } : row
-    )))
+  const datedTransactions = useMemo(() => transactions.filter((transaction) => transaction.tx_type === transactionType), [transactions, transactionType])
+  const dateTotal = useMemo(() => datedTransactions.reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0), [datedTransactions])
+
+  function updateRow(index, field, value) {
+    setRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row))
   }
 
-  async function saveBulkTransactions(event) {
-    event.preventDefault()
-    const validRows = bulkRows.filter((row) => row.accountId && Number(row.amount) > 0)
-    if (!validRows.length) {
-      setMessage('Select at least one bank and enter a valid amount.')
+  function addRow() {
+    setRows((current) => [...current, newRow()])
+  }
+
+  function removeRow(index) {
+    setRows((current) => current.length === 1 ? [newRow()] : current.filter((_, rowIndex) => rowIndex !== index))
+  }
+
+  async function createBankAccount(index, inputValue) {
+    const bankName = String(inputValue || '').trim()
+    if (!bankName) return
+
+    const existing = accounts.find((account) => (
+      String(account.account_name || '').trim().toLowerCase() === bankName.toLowerCase()
+      || String(account.bank_name || '').trim().toLowerCase() === bankName.toLowerCase()
+    ))
+    if (existing) {
+      updateRow(index, 'accountId', String(existing.id))
       return
     }
 
-    setBulkSaving(true)
+    setCreatingBankRow(index)
+    setError('')
+    try {
+      const response = await fetch('/api/bank/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountName: bankName, bankName, openingBalance: 0 }),
+      })
+      const json = await response.json()
+      if (!response.ok || !json.success) throw new Error(json.message || 'Bank account could not be created.')
+      updateRow(index, 'accountId', String(json.data.id))
+      await loadData(date)
+    } catch (createError) {
+      setError(createError.message || 'Bank account could not be created.')
+    } finally {
+      setCreatingBankRow(null)
+    }
+  }
+
+  async function saveEntries(event) {
+    event.preventDefault()
+    const validRows = rows.filter((row) => row.accountId && Number(row.amount) > 0)
+    if (!validRows.length) {
+      setError('Select at least one bank and enter a valid amount.')
+      return
+    }
+
+    setSaving(true)
+    setError('')
     setMessage('')
     try {
       for (const row of validRows) {
@@ -248,283 +133,113 @@ export default function BankManagement() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             accountId: row.accountId,
-            txType: bulkType,
+            txType: transactionType,
             amount: Number(row.amount),
-            txDate: bulkDate,
-            description: bulkType === 'deposit' ? 'Bulk bank credit' : 'Bulk bank debit',
+            txDate: date,
+            description: isCredit ? 'Bank credit entry' : 'Bank debit entry',
             notes: row.note,
           }),
         })
         const json = await response.json()
-        if (!response.ok || !json.success) throw new Error(json.message || 'Bank transaction could not be saved.')
+        if (!response.ok || !json.success) throw new Error(json.message || 'Bank entry could not be saved.')
       }
-      setBulkRows([emptyBulkRow()])
-      await loadBankData()
-      setMessage(`${validRows.length} bank ${bulkType === 'deposit' ? 'credit' : 'debit'} entries saved successfully.`)
-    } catch (error) {
-      setMessage(error.message || 'Bank entries could not be saved.')
+      setRows([newRow()])
+      setMessage(`${validRows.length} ${isCredit ? 'credit' : 'debit'} ${validRows.length === 1 ? 'entry was' : 'entries were'} saved.`)
+      await loadData(date)
+    } catch (saveError) {
+      setError(saveError.message || 'Bank entries could not be saved.')
     } finally {
-      setBulkSaving(false)
+      setSaving(false)
     }
   }
 
   return (
-    <div className="p-6 space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold">Bank Management</h1>
-        <p className="text-sm text-gray-500">
-          Bank accounts, deposits, withdrawals, transfers, balances and transaction history.
-        </p>
-      </div>
+    <div className="space-y-6 p-6">
+      <section className={`rounded-2xl border p-5 shadow-sm ${isCredit ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+        <p className="mt-1 text-sm text-gray-600">Add multiple bank {isCredit ? 'credits' : 'debits'} for one date, then save them together.</p>
+      </section>
 
-      {message && (
-        <div className="rounded-lg border bg-gray-50 px-4 py-3 text-sm text-gray-700">
-          {message}
-        </div>
-      )}
+      {message && <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">{message}</div>}
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 
-      <div className="grid md:grid-cols-3 gap-4">
-        <div className="rounded-xl border bg-blue-50 p-4">
-          <p className="text-sm text-blue-700">Bank Balance</p>
-          <p className="text-2xl font-bold text-blue-900">Rs {money(totalBalance)}</p>
-        </div>
-        <div className="rounded-xl border bg-gray-50 p-4">
-          <p className="text-sm text-gray-700">Accounts</p>
-          <p className="text-2xl font-bold">{accounts.length}</p>
-        </div>
-        <div className="rounded-xl border bg-gray-50 p-4">
-          <p className="text-sm text-gray-700">Transactions</p>
-          <p className="text-2xl font-bold">{transactions.length}</p>
-        </div>
-      </div>
-
-      <form onSubmit={saveBulkTransactions} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <form onSubmit={saveEntries} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Bank Credit / Debit Entry</h2>
-            <p className="mt-1 text-sm text-gray-500">Image jaisa date-wise multiple bank entries add karein.</p>
+            <h2 className="text-xl font-bold text-gray-900">{isCredit ? 'Credit' : 'Debit'} Entry</h2>
+            <p className="mt-1 text-sm text-gray-500">Select a bank account, enter amount and an optional note for each row.</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => setBulkType('deposit')} className={`rounded-lg px-5 py-2.5 text-sm font-bold ${bulkType === 'deposit' ? 'bg-green-600 text-white' : 'border text-gray-700'}`}>Credit</button>
-            <button type="button" onClick={() => setBulkType('withdrawal')} className={`rounded-lg px-5 py-2.5 text-sm font-bold ${bulkType === 'withdrawal' ? 'bg-red-600 text-white' : 'border text-gray-700'}`}>Debit</button>
-            <label className="min-w-44"><span className="mb-1 block text-xs font-semibold text-gray-600">Date</span><input type="date" value={bulkDate} onChange={(event) => setBulkDate(event.target.value)} className="w-full rounded-lg border px-3 py-2" required /></label>
-          </div>
+          <label className="w-full md:w-56">
+            <span className="mb-1 block text-sm font-bold text-gray-700">Date</span>
+            <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 font-semibold outline-none focus:ring-2 focus:ring-indigo-100" required />
+          </label>
         </div>
 
         <div className="mt-5 overflow-x-auto rounded-xl border border-gray-200">
-          <div className="min-w-[760px]">
-            <div className="grid grid-cols-[minmax(280px,1.4fr)_minmax(180px,.7fr)_minmax(260px,1fr)_100px] gap-3 bg-gray-900 px-4 py-3 text-sm font-bold text-white">
+          <div className="min-w-[780px]">
+            <div className="grid grid-cols-[minmax(290px,1.4fr)_minmax(160px,.65fr)_minmax(260px,1fr)_110px] gap-3 bg-gray-900 px-4 py-3 text-sm font-bold text-white">
               <span>Bank Name</span><span>Amount</span><span>Note</span><span>Action</span>
             </div>
-            {bulkRows.map((row, index) => (
-              <div key={index} className="grid grid-cols-[minmax(280px,1.4fr)_minmax(180px,.7fr)_minmax(260px,1fr)_100px] items-center gap-3 border-t px-4 py-3">
-                <Select value={accountOptions.find((option) => option.value === String(row.accountId)) || null} options={accountOptions} onChange={(option) => updateBulkRow(index, 'accountId', option?.value || '')} isSearchable isClearable placeholder="Type bank name to search..." noOptionsMessage={() => 'Bank account not found'} className="text-sm" menuPortalTarget={menuPortalTarget} menuPosition="fixed" styles={{ menuPortal: (base) => ({ ...base, zIndex: 9999 }), menu: (base) => ({ ...base, zIndex: 9999 }) }} />
-                <input type="number" min="0.01" step="0.01" value={row.amount} onChange={(event) => updateBulkRow(index, 'amount', event.target.value)} placeholder="Amount" className="rounded-lg border px-3 py-2.5" />
-                <input value={row.note} onChange={(event) => updateBulkRow(index, 'note', event.target.value)} placeholder="Anything / optional note" className="rounded-lg border px-3 py-2.5" />
-                {index === bulkRows.length - 1 ? <button type="button" onClick={() => setBulkRows((current) => [...current, emptyBulkRow()])} className="rounded-lg bg-indigo-600 px-3 py-2.5 text-sm font-bold text-white">Add Row</button> : <button type="button" onClick={() => setBulkRows((current) => current.filter((_, rowIndex) => rowIndex !== index))} className="rounded-lg px-3 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50">Remove</button>}
+            {rows.map((row, index) => (
+              <div key={index} className="grid grid-cols-[minmax(290px,1.4fr)_minmax(160px,.65fr)_minmax(260px,1fr)_110px] items-center gap-3 border-t px-4 py-3">
+                <CreatableSelect
+                  value={accountOptions.find((option) => option.value === String(row.accountId)) || null}
+                  options={accountOptions}
+                  onChange={(option) => updateRow(index, 'accountId', option?.value || '')}
+                  onCreateOption={(inputValue) => createBankAccount(index, inputValue)}
+                  isSearchable
+                  isClearable
+                  placeholder="Type to search a bank..."
+                  formatCreateLabel={(inputValue) => `Create bank: ${inputValue}`}
+                  isDisabled={creatingBankRow === index}
+                  menuPortalTarget={menuPortalTarget}
+                  menuPosition="fixed"
+                  styles={{ menuPortal: (base) => ({ ...base, zIndex: 9999 }) }}
+                />
+                <input type="number" min="0.01" step="0.01" value={row.amount} onChange={(event) => updateRow(index, 'amount', event.target.value)} placeholder="Amount" className="rounded-lg border border-gray-300 px-3 py-2.5" />
+                <input value={row.note} onChange={(event) => updateRow(index, 'note', event.target.value)} placeholder="Optional note" className="rounded-lg border border-gray-300 px-3 py-2.5" />
+                <div className="flex gap-2">
+                  {index === rows.length - 1 && <button type="button" onClick={addRow} className="rounded-lg bg-indigo-600 px-3 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">Add Row</button>}
+                  {rows.length > 1 && <button type="button" onClick={() => removeRow(index)} className="rounded-lg border border-red-200 px-3 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50">Remove</button>}
+                </div>
               </div>
             ))}
           </div>
         </div>
-        <div className="mt-5 flex justify-end"><button disabled={bulkSaving || !accounts.length} className={`rounded-xl px-10 py-3 text-base font-extrabold text-white shadow-sm disabled:bg-gray-400 ${bulkType === 'deposit' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>{bulkSaving ? 'Saving...' : `Save ${bulkType === 'deposit' ? 'Credit' : 'Debit'} Entries`}</button></div>
+
+        {!accounts.length && <p className="mt-3 text-sm text-amber-700">Create a bank account first before adding a credit or debit entry.</p>}
+        <div className="mt-5 flex justify-end">
+          <button disabled={saving || !accounts.length} className={`rounded-xl px-10 py-3 font-extrabold text-white shadow-sm disabled:bg-gray-400 ${isCredit ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>
+            {saving ? 'Saving...' : `Save ${isCredit ? 'Credit' : 'Debit'} Entries`}
+          </button>
+        </div>
       </form>
 
-      <div className="grid xl:grid-cols-2 gap-5">
-        <form onSubmit={saveAccount} className="rounded-xl border bg-white p-4 space-y-3">
-          <h2 className="font-semibold">Bank Account</h2>
-          <div className="grid md:grid-cols-2 gap-3">
-            <input
-              value={accountForm.accountName}
-              onChange={(e) => setAccountForm({ ...accountForm, accountName: e.target.value })}
-              placeholder="Account name"
-              required
-              className="border rounded px-3 py-2 text-sm"
-            />
-            <div className="space-y-2">
-              <Select
-                options={searchableBankOptions}
-                value={
-                  customBank
-                    ? findBankOption('__new__')
-                    : findBankOption(accountForm.bankName)
-                }
-                onChange={(selected) => {
-                  const isNew = selected?.value === '__new__'
-                  setCustomBank(isNew)
-                  setAccountForm({
-                    ...accountForm,
-                    bankName: isNew ? '' : selected?.value || '',
-                  })
-                }}
-                isSearchable
-                isClearable
-                placeholder="Type to search for a bank..."
-                noOptionsMessage={() => 'No matching bank found'}
-                className="text-sm"
-                classNamePrefix="bank-select"
-                menuPortalTarget={menuPortalTarget}
-                menuPosition="fixed"
-                styles={{
-                  menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-                  menu: (base) => ({ ...base, zIndex: 9999 }),
-                }}
-              />
-              {customBank && (
-                <input
-                  value={accountForm.bankName}
-                  onChange={(e) => setAccountForm({ ...accountForm, bankName: e.target.value })}
-                  placeholder="New bank name"
-                  required
-                  className="border rounded px-3 py-2 text-sm w-full"
-                />
-              )}
-            </div>
-            <input
-              value={accountForm.accountNumber}
-              onChange={(e) => setAccountForm({ ...accountForm, accountNumber: e.target.value })}
-              placeholder="Account number"
-              className="border rounded px-3 py-2 text-sm"
-            />
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={accountForm.openingBalance}
-              onChange={(e) => setAccountForm({ ...accountForm, openingBalance: e.target.value })}
-              placeholder="Opening balance"
-              className="border rounded px-3 py-2 text-sm"
-            />
+      <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className={`flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between ${isCredit ? 'bg-green-50' : 'bg-red-50'}`}>
+          <div>
+            <h2 className="font-bold text-gray-900">{isCredit ? 'Credit' : 'Debit'} List — {date}</h2>
+            <p className="text-sm text-gray-500">Only entries from the selected date are shown.</p>
           </div>
-          <textarea
-            value={accountForm.notes}
-            onChange={(e) => setAccountForm({ ...accountForm, notes: e.target.value })}
-            placeholder="Notes"
-            className="w-full border rounded px-3 py-2 text-sm"
-          />
-          <button
-            disabled={loading}
-            className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-gray-400"
-          >
-            Save Account
-          </button>
-        </form>
-
-        <form onSubmit={saveTransaction} className="rounded-xl border bg-white p-4 space-y-3">
-          <h2 className="font-semibold">Bank Transaction</h2>
-          <div className="grid md:grid-cols-2 gap-3">
-            <select
-              value={transactionForm.accountId}
-              onChange={(e) => setTransactionForm({ ...transactionForm, accountId: e.target.value })}
-              required
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="">Select account</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.account_name} - Rs {money(account.current_balance)}
-                </option>
-              ))}
-            </select>
-            <select
-              value={transactionForm.txType}
-              onChange={(e) => setTransactionForm({ ...transactionForm, txType: e.target.value })}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="deposit">Deposit</option>
-              <option value="withdrawal">Withdrawal</option>
-              <option value="transfer">Transfer</option>
-            </select>
-            {transactionForm.txType === 'transfer' && (
-              <select
-                value={transactionForm.toAccountId}
-                onChange={(e) => setTransactionForm({ ...transactionForm, toAccountId: e.target.value })}
-                required
-                className="border rounded px-3 py-2 text-sm"
-              >
-                <option value="">Transfer to</option>
-                {accounts
-                  .filter((account) => String(account.id) !== String(transactionForm.accountId))
-                  .map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.account_name}
-                    </option>
-                  ))}
-              </select>
-            )}
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={transactionForm.amount}
-              onChange={(e) => setTransactionForm({ ...transactionForm, amount: e.target.value })}
-              placeholder="Amount"
-              required
-              className="border rounded px-3 py-2 text-sm"
-            />
-            <input
-              type="date"
-              value={transactionForm.txDate}
-              onChange={(e) => setTransactionForm({ ...transactionForm, txDate: e.target.value })}
-              className="border rounded px-3 py-2 text-sm"
-            />
-            <input
-              value={transactionForm.description}
-              onChange={(e) => setTransactionForm({ ...transactionForm, description: e.target.value })}
-              placeholder="Description"
-              className="border rounded px-3 py-2 text-sm"
-            />
-          </div>
-          <textarea
-            value={transactionForm.notes}
-            onChange={(e) => setTransactionForm({ ...transactionForm, notes: e.target.value })}
-            placeholder="Notes"
-            className="w-full border rounded px-3 py-2 text-sm"
-          />
-          <button
-            disabled={loading}
-            className="rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-gray-400"
-          >
-            Save Transaction
-          </button>
-        </form>
-      </div>
-
-      <div className="rounded-xl border bg-white p-4">
-        <h2 className="mb-3 font-semibold">Transaction History</h2>
-        <div className="overflow-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-3 py-2 text-left">Date</th>
-                <th className="px-3 py-2 text-left">Account</th>
-                <th className="px-3 py-2 text-left">Type</th>
-                <th className="px-3 py-2 text-right">Amount</th>
-                <th className="px-3 py-2 text-right">Balance</th>
-                <th className="px-3 py-2 text-left">Description</th>
-              </tr>
-            </thead>
+          <p className="font-bold text-gray-900">Total: Rs {money(dateTotal)}</p>
+        </div>
+        <div className="max-h-[480px] overflow-auto">
+          <table className="w-full min-w-[700px] text-sm">
+            <thead className="sticky top-0 bg-gray-900 text-white"><tr><th className="px-4 py-3 text-left">Bank Name</th><th className="px-4 py-3 text-right">Amount</th><th className="px-4 py-3 text-left">Note</th><th className="px-4 py-3 text-right">Balance After</th></tr></thead>
             <tbody>
-              {transactions.map((tx) => (
-                <tr key={tx.id} className="border-t">
-                  <td className="px-3 py-2">{tx.tx_date}</td>
-                  <td className="px-3 py-2">{tx.account_name}</td>
-                  <td className="px-3 py-2">{tx.tx_type.replaceAll('_', ' ')}</td>
-                  <td className="px-3 py-2 text-right">Rs {money(tx.amount)}</td>
-                  <td className="px-3 py-2 text-right">Rs {money(tx.balance_after)}</td>
-                  <td className="px-3 py-2">{tx.description || '-'}</td>
-                </tr>
-              ))}
-              {!transactions.length && (
-                <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center text-gray-500">
-                    No bank transactions found.
-                  </td>
-                </tr>
-              )}
+              {loading ? <tr><td colSpan="4" className="px-4 py-10 text-center text-gray-500">Loading entries...</td></tr>
+                : datedTransactions.length ? datedTransactions.map((transaction) => (
+                  <tr key={transaction.id} className="border-t hover:bg-gray-50">
+                    <td className="px-4 py-3 font-semibold text-gray-900">{transaction.account_name}{transaction.bank_name ? ` — ${transaction.bank_name}` : ''}</td>
+                    <td className="px-4 py-3 text-right font-bold">Rs {money(transaction.amount)}</td>
+                    <td className="px-4 py-3 text-gray-600">{transaction.notes || transaction.description || '-'}</td>
+                    <td className="px-4 py-3 text-right">Rs {money(transaction.balance_after)}</td>
+                  </tr>
+                )) : <tr><td colSpan="4" className="px-4 py-10 text-center text-gray-500">No {isCredit ? 'credit' : 'debit'} entries exist for this date.</td></tr>}
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
     </div>
   )
 }
