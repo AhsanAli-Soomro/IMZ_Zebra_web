@@ -98,7 +98,11 @@ export default function PurchaseInvoice() {
     async function loadSuppliers() {
       try {
         const res = await axios.get('/api/suppliers')
-        setSuppliers((res.data?.data || []).filter((s) => s.status === 'Active'))
+        setSuppliers(
+          (res.data?.data || []).filter(
+            (supplier) => String(supplier.status || '').toLowerCase() === 'active'
+          )
+        )
       } catch (err) {
         console.error('Suppliers load failed', err)
       }

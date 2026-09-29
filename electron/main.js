@@ -135,8 +135,8 @@ function getIconPath() {
 }
 function createWindow(port, route = '/') {
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: 400,
+    height: 400,
     autoHideMenuBar: true,
     show: false,
     icon: getIconPath(),

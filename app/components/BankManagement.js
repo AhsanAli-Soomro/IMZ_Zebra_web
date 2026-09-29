@@ -32,6 +32,16 @@ export default function BankManagement({ type = 'credit' }) {
   const [error, setError] = useState('')
   const [menuPortalTarget, setMenuPortalTarget] = useState(null)
   const [creatingBankRow, setCreatingBankRow] = useState(null)
+  const [showBankForm, setShowBankForm] = useState(false)
+  const [bankSaving, setBankSaving] = useState(false)
+  const [bankForm, setBankForm] = useState({
+    accountName: '',
+    bankName: '',
+    accountNumber: '',
+    openingBalance: '',
+    status: 'Active',
+    notes: '',
+  })
 
   async function loadData(selectedDate = date) {
     setLoading(true)
@@ -65,7 +75,8 @@ export default function BankManagement({ type = 'credit' }) {
 
   const accountOptions = useMemo(() => accounts.map((account) => ({
     value: String(account.id),
-    label: `${account.account_name}${account.bank_name ? ` — ${account.bank_name}` : ''}${account.account_number ? ` (${account.account_number})` : ''}`,
+    label: account?.bank_name ? account?.bank_name : ""
+    // label: `${account.account_name}${account.bank_name ? ` — ${account.bank_name}` : ''}${account.account_number ? ` (${account.account_number})` : ''}`,
   })), [accounts])
 
   const datedTransactions = useMemo(() => transactions.filter((transaction) => transaction.tx_type === transactionType), [transactions, transactionType])
@@ -115,6 +126,35 @@ export default function BankManagement({ type = 'credit' }) {
     }
   }
 
+  async function saveBankAccount(event) {
+    event.preventDefault()
+    if (!bankForm.accountName.trim()) {
+      setError('Account name is required.')
+      return
+    }
+
+    setBankSaving(true)
+    setError('')
+    setMessage('')
+    try {
+      const response = await fetch('/api/bank/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bankForm),
+      })
+      const json = await response.json()
+      if (!response.ok || !json.success) throw new Error(json.message || 'Bank account could not be created.')
+      setBankForm({ accountName: '', bankName: '', accountNumber: '', openingBalance: '', status: 'Active', notes: '' })
+      setShowBankForm(false)
+      setMessage('Bank account successfully add ho gaya.')
+      await loadData(date)
+    } catch (saveError) {
+      setError(saveError.message || 'Bank account could not be created.')
+    } finally {
+      setBankSaving(false)
+    }
+  }
+
   async function saveEntries(event) {
     event.preventDefault()
     const validRows = rows.filter((row) => row.accountId && Number(row.amount) > 0)
@@ -156,12 +196,38 @@ export default function BankManagement({ type = 'credit' }) {
   return (
     <div className="space-y-6 p-6">
       <section className={`rounded-2xl border p-5 shadow-sm ${isCredit ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
-        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-        <p className="mt-1 text-sm text-gray-600">Add multiple bank {isCredit ? 'credits' : 'debits'} for one date, then save them together.</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+            <p className="mt-1 text-sm text-gray-600">Add multiple bank {isCredit ? 'credits' : 'debits'} for one date, then save them together.</p>
+          </div>
+          <button type="button" onClick={() => setShowBankForm((current) => !current)} className="rounded-lg bg-green-600 px-5 py-2.5 font-semibold text-white hover:bg-green-700">
+            {showBankForm ? 'Cancel' : '+ Add Bank'}
+          </button>
+        </div>
       </section>
 
       {message && <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">{message}</div>}
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+
+      {showBankForm && <form onSubmit={saveBankAccount} className="rounded-2xl border border-indigo-100 bg-indigo-50 p-5 shadow-sm">
+        <div className="mb-4">
+          <h2 className="text-xl font-bold text-gray-900">Add Bank Account</h2>
+          <p className="text-sm text-gray-500">Bank ki details enter karke account list mein add karein.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <label><span className="mb-1 block text-sm font-semibold">Account Name *</span><input autoFocus required value={bankForm.accountName} onChange={(event) => setBankForm({ ...bankForm, accountName: event.target.value })} placeholder="e.g. Business Account" className="w-full rounded-lg border border-gray-300 px-3 py-2.5" /></label>
+          <label><span className="mb-1 block text-sm font-semibold">Bank Name</span><input value={bankForm.bankName} onChange={(event) => setBankForm({ ...bankForm, bankName: event.target.value })} placeholder="Bank name" className="w-full rounded-lg border border-gray-300 px-3 py-2.5" /></label>
+          <label><span className="mb-1 block text-sm font-semibold">Account Number</span><input value={bankForm.accountNumber} onChange={(event) => setBankForm({ ...bankForm, accountNumber: event.target.value })} placeholder="Account number" className="w-full rounded-lg border border-gray-300 px-3 py-2.5" /></label>
+          <label><span className="mb-1 block text-sm font-semibold">Opening Balance</span><input type="number" min="0" step="0.01" value={bankForm.openingBalance} onChange={(event) => setBankForm({ ...bankForm, openingBalance: event.target.value })} placeholder="0" className="w-full rounded-lg border border-gray-300 px-3 py-2.5" /></label>
+          <label><span className="mb-1 block text-sm font-semibold">Status</span><select value={bankForm.status} onChange={(event) => setBankForm({ ...bankForm, status: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2.5"><option>Active</option><option>Inactive</option></select></label>
+          <label><span className="mb-1 block text-sm font-semibold">Notes</span><input value={bankForm.notes} onChange={(event) => setBankForm({ ...bankForm, notes: event.target.value })} placeholder="Optional notes" className="w-full rounded-lg border border-gray-300 px-3 py-2.5" /></label>
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <button type="button" onClick={() => setShowBankForm(false)} className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 font-semibold text-gray-700">Cancel</button>
+          <button type="submit" disabled={bankSaving} className="rounded-lg bg-indigo-600 px-6 py-2.5 font-bold text-white hover:bg-indigo-700 disabled:bg-gray-400">{bankSaving ? 'Saving...' : 'Save Bank'}</button>
+        </div>
+      </form>}
 
       <form onSubmit={saveEntries} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">

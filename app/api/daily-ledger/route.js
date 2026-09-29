@@ -25,6 +25,7 @@ export async function GET(request) {
     const [
       cashRows,
       cashBalanceRows,
+      expenses,
       closingRows,
       sales,
       purchases,
@@ -45,6 +46,13 @@ export async function GET(request) {
          FROM cash_transactions
          WHERE date(tx_date) <= date(?)
            AND (deleted_at IS NULL OR deleted_at = '')`,
+        [date]
+      ),
+      db.query(
+        `SELECT id, expense_date, amount, notes
+         FROM expenses
+         WHERE date(expense_date) = date(?)
+         ORDER BY id DESC`,
         [date]
       ),
       db.query(
@@ -122,6 +130,7 @@ export async function GET(request) {
           day_net_cash: dayCredit - dayDebit,
           sales_total: sales.reduce((sum, row) => sum + number(row.total), 0),
           purchase_total: purchases.reduce((sum, row) => sum + number(row.total), 0),
+          expense_total: expenses.reduce((sum, row) => sum + number(row.amount), 0),
         },
         closing: closingRows[0] || null,
         cashTransactions: cashRows.map((row) => ({ ...row, amount: number(row.amount) })),
@@ -143,6 +152,7 @@ export async function GET(request) {
             credit: number(row.credit),
             balance_after: number(row.balance_after),
           })),
+        expenses: expenses.map((row) => ({ ...row, amount: number(row.amount) })),
       },
     })
   } catch (error) {

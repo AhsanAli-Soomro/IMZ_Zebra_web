@@ -27,6 +27,7 @@ export default function BulkBalanceEntry({ type, onOpenLedger }) {
   const [customerForm, setCustomerForm] = useState({ name: '', email: '', phone: '', address: '', status: 'Active' })
   const [pendingCustomers, setPendingCustomers] = useState([])
   const [customerSaving, setCustomerSaving] = useState(false)
+  const [editingCustomer, setEditingCustomer] = useState(null)
   const [suppliers, setSuppliers] = useState([])
   const [supplierSearch, setSupplierSearch] = useState('')
   const [supplierPage, setSupplierPage] = useState(1)
@@ -35,6 +36,7 @@ export default function BulkBalanceEntry({ type, onOpenLedger }) {
   const [supplierForm, setSupplierForm] = useState({ name: '', company_name: '', email: '', phone: '', address: '', status: 'Active' })
   const [pendingSuppliers, setPendingSuppliers] = useState([])
   const [supplierSaving, setSupplierSaving] = useState(false)
+  const [editingSupplier, setEditingSupplier] = useState(null)
   const [menuPortalTarget, setMenuPortalTarget] = useState(null)
   const nextSelectRef = useRef(null)
 
@@ -172,15 +174,61 @@ export default function BulkBalanceEntry({ type, onOpenLedger }) {
     }
   }
 
+  const saveCustomerEdit = async (event) => {
+    event.preventDefault()
+    if (!editingCustomer?.name?.trim()) return
+    setCustomerSaving(true)
+    setMessage('')
+    try {
+      const response = await fetch('/api/customers', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingCustomer),
+      })
+      const json = await response.json()
+      if (!response.ok || !json.success) throw new Error(json.message || 'Customer could not be updated.')
+      setEditingCustomer(null)
+      await showCustomers(customerPage, customerSearch)
+      await loadParties()
+      setMessage('Customer successfully update ho gaya.')
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setCustomerSaving(false)
+    }
+  }
+
+  const saveSupplierEdit = async (event) => {
+    event.preventDefault()
+    if (!editingSupplier?.name?.trim()) return
+    setSupplierSaving(true)
+    setMessage('')
+    try {
+      const response = await fetch('/api/suppliers', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingSupplier),
+      })
+      const json = await response.json()
+      if (!response.ok || !json.success) throw new Error(json.message || 'Supplier could not be updated.')
+      setEditingSupplier(null)
+      await showSuppliers(supplierPage, supplierSearch)
+      await loadParties()
+      setMessage('Supplier successfully update ho gaya.')
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSupplierSaving(false)
+    }
+  }
+
   const partyMap = useMemo(
     () => new Map(parties.map((party) => [String(party.id), party])),
     [parties]
   )
 
-  const partyOptions = useMemo(() => parties.map((party) => ({
-    value: String(party.id),
-    label: party.customer_name || party.supplier_name || party.name,
-  })), [parties])
+  const partyOptions = useMemo(() => parties
+    .filter((party) => String(party.status || '').toLowerCase() === 'active')
+    .map((party) => ({
+      value: String(party.id),
+      label: party.customer_name || party.supplier_name || party.name,
+    })), [parties])
 
   const filteredCustomers = useMemo(() => {
     const search = customerSearch.trim().toLowerCase()
@@ -297,11 +345,18 @@ export default function BulkBalanceEntry({ type, onOpenLedger }) {
               <div className="mt-3 flex justify-end"><button type="button" onClick={saveCustomers} disabled={customerSaving} className="rounded-lg bg-green-600 px-6 py-2.5 font-bold text-white hover:bg-green-700 disabled:bg-gray-400">{customerSaving ? 'Saving All...' : `Save All Customers (${pendingCustomers.length})`}</button></div>
             </div>}
           </form>}
+          {editingCustomer && <form onSubmit={saveCustomerEdit} className="mb-5 grid grid-cols-1 gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 md:grid-cols-2 lg:grid-cols-5">
+            <div><label className="mb-1 block text-sm font-semibold">Name *</label><input autoFocus required value={editingCustomer.name || ''} onChange={(event) => setEditingCustomer({ ...editingCustomer, name: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2.5" /></div>
+            <div><label className="mb-1 block text-sm font-semibold">Email</label><input type="email" value={editingCustomer.email || ''} onChange={(event) => setEditingCustomer({ ...editingCustomer, email: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2.5" /></div>
+            <div><label className="mb-1 block text-sm font-semibold">Phone</label><input value={editingCustomer.phone || ''} onChange={(event) => setEditingCustomer({ ...editingCustomer, phone: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2.5" /></div>
+            <div><label className="mb-1 block text-sm font-semibold">Address</label><input value={editingCustomer.address || ''} onChange={(event) => setEditingCustomer({ ...editingCustomer, address: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2.5" /></div>
+            <div><label className="mb-1 block text-sm font-semibold">Status</label><div className="flex gap-2"><select value={editingCustomer.status || 'Active'} onChange={(event) => setEditingCustomer({ ...editingCustomer, status: event.target.value })} className="min-w-0 flex-1 rounded-lg border border-gray-300 px-2 py-2.5"><option>Active</option><option>Inactive</option></select><button type="submit" disabled={customerSaving} className="rounded-lg bg-indigo-600 px-3 py-2.5 font-semibold text-white disabled:bg-gray-400">{customerSaving ? 'Saving...' : 'Save'}</button><button type="button" onClick={() => setEditingCustomer(null)} className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 font-semibold">Cancel</button></div></div>
+          </form>}
           {message && <p className={`mb-4 text-sm font-medium ${message.includes('successfully') ? 'text-green-700' : 'text-red-600'}`}>{message}</p>}
           <div className="overflow-x-auto rounded-xl border border-gray-200">
             <table className="w-full min-w-[850px] text-sm">
-              <thead className="bg-gray-900 text-white"><tr><th className="px-4 py-3 text-left">Name</th><th className="px-4 py-3 text-left">Email</th><th className="px-4 py-3 text-left">Phone</th><th className="px-4 py-3 text-left">Address</th><th className="px-4 py-3 text-left">Previous Balance</th><th className="px-4 py-3 text-left">Status</th></tr></thead>
-              <tbody>{filteredCustomers.length ? filteredCustomers.map((customer, index) => <tr key={customer.id} className={`border-t ${index % 2 ? 'bg-gray-50' : 'bg-white'}`}><td className="px-4 py-3 font-semibold text-gray-900">{customer.name || '-'}</td><td className="px-4 py-3">{customer.email || '-'}</td><td className="px-4 py-3">{customer.phone || '-'}</td><td className="px-4 py-3">{customer.address || '-'}</td><td className="px-4 py-3 font-semibold">Rs. {money(partyMap.get(String(customer.id))?.balance)}</td><td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${String(customer.status).toLowerCase() === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{customer.status || '-'}</span></td></tr>) : <tr><td colSpan="6" className="px-4 py-10 text-center text-gray-500">No customers found.</td></tr>}</tbody>
+              <thead className="bg-gray-900 text-white"><tr><th className="px-4 py-3 text-left">Name</th><th className="px-4 py-3 text-left">Email</th><th className="px-4 py-3 text-left">Phone</th><th className="px-4 py-3 text-left">Address</th><th className="px-4 py-3 text-left">Previous Balance</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-left">Action</th></tr></thead>
+              <tbody>{filteredCustomers.length ? filteredCustomers.map((customer, index) => <tr key={customer.id} className={`border-t ${index % 2 ? 'bg-gray-50' : 'bg-white'}`}><td className="px-4 py-3 font-semibold text-gray-900">{customer.name || '-'}</td><td className="px-4 py-3">{customer.email || '-'}</td><td className="px-4 py-3">{customer.phone || '-'}</td><td className="px-4 py-3">{customer.address || '-'}</td><td className="px-4 py-3 font-semibold">Rs. {money(partyMap.get(String(customer.id))?.balance)}</td><td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${String(customer.status).toLowerCase() === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{customer.status || '-'}</span></td><td className="px-4 py-3"><button type="button" onClick={() => setEditingCustomer({ ...customer })} className="rounded-lg bg-amber-500 px-3 py-1.5 font-semibold text-white hover:bg-amber-600">Edit</button></td></tr>) : <tr><td colSpan="7" className="px-4 py-10 text-center text-gray-500">No customers found.</td></tr>}</tbody>
             </table>
           </div>
           <Pagination page={customerPage} pages={customerPages} onChange={setCustomerPage} />
@@ -321,8 +376,16 @@ export default function BulkBalanceEntry({ type, onOpenLedger }) {
             <div><label className="mb-1 block text-sm font-semibold">Status</label><div className="flex gap-2"><select value={supplierForm.status} onChange={(event) => setSupplierForm({ ...supplierForm, status: event.target.value })} className="min-w-0 flex-1 rounded-lg border border-gray-300 px-2 py-2.5"><option>Active</option><option>Inactive</option></select><button type="submit" className="whitespace-nowrap rounded-lg bg-indigo-600 px-3 py-2.5 font-semibold text-white">Add Row</button></div></div>
             {pendingSuppliers.length > 0 && <div className="md:col-span-2 lg:col-span-6"><div className="overflow-x-auto rounded-lg border border-indigo-200 bg-white"><table className="w-full min-w-[850px] text-sm"><thead className="bg-indigo-100"><tr><th className="px-3 py-2 text-left">#</th><th className="px-3 py-2 text-left">Name</th><th className="px-3 py-2 text-left">Company</th><th className="px-3 py-2 text-left">Email</th><th className="px-3 py-2 text-left">Phone</th><th className="px-3 py-2 text-left">Address</th><th className="px-3 py-2 text-left">Status</th><th className="px-3 py-2">Action</th></tr></thead><tbody>{pendingSuppliers.map((supplier, index) => <tr key={supplier.tempId} className="border-t"><td className="px-3 py-2">{index + 1}</td><td className="px-3 py-2 font-semibold">{supplier.name}</td><td className="px-3 py-2">{supplier.company_name || '-'}</td><td className="px-3 py-2">{supplier.email || '-'}</td><td className="px-3 py-2">{supplier.phone || '-'}</td><td className="px-3 py-2">{supplier.address || '-'}</td><td className="px-3 py-2">{supplier.status}</td><td className="px-3 py-2"><button type="button" onClick={() => setPendingSuppliers((current) => current.filter((item) => item.tempId !== supplier.tempId))} className="text-red-600">Remove</button></td></tr>)}</tbody></table></div><div className="mt-3 flex justify-end"><button type="button" onClick={saveSuppliers} disabled={supplierSaving} className="rounded-lg bg-green-600 px-6 py-2.5 font-bold text-white disabled:bg-gray-400">{supplierSaving ? 'Saving All...' : `Save All Suppliers (${pendingSuppliers.length})`}</button></div></div>}
           </form>}
+          {editingSupplier && <form onSubmit={saveSupplierEdit} className="mb-5 grid grid-cols-1 gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 md:grid-cols-2 lg:grid-cols-6">
+            <div><label className="mb-1 block text-sm font-semibold">Name *</label><input autoFocus required value={editingSupplier.name || ''} onChange={(event) => setEditingSupplier({ ...editingSupplier, name: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2.5" /></div>
+            <div><label className="mb-1 block text-sm font-semibold">Company</label><input value={editingSupplier.company_name || ''} onChange={(event) => setEditingSupplier({ ...editingSupplier, company_name: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2.5" /></div>
+            <div><label className="mb-1 block text-sm font-semibold">Email</label><input type="email" value={editingSupplier.email || ''} onChange={(event) => setEditingSupplier({ ...editingSupplier, email: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2.5" /></div>
+            <div><label className="mb-1 block text-sm font-semibold">Phone</label><input value={editingSupplier.phone || ''} onChange={(event) => setEditingSupplier({ ...editingSupplier, phone: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2.5" /></div>
+            <div><label className="mb-1 block text-sm font-semibold">Address</label><input value={editingSupplier.address || ''} onChange={(event) => setEditingSupplier({ ...editingSupplier, address: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2.5" /></div>
+            <div><label className="mb-1 block text-sm font-semibold">Status</label><div className="flex gap-2"><select value={editingSupplier.status || 'Active'} onChange={(event) => setEditingSupplier({ ...editingSupplier, status: event.target.value })} className="min-w-0 flex-1 rounded-lg border border-gray-300 px-2 py-2.5"><option>Active</option><option>Inactive</option></select><button type="submit" disabled={supplierSaving} className="rounded-lg bg-indigo-600 px-3 py-2.5 font-semibold text-white disabled:bg-gray-400">{supplierSaving ? 'Saving...' : 'Save'}</button><button type="button" onClick={() => setEditingSupplier(null)} className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 font-semibold">Cancel</button></div></div>
+          </form>}
           {message && <p className={`mb-4 text-sm font-medium ${message.includes('successfully') ? 'text-green-700' : 'text-red-600'}`}>{message}</p>}
-          <div className="overflow-x-auto rounded-xl border border-gray-200"><table className="w-full min-w-[950px] text-sm"><thead className="bg-gray-900 text-white"><tr><th className="px-4 py-3 text-left">Name</th><th className="px-4 py-3 text-left">Company</th><th className="px-4 py-3 text-left">Email</th><th className="px-4 py-3 text-left">Phone</th><th className="px-4 py-3 text-left">Address</th><th className="px-4 py-3 text-left">Previous Balance</th><th className="px-4 py-3 text-left">Status</th></tr></thead><tbody>{filteredSuppliers.length ? filteredSuppliers.map((supplier, index) => <tr key={supplier.id} className={`border-t ${index % 2 ? 'bg-gray-50' : 'bg-white'}`}><td className="px-4 py-3 font-semibold">{supplier.name || '-'}</td><td className="px-4 py-3">{supplier.company_name || '-'}</td><td className="px-4 py-3">{supplier.email || '-'}</td><td className="px-4 py-3">{supplier.phone || '-'}</td><td className="px-4 py-3">{supplier.address || '-'}</td><td className="px-4 py-3 font-semibold">Rs. {money(partyMap.get(String(supplier.id))?.balance)}</td><td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${String(supplier.status).toLowerCase() === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{supplier.status || '-'}</span></td></tr>) : <tr><td colSpan="7" className="px-4 py-10 text-center text-gray-500">No suppliers found.</td></tr>}</tbody></table></div>
+          <div className="overflow-x-auto rounded-xl border border-gray-200"><table className="w-full min-w-[1050px] text-sm"><thead className="bg-gray-900 text-white"><tr><th className="px-4 py-3 text-left">Name</th><th className="px-4 py-3 text-left">Company</th><th className="px-4 py-3 text-left">Email</th><th className="px-4 py-3 text-left">Phone</th><th className="px-4 py-3 text-left">Address</th><th className="px-4 py-3 text-left">Previous Balance</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-left">Action</th></tr></thead><tbody>{filteredSuppliers.length ? filteredSuppliers.map((supplier, index) => <tr key={supplier.id} className={`border-t ${index % 2 ? 'bg-gray-50' : 'bg-white'}`}><td className="px-4 py-3 font-semibold">{supplier.name || '-'}</td><td className="px-4 py-3">{supplier.company_name || '-'}</td><td className="px-4 py-3">{supplier.email || '-'}</td><td className="px-4 py-3">{supplier.phone || '-'}</td><td className="px-4 py-3">{supplier.address || '-'}</td><td className="px-4 py-3 font-semibold">Rs. {money(partyMap.get(String(supplier.id))?.balance)}</td><td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${String(supplier.status).toLowerCase() === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{supplier.status || '-'}</span></td><td className="px-4 py-3"><button type="button" onClick={() => setEditingSupplier({ ...supplier })} className="rounded-lg bg-amber-500 px-3 py-1.5 font-semibold text-white hover:bg-amber-600">Edit</button></td></tr>) : <tr><td colSpan="8" className="px-4 py-10 text-center text-gray-500">No suppliers found.</td></tr>}</tbody></table></div>
           <Pagination page={supplierPage} pages={supplierPages} onChange={setSupplierPage} />
         </div>
       ) : <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">

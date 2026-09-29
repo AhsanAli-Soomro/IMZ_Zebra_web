@@ -78,6 +78,7 @@ export default function DailyLedger() {
   const bankCreditRows = useMemo(() => bankRows(data?.cashTransactions || [], 'in'), [data])
   const bankDebitRows = useMemo(() => bankRows(data?.cashTransactions || [], 'out'), [data])
   const summary = data?.summary || {}
+  const expenseRows = data?.expenses || []
 
   function startEditing(row) {
     setEditingRow(row)
@@ -136,10 +137,11 @@ export default function DailyLedger() {
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-700">{error}</div>}
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard label="Cash in Hand" value={summary.cash_in_hand} tone="blue" helper={`Closing cash as of ${date || 'the selected date'}`} />
         <SummaryCard label="Credit" value={summary.day_credit} tone="green" helper="Cash and bank credit on this date" />
         <SummaryCard label="Debit" value={summary.day_debit} tone="red" helper="Cash and bank debit on this date" />
+        <SummaryCard label="Total Expense" value={summary.expense_total} tone="orange" helper="Total expenses on this date" />
       </section>
 
       {loading && <div className="rounded-lg border bg-gray-50 p-3 text-sm text-gray-600">Loading daily ledger...</div>}
@@ -149,6 +151,17 @@ export default function DailyLedger() {
         <SnapshotList title="Suppliers" rows={supplierRows} empty="No supplier activity on this date." tone="orange" onEdit={startEditing} />
         <SnapshotList title="Banks — Credit" rows={bankCreditRows} empty="No bank credit on this date." tone="green" onEdit={startEditing} />
         <SnapshotList title="Banks — Debit" rows={bankDebitRows} empty="No bank debit on this date." tone="red" onEdit={startEditing} />
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between bg-rose-700 px-5 py-4 text-white">
+          <div><h2 className="font-bold">Expenses — {date}</h2><p className="text-xs text-white/80">{expenseRows.length} {expenseRows.length === 1 ? 'entry' : 'entries'}</p></div>
+          <p className="font-bold">Rs {money(summary.expense_total)}</p>
+        </div>
+        <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm">
+          <thead className="bg-gray-900 text-white"><tr><th className="px-4 py-3 text-left">Date</th><th className="px-4 py-3 text-right">Amount</th><th className="px-4 py-3 text-left">Note</th></tr></thead>
+          <tbody>{expenseRows.length ? expenseRows.map((expense) => <tr key={expense.id} className="border-t"><td className="px-4 py-3 font-semibold">{expense.expense_date}</td><td className="px-4 py-3 text-right font-bold">Rs {money(expense.amount)}</td><td className="px-4 py-3 text-gray-600">{expense.notes || '-'}</td></tr>) : <tr><td colSpan="3" className="px-4 py-10 text-center text-gray-500">No expense entries on this date.</td></tr>}</tbody>
+        </table></div>
       </section>
 
       {editingRow && (
@@ -184,6 +197,7 @@ function SummaryCard({ label, value, tone, helper }) {
     blue: 'border-blue-200 bg-blue-50 text-blue-900',
     green: 'border-green-200 bg-green-50 text-green-900',
     red: 'border-red-200 bg-red-50 text-red-900',
+    orange: 'border-orange-200 bg-orange-50 text-orange-900',
   }
 
   return (

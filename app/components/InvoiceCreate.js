@@ -158,7 +158,13 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
     try {
       const res = await fetch('/api/customers')
       const data = await res.json()
-      if (data?.success) setCustomers(data.data || [])
+      if (data?.success) {
+        setCustomers(
+          (data.data || []).filter(
+            (customer) => String(customer.status || '').toLowerCase() === 'active'
+          )
+        )
+      }
     } catch (e) {
       console.error('Customers load failed', e)
     }
