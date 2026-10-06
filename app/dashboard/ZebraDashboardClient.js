@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Sidebar from '../components/Sidebar'
 import Navbar from '../components/Navbar'
 import Stock from '../components/Stock'
+import Stores from '../components/Stores'
 import Customers from '../components/Customers'
 import Suppliers from '../components/Suppliers'
 import Inventory from '../components/Inventory'
@@ -40,7 +41,7 @@ export default function ZebraDashboardClient() {
   const [active, setActive] = useState(null)
   const [isAuth, setIsAuth] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userType, setUserType] = useState(null)
 
   useEffect(() => {
@@ -93,6 +94,8 @@ export default function ZebraDashboardClient() {
         return <DashboardPage />
       case 'stock':
         return <Stock />
+      case 'stores':
+        return <Stores />
       case 'inventory':
         return <Inventory />
       case 'customers':
@@ -150,19 +153,34 @@ export default function ZebraDashboardClient() {
     <div className="flex flex-col h-screen bg-gray-100">
       <Navbar />
 
-      <div className="bg-white md:hidden fixed p-2 shadow z-50">
+      <div className="md:hidden fixed left-3 top-3 z-[60]">
         <button
-          className="text-black text-2xl p-2 rounded"
+          className="h-10 w-10 rounded-lg border border-gray-200 bg-white text-gray-800 text-xl shadow-sm"
           onClick={() => setSidebarOpen(prev => !prev)}
+          aria-label="Toggle navigation menu"
         >
           ☰
         </button>
       </div>
 
-      <div className="flex flex-1 overflow-hidden min-h-0">
-        <Sidebar active={active} setActive={setActive} isOpen={sidebarOpen} />
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="Close navigation menu"
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+        />
+      )}
 
-        <main className="flex-1 min-h-0 overflow-y-auto p-6 bg-white">
+      <div className="flex flex-1 overflow-hidden min-h-0">
+        <Sidebar
+          active={active}
+          setActive={setActive}
+          isOpen={sidebarOpen}
+          onNavigate={() => setSidebarOpen(false)}
+        />
+
+        <main className="app-main flex-1 min-w-0 min-h-0 overflow-y-auto bg-gray-50 p-3 sm:p-4 lg:p-6">
           <ActivationGate>
             {renderContent()}
           </ActivationGate>

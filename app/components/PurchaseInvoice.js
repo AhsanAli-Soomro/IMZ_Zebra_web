@@ -24,6 +24,7 @@ function lineAmount(item) {
 export default function PurchaseInvoice() {
   const [suppliers, setSuppliers] = useState([])
   const [stocks, setStocks] = useState([])
+  const [stores, setStores] = useState([])
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false)
@@ -46,6 +47,7 @@ export default function PurchaseInvoice() {
 
   const emptyItem = () => ({
     stockId: '',
+    storeId: '',
     itemCode: '',
     itemName: '',
     qty: 1,
@@ -92,6 +94,7 @@ export default function PurchaseInvoice() {
 
   useEffect(() => {
     loadStocks()
+    fetch('/api/stores').then((res) => res.json()).then((data) => setStores((data.data || []).filter((store) => store.status === 'Active'))).catch((err) => console.error('Stores load failed', err))
   }, [])
 
   useEffect(() => {
@@ -229,6 +232,7 @@ export default function PurchaseInvoice() {
 
           return {
             stockId: item.stockId ? Number(item.stockId) : null,
+            storeId: item.storeId ? Number(item.storeId) : null,
             itemCode: item.itemCode,
             itemName: item.itemName,
             item_name: item.itemName,
@@ -270,7 +274,7 @@ export default function PurchaseInvoice() {
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-3 sm:p-5 lg:p-6 bg-gray-50 min-h-screen">
       <div className="bg-white rounded-xl shadow border p-5 mb-5">
         <h1 className="text-2xl font-bold text-indigo-700">Purchase Invoice</h1>
         <p className="text-sm text-gray-500 mt-1">
@@ -478,7 +482,17 @@ export default function PurchaseInvoice() {
           <div className="space-y-3">
             {items.map((item, index) => (
               <div key={index} className="border rounded-lg p-3 bg-gray-50">
-                <div className="grid grid-cols-1 md:grid-cols-10 gap-3 items-end">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-11 gap-3 items-end">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Store</label>
+                    <select value={item.storeId} onChange={(e) => {
+                      const storeId = e.target.value
+                      setItems((prev) => prev.map((row, i) => i === index ? { ...row, storeId, stockId: '' } : row))
+                    }} required className="border rounded-md px-3 py-2 w-full">
+                      <option value="">Select Store</option>
+                      {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Item Code</label>
                     <input
@@ -497,7 +511,7 @@ export default function PurchaseInvoice() {
                       onChange={(e) => {
                         const value = e.target.value
                         const selected = stocks.find(
-                          (stock) => String(stock.item_name).toLowerCase() === value.toLowerCase()
+                          (stock) => String(stock.store_id) === String(row.storeId) && String(stock.item_name).toLowerCase() === value.toLowerCase()
                         )
                         setItems((prev) => prev.map((row, i) => i === index ? {
                           ...row,
@@ -515,9 +529,9 @@ export default function PurchaseInvoice() {
                       placeholder="List se select ya new name likhein"
                     />
                     <datalist id={`product-list-${index}`}>
-                      {stocks.map((stock) => (
+                      {stocks.filter((stock) => !item.storeId || String(stock.store_id) === String(item.storeId)).map((stock) => (
                         <option key={stock.id} value={stock.item_name}>
-                          {stock.item_code} — {stock.item_name} — Current Stock:{' '}
+                          {stock.item_code} — {stock.item_name} — {stock.store_name || 'No Store'} — Current Stock:{' '}
                           {Number(stock.quantity ?? stock.qty ?? 0).toLocaleString()}
                         </option>
                       ))}

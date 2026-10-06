@@ -78,6 +78,7 @@ export async function POST(req) {
       const weight = toNumber(item.weight)
       const weightUnit = clean(item.weightUnit || item.weight_unit, 'kg')
       const price = toNumber(item.price || item.cost_price || item.purchase_price)
+      const storeId = toNumber(item.storeId || item.store_id)
       const amount = qty * weight * price
       const discount = toNumber(item.discount)
       const tax = toNumber(item.tax)
@@ -87,6 +88,7 @@ export async function POST(req) {
       if (qty <= 0) throw new Error(`Item #${index + 1}: quantity is required.`)
       if (weight <= 0) throw new Error(`Item #${index + 1}: weight (kg) is required.`)
       if (price < 0) throw new Error(`Item #${index + 1}: price is invalid.`)
+      if (!storeId) throw new Error(`Item #${index + 1}: store is required.`)
 
       return {
         stockId,
@@ -100,6 +102,7 @@ export async function POST(req) {
         discount,
         tax,
         total,
+        storeId,
       }
     })
 
@@ -127,6 +130,14 @@ export async function POST(req) {
 
     const purchaseNo = `PUR-${Date.now()}`
     const sqlite = db.getConnection()
+
+    const storeLookup = sqlite.prepare("SELECT id, name FROM stores WHERE id = ? AND status = 'Active' AND (deleted_at IS NULL OR deleted_at = '')")
+    const storesById = new Map()
+    for (const item of safeItems) {
+      const store = storeLookup.get(item.storeId)
+      if (!store) throw new Error(`Please select a valid store for ${item.itemName}.`)
+      storesById.set(item.storeId, store)
+    }
 
     const result = sqlite.transaction(() => {
       const invoiceInsert = sqlite.prepare(`
@@ -234,6 +245,7 @@ export async function POST(req) {
         SELECT *
         FROM stocks
         WHERE (deleted_at IS NULL OR deleted_at = '')
+          AND store_id = ?
           AND (
             (? <> '' AND LOWER(item_code) = LOWER(?))
             OR LOWER(item_name) = LOWER(?)
@@ -254,6 +266,8 @@ export async function POST(req) {
           selling_price,
           sale_price,
           supplier_name,
+          store_id,
+          store_name,
           purchase_date,
           status,
           weight,
@@ -261,7 +275,7 @@ export async function POST(req) {
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `)
 
       const stockUpdate = sqlite.prepare(`
@@ -282,6 +296,8 @@ export async function POST(req) {
       const movementInsert = sqlite.prepare(`
         INSERT INTO stock_movements (
           stock_id,
+          store_id,
+          store_name,
           movement_type,
           movement_date,
           reference_type,
@@ -290,13 +306,17 @@ export async function POST(req) {
           notes,
           created_at
         )
-        VALUES (?, 'purchase_in', ?, 'purchase_invoice', ?, ?, ?, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, 'purchase_in', ?, 'purchase_invoice', ?, ?, ?, CURRENT_TIMESTAMP)
       `)
 
       for (const item of safeItems) {
+        const selectedStore = storesById.get(item.storeId)
         const existingStock = item.stockId
           ? findStockById.get(item.stockId)
-          : findStockByIdentity.get(item.itemCode, item.itemCode, item.itemName)
+          : findStockByIdentity.get(item.storeId, item.itemCode, item.itemCode, item.itemName)
+        if (existingStock && Number(existingStock.store_id || 0) !== Number(item.storeId)) {
+          throw new Error(`${item.itemName} selected stock does not belong to ${selectedStore.name}.`)
+        }
         let stockId = null
 
         if (existingStock) {
@@ -327,6 +347,8 @@ export async function POST(req) {
             0,
             0,
             supplierName,
+            selectedStore.id,
+            selectedStore.name,
             purchaseDate,
             item.weight,
             item.weightUnit
@@ -352,6 +374,8 @@ export async function POST(req) {
 
         movementInsert.run(
           stockId,
+          selectedStore.id,
+          selectedStore.name,
           purchaseDate,
           purchaseInvoiceId,
           item.qty,

@@ -95,14 +95,14 @@ useEffect(() => {
   }
 
   return (
-    <div className="bg-white max-w-xl w-full transition-all duration-300 p-6 rounded-lg shadow-md space-y-4">
-      <h2 className="text-xl font-semibold text-green-700">📥 Import CSV Data</h2>
+    <div className="bg-white max-w-xl w-full transition-all duration-300 rounded-lg shadow-md space-y-4">
+      {/* <h2 className="text-xl font-semibold text-green-700">📥 Import CSV Data</h2> */}
       <p className="text-sm text-gray-500">
         Upload a CSV file to import data into a specific table or your full database.
       </p>
 
       {/* Table Selector */}
-      <div>
+      {/* <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Target Table</label>
         <select
           value={selected}
@@ -115,7 +115,7 @@ useEffect(() => {
             tables.map((t, i) => <option key={i} value={t}>{t}</option>)
           )}
         </select>
-      </div>
+      </div> */}
 
       {/* File Upload */}
       <div>
@@ -131,7 +131,7 @@ useEffect(() => {
 
       {/* Actions */}
       <div className="flex flex-col gap-3">
-        <button
+        {/* <button
           onClick={handleImport}
           disabled={!file || !selected || loading}
           className={`w-full py-2 rounded-md font-medium transition ${
@@ -139,7 +139,7 @@ useEffect(() => {
           }`}
         >
           {loading ? 'Importing...' : `📤 Import to "${selected}"`}
-        </button>
+        </button> */}
 
         <button
           onClick={handleFullImport}

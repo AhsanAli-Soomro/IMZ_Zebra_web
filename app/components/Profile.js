@@ -77,7 +77,7 @@ export default function CompanyProfilePage() {
   if (loading) return <div className="p-6">Loading...</div>
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen space-y-8">
+    <div className="p-2 sm:p-4 lg:p-6 bg-gray-50 min-h-screen space-y-6 lg:space-y-8">
       {/* Header */}
       <div className="flex justify-between flex-wrap items-center border-b pb-4">
         <h1 className="text-3xl font-bold text-indigo-700 flex items-center gap-2">🏢 Company Profile</h1>
@@ -203,4 +203,3 @@ function ProfileField({ label, value }) {
     </div>
   )
 }
-

@@ -32,11 +32,9 @@ export default function Page() {
   if (userType === 'Employee') return <NotFound />
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <Navbar />
-
-      <div className="max-w-6xl mx-auto px-4 py-10">
-        <div className="bg-white w-full rounded-2xl shadow-md p-8 border border-gray-200">
+    <div className="min-h-screen bg-white">
+      <div className="">
+        <div className="bg-white w-full">
           <h1 className="text-3xl font-bold text-indigo-700 mb-2 flex items-center gap-2">
             📦 Database Management
           </h1>

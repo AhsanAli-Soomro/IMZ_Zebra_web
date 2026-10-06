@@ -43,10 +43,10 @@ export default function Categories() {
   }
 
   return (
-<div className="p-6 bg-white rounded-lg shadow-lg">
+<div className="p-3 sm:p-5 lg:p-6 bg-white rounded-xl shadow-sm border">
   <h1 className="text-xl font-bold mb-6 text-indigo-700">🗂️ Category Management</h1>
 
-  <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+  <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
     <div className="md:col-span-2">
       <label className="block text-sm font-medium text-gray-700 mb-1">Category Name</label>
       <input
@@ -80,7 +80,7 @@ export default function Categories() {
     </div>
   </form>
 
-  <table className="w-full text-sm rounded overflow-hidden">
+  <div className="overflow-x-auto rounded-lg border"><table className="w-full min-w-[520px] text-sm">
     <thead className="bg-indigo-600 text-white">
       <tr>
         <th className="px-4 py-2 text-left">Name</th>
@@ -113,7 +113,7 @@ export default function Categories() {
         </tr>
       ))}
     </tbody>
-  </table>
+  </table></div>
 </div>
 
   )

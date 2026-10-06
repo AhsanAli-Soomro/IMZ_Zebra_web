@@ -130,7 +130,7 @@ export default function CashInformation() {
   }
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-2 sm:p-4 lg:p-6 space-y-5">
       <div>
         <h1 className="text-2xl font-bold">Cash Information</h1>
         <p className="text-sm text-gray-500">

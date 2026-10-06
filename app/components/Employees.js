@@ -48,10 +48,10 @@ export default function Employees() {
     }
 
     return (
-<div className="p-6 bg-white rounded-lg shadow">
+<div className="p-3 sm:p-5 lg:p-6 bg-white rounded-xl shadow-sm border">
   <h1 className="text-2xl font-bold text-indigo-700 mb-6">👥 Manage Employees</h1>
 
-  <form onSubmit={handleSubmit} className="mb-8 grid grid-cols-1 md:grid-cols-4 gap-4">
+  <form onSubmit={handleSubmit} className="mb-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
       <input
@@ -152,7 +152,7 @@ export default function Employees() {
     </div>
   </form>
 
-  <table className="w-full text-sm rounded overflow-hidden">
+  <div className="overflow-x-auto rounded-lg border"><table className="w-full min-w-[900px] text-sm">
     <thead className="bg-indigo-600 text-white">
       <tr>
         <th className="px-3 py-2 text-left">Name</th>
@@ -203,7 +203,7 @@ export default function Employees() {
         </tr>
       ))}
     </tbody>
-  </table>
+  </table></div>
 </div>
 
     )

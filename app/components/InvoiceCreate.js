@@ -693,7 +693,7 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
                         <option value="">Select Product</option>
                         {stocks.map((stock) => (
                           <option key={stock.id} value={stock.id}>
-                            {stock.item_name} (Stock: {stock.quantity})
+                            {stock.item_name} — {stock.store_name || 'No Store'} (Stock: {stock.quantity})
                           </option>
                         ))}
                       </select>

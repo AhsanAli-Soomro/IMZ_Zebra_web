@@ -194,7 +194,7 @@ export default function BankManagement({ type = 'credit' }) {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-2 sm:p-4 lg:p-6">
       <section className={`rounded-2xl border p-5 shadow-sm ${isCredit ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>

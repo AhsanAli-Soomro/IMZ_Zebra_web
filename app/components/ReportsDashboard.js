@@ -269,7 +269,7 @@ export default function ReportsDashboard() {
     const columns = rows[0] ? Object.keys(rows[0]) : []
 
     return (
-        <div className="p-6 space-y-5">
+        <div className="p-2 sm:p-4 lg:p-6 space-y-5">
             <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-bold"></h1>
@@ -303,7 +303,7 @@ export default function ReportsDashboard() {
                 </div>
             </div>
 
-            <div className="grid md:grid-cols-5 gap-4">
+            <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-4">
                 {currentSummary.map((card) => (
                     <div key={card.title} className={`rounded-xl border p-4 ${card.className}`}>
                         <p className="text-sm font-semibold">{card.title}</p>
@@ -316,8 +316,8 @@ export default function ReportsDashboard() {
             </div>
 
             <div className="bg-white border rounded-xl p-4 space-y-4">
-                <div className="flex flex-col xl:flex-row gap-3 xl:items-center xl:justify-between">
-                    <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col xl:flex-row xl:flex-wrap gap-3 xl:items-center xl:justify-between">
+                    <div className="flex flex-wrap gap-2 xl:order-1">
                         {reports.map((report) => (
                             <button
                                 key={report.key}
@@ -334,7 +334,7 @@ export default function ReportsDashboard() {
 
                     </div>
                     {activeReport === 'itemProfit' && (
-                        <div className="w-full space-y-3 border-t pt-4">
+                        <div className="w-full space-y-3 border-t pt-4 xl:basis-full xl:order-3">
                             <div className="grid gap-3 lg:grid-cols-2">
                                 <div>
                                     <label className="mb-1 block text-xs font-semibold text-gray-600">
@@ -413,7 +413,7 @@ export default function ReportsDashboard() {
                                     value={itemSearch}
                                     onChange={(event) => setItemSearch(event.target.value)}
                                     placeholder="Search item name, code or ID..."
-                                    className="min-w-[260px] flex-1 border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+                                    className="min-w-0 sm:min-w-[260px] flex-1 border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
                                 />
                             <button
                                 type="button"
@@ -468,7 +468,7 @@ export default function ReportsDashboard() {
                             rows
                         )}
                         disabled={!rows.length}
-                        className="bg-green-600 disabled:bg-gray-400 text-white rounded-lg px-4 py-2 text-sm"
+                        className="bg-green-600 disabled:bg-gray-400 text-white rounded-lg px-4 py-2 text-sm xl:order-2"
                     >
                         Download CSV
                     </button>

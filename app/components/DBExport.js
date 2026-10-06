@@ -97,13 +97,15 @@ export default function DBExport() {
 
     return (
         <div className="bg-white max-w-xl w-full transition-all duration-300">
-
+            <p className="text-sm text-gray-500">
+                Export your database as CSV files. You can export individual tables or the entire database in one go.
+            </p>
             {error && <p className="text-red-500 text-sm">{error}</p>}
 
             {tables.length > 0 ? (
                 <>
                     {/* Table Select */}
-                    <div>
+                    {/* <div>
                         <label htmlFor="tableSelect" className="block text-sm font-medium text-gray-600 mb-1">
                             Select Table
                         </label>
@@ -117,10 +119,10 @@ export default function DBExport() {
                                 <option key={i} value={t}>{t}</option>
                             ))}
                         </select>
-                    </div>
+                    </div> */}
 
                     {/* Export Single */}
-                    <div className="pt-2">
+                    {/* <div className="pt-2">
                         <button
                             onClick={() => exportCSV(selected)}
                             disabled={loading || !selected}
@@ -131,10 +133,10 @@ export default function DBExport() {
                         >
                             ⬇️ Download {selected}.csv
                         </button>
-                    </div>
+                    </div> */}
 
                     {/* Export All */}
-                    <div className="border-t pt-4">
+                    <div className="pt-4">
                         <button
                             onClick={exportFullDatabase}
                             disabled={loading}
@@ -143,7 +145,7 @@ export default function DBExport() {
                                 : 'bg-green-600 hover:bg-green-700 text-white'
                                 }`}
                         >
-                            📦 Download Full Database (.csv)
+                            📦 Download Database (.csv)
                         </button>
                     </div>
                 </>

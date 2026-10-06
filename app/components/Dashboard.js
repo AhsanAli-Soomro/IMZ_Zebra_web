@@ -53,11 +53,11 @@ export default function DashboardPage() {
     ]
 
     return (
-        <div className="p-6 bg-gray-100 min-h-screen space-y-10">
+        <div className="p-2 sm:p-4 lg:p-6 bg-gray-100 min-h-screen space-y-6 lg:space-y-10">
             <h1 className="text-3xl font-bold text-gray-800">Inventory Dashboard</h1>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 {cards.map(({ label, value, color }, idx) => (
                     <div
                         key={idx}

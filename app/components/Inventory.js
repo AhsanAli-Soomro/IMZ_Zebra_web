@@ -60,12 +60,12 @@ export default function Inventory() {
   if (loading) return <p>Loading stock...</p>
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-lg">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-3 sm:p-5 lg:p-6 bg-white rounded-xl shadow-sm border">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
         <h1 className="text-2xl font-bold text-indigo-700">📦 Inventory</h1>
         <a
           href="/dashboard?view=stock"
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-md"
+          className="bg-blue-600 hover:bg-blue-700 text-center text-white font-medium px-4 py-2 rounded-md"
         >
           + Add Stock
         </a>

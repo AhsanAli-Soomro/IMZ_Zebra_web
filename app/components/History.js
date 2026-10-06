@@ -501,6 +501,7 @@ export default function History() {
                 >
                   Purchase
                 </button>
+
               </div>
 
               <div className="flex flex-1 flex-col gap-3 sm:flex-row lg:flex-none">

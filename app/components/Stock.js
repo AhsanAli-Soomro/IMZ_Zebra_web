@@ -23,6 +23,7 @@ export default function Stocks() {
     selling_price: '',
     expire_date: '',
     supplier_name: '',
+    store_id: '',
     purchase_date: '',
     status: 'Active',
     existing_image: '',
@@ -31,9 +32,11 @@ export default function Stocks() {
   const [imageFile, setImageFile] = useState(null)
   const [categories, setCategories] = useState([])
   const [suppliers, setSuppliers] = useState([])
+  const [stores, setStores] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [searchCategory, setSearchCategory] = useState('')
   const [searchSupplier, setSearchSupplier] = useState('')
+  const [searchStore, setSearchStore] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalStocks, setTotalStocks] = useState(0)
@@ -50,6 +53,7 @@ export default function Stocks() {
     if (searchTerm.trim()) params.search = searchTerm.trim()
     if (searchCategory) params.category = searchCategory
     if (searchSupplier) params.supplier = searchSupplier
+    if (searchStore) params.store = searchStore
     const res = await axios.get('/api/stocks', { params })
     setStocks(res.data.data || [])
     setTotalPages(res.data.pagination?.totalPages || 1)
@@ -66,15 +70,21 @@ export default function Stocks() {
     setSuppliers((res.data.data || []).filter((s) => s.status === 'Active'))
   }
 
+  const fetchStores = async () => {
+    const res = await axios.get('/api/stores')
+    setStores((res.data.data || []).filter((store) => store.status === 'Active'))
+  }
+
   useEffect(() => {
     fetchCategories()
     fetchSuppliers()
+    fetchStores()
   }, [])
 
   useEffect(() => {
     const timer = setTimeout(fetchStocks, 250)
     return () => clearTimeout(timer)
-  }, [currentPage, searchTerm, searchCategory, searchSupplier])
+  }, [currentPage, searchTerm, searchCategory, searchSupplier, searchStore])
 
   const resetForm = () => {
     setForm({
@@ -91,6 +101,7 @@ export default function Stocks() {
       selling_price: '',
       expire_date: '',
       supplier_name: '',
+      store_id: '',
       purchase_date: '',
       status: 'Active',
       existing_image: '',
@@ -219,6 +230,7 @@ export default function Stocks() {
       selling_price: stock.selling_price || '',
       expire_date: stock.expire_date ? formatDate(stock.expire_date) : '',
       supplier_name: stock.supplier_name || '',
+      store_id: stock.store_id ? String(stock.store_id) : '',
       purchase_date: stock.purchase_date ? formatDate(stock.purchase_date) : '',
       status: stock.status || 'Active',
       existing_image: stock.image_path || '',
@@ -233,13 +245,13 @@ export default function Stocks() {
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-3 sm:p-5 lg:p-6 bg-gray-50 min-h-screen">
       <h1 className="text-2xl font-bold text-indigo-700 mb-6">📦 Stock Management</h1>
 
       <form
         onSubmit={handleSubmit}
         encType="multipart/form-data"
-        className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-6 rounded-lg shadow mb-4"
+        className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 bg-white p-4 sm:p-6 rounded-xl shadow-sm border mb-4"
       >
         {notice.text ? (
           <div
@@ -460,6 +472,23 @@ export default function Stocks() {
         </div>
 
         <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Store</label>
+          <select
+            value={form.store_id}
+            onChange={(e) => setForm({ ...form, store_id: e.target.value })}
+            required
+            className="border border-gray-300 p-2 rounded-md w-full"
+          >
+            <option value="">Select Store</option>
+            {stores.map((store) => (
+              <option key={store.id} value={store.id}>
+                {store.store_code} — {store.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Date</label>
           <input
             type="date"
@@ -512,6 +541,7 @@ export default function Stocks() {
                   <span>
                     {index + 1}. {pending.data.item_code} — {pending.data.item_name}
                     {' '}({Number(pending.data.weight || 0).toLocaleString()} kg)
+                    {pending.data.store_id ? ` — ${stores.find((store) => String(store.id) === String(pending.data.store_id))?.name || 'Store'}` : ''}
                   </span>
                   <button type="button" onClick={() => setPendingStocks((rows) => rows.filter((row) => row.key !== pending.key))} className="text-red-600">Remove</button>
                 </div>
@@ -568,6 +598,20 @@ export default function Stocks() {
               </option>
             ))}
           </select>
+
+          <select
+            value={searchStore}
+            onChange={(e) => {
+              setSearchStore(e.target.value)
+              setCurrentPage(1)
+            }}
+            className="border p-2 rounded-md w-full"
+          >
+            <option value="">All Stores</option>
+            {stores.map((store) => (
+              <option key={store.id} value={store.id}>{store.name}</option>
+            ))}
+          </select>
         </div>
 
         <div className="overflow-auto rounded-md border border-gray-200">
@@ -582,6 +626,7 @@ export default function Stocks() {
                 <th className="p-3">Weight</th>
                 <th className="p-3">Unit</th>
                 <th className="p-3">Supplier</th>
+                <th className="p-3">Store</th>
                 <th className="p-3">Purchase</th>
                 <th className="p-3">Selling</th>
                 <th className="p-3">Profit / Loss</th>
@@ -621,6 +666,7 @@ export default function Stocks() {
                   <td className="p-3">{Number(stock.weight || 0).toLocaleString()}</td>
                   <td className="p-3">{stock.weight_unit || 'kg'}</td>
                   <td className="p-3">{stock.supplier_name || '-'}</td>
+                  <td className="p-3">{stock.store_name || '-'}</td>
 
                   <td className="p-3 text-blue-700 font-semibold">
                     <div>Rs {Number(stock.purchase_price || 0).toLocaleString()}</div>
@@ -681,7 +727,7 @@ export default function Stocks() {
 
               {!paginatedStocks.length && (
                 <tr>
-                  <td colSpan={14} className="p-6 text-center text-gray-500">
+                  <td colSpan={15} className="p-6 text-center text-gray-500">
                     No stock found.
                   </td>
                 </tr>

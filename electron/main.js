@@ -5,9 +5,74 @@ const http = require('http')
 const net = require('net')
 const fs = require('fs')
 const license = require('./license')
+const { autoUpdater } = require('electron-updater')
 let mainWindow = null
 let nextProcess = null
 let isStarting = false
+let updateState = {
+  status: 'idle',
+  currentVersion: app.getVersion(),
+  availableVersion: null,
+  progress: 0,
+  message: '',
+}
+
+autoUpdater.autoDownload = false
+autoUpdater.autoInstallOnAppQuit = true
+
+function publishUpdateState(patch) {
+  updateState = { ...updateState, ...patch, currentVersion: app.getVersion() }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update:status', updateState)
+  }
+  return updateState
+}
+
+autoUpdater.on('checking-for-update', () => {
+  publishUpdateState({ status: 'checking', message: 'Checking for updates...' })
+})
+
+autoUpdater.on('update-available', (info) => {
+  publishUpdateState({
+    status: 'available',
+    availableVersion: info.version,
+    progress: 0,
+    message: `Version ${info.version} is available.`,
+  })
+})
+
+autoUpdater.on('update-not-available', () => {
+  publishUpdateState({
+    status: 'up-to-date',
+    availableVersion: null,
+    progress: 0,
+    message: 'Software is up to date.',
+  })
+})
+
+autoUpdater.on('download-progress', (progress) => {
+  publishUpdateState({
+    status: 'downloading',
+    progress: Math.round(progress.percent || 0),
+    message: `Downloading update... ${Math.round(progress.percent || 0)}%`,
+  })
+})
+
+autoUpdater.on('update-downloaded', (info) => {
+  publishUpdateState({
+    status: 'downloaded',
+    availableVersion: info.version,
+    progress: 100,
+    message: 'Update ready. Restart to install.',
+  })
+})
+
+autoUpdater.on('error', (error) => {
+  publishUpdateState({
+    status: 'error',
+    message: error?.message || 'Update check failed. Please check your internet connection.',
+  })
+})
 
 function getFreePort() {
   return new Promise((resolve, reject) => {
@@ -135,8 +200,8 @@ function getIconPath() {
 }
 function createWindow(port, route = '/') {
   mainWindow = new BrowserWindow({
-    width: 400,
-    height: 400,
+    width: 1400,
+    height: 900,
     autoHideMenuBar: true,
     show: false,
     icon: getIconPath(),
@@ -214,6 +279,69 @@ ipcMain.handle('license:clear', async () => {
       message: err.message || 'Clear activation failed',
     }
   }
+})
+
+/* =========================
+   SOFTWARE UPDATE IPC HANDLERS
+========================= */
+
+ipcMain.handle('update:get-state', async () => updateState)
+
+ipcMain.handle('update:check', async () => {
+  if (!app.isPackaged) {
+    return publishUpdateState({
+      status: 'development',
+      message: 'Update checks are available in the installed application.',
+    })
+  }
+
+  if (updateState.status === 'checking' || updateState.status === 'downloading') {
+    return updateState
+  }
+
+  try {
+    publishUpdateState({ status: 'checking', message: 'Checking for updates...' })
+    await autoUpdater.checkForUpdates()
+    return updateState
+  } catch (error) {
+    console.error('update:check error', error)
+    return publishUpdateState({
+      status: 'error',
+      message: 'Unable to check for updates. Please check your internet connection.',
+    })
+  }
+})
+
+ipcMain.handle('update:download', async () => {
+  if (updateState.status !== 'available') return updateState
+
+  try {
+    publishUpdateState({ status: 'downloading', progress: 0, message: 'Downloading update... 0%' })
+    await autoUpdater.downloadUpdate()
+    return updateState
+  } catch (error) {
+    console.error('update:download error', error)
+    return publishUpdateState({
+      status: 'error',
+      message: 'Update download failed. Please check your internet connection.',
+    })
+  }
+})
+
+ipcMain.handle('update:install', async () => {
+  if (updateState.status !== 'downloaded') {
+    return publishUpdateState({
+      status: 'error',
+      message: 'Download the update before installing it.',
+    })
+  }
+
+  const installingState = publishUpdateState({
+    status: 'installing',
+    message: 'Restarting to install update...',
+  })
+  setImmediate(() => autoUpdater.quitAndInstall(false, true))
+  return installingState
 })
 
 /* =========================

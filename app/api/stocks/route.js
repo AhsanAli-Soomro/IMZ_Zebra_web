@@ -21,6 +21,7 @@ export async function GET(request) {
     const search = clean(searchParams.get('search'))
     const category = clean(searchParams.get('category'))
     const supplier = clean(searchParams.get('supplier'))
+    const store = clean(searchParams.get('store'))
     const lowStock = searchParams.get('lowStock') === '1'
     const expiringSoon = searchParams.get('expiringSoon') === '1'
     const conditions = ["(s.deleted_at IS NULL OR s.deleted_at = '')"]
@@ -31,6 +32,7 @@ export async function GET(request) {
     }
     if (category) { conditions.push('s.category = ?'); params.push(category) }
     if (supplier) { conditions.push('s.supplier_name = ?'); params.push(supplier) }
+    if (store) { conditions.push('CAST(s.store_id AS TEXT) = ?'); params.push(store) }
     if (lowStock) conditions.push('COALESCE(NULLIF(s.qty, 0), s.quantity, 0) <= 5')
     if (expiringSoon) conditions.push("date(s.expire_date) BETWEEN date('now') AND date('now', '+7 days')")
     const whereSql = `WHERE ${conditions.join(' AND ')}`
@@ -158,20 +160,26 @@ export async function POST(req) {
     const sellingPrice = toNumber(formData.get('selling_price'), 0)
     const sellingRate = toNumber(formData.get('selling_rate'), 0)
     const weight = toNumber(formData.get('weight'), 0)
+    const storeId = toNumber(formData.get('store_id'), 0) || null
 
     if (quantity < 0) {
       throw new Error('A valid quantity is required.')
     }
+    if (!storeId) throw new Error('Please select a store.')
 
     const sqlite = db.getConnection()
+    const selectedStore = storeId
+      ? sqlite.prepare("SELECT id, name FROM stores WHERE id = ? AND (deleted_at IS NULL OR deleted_at = '')").get(storeId)
+      : null
+    if (storeId && !selectedStore) throw new Error('Please select a valid store.')
     const result = sqlite.transaction(() => {
       const insert = sqlite.prepare(`
         INSERT INTO stocks (
           item_code, item_name, category, quantity, qty, purchase_rate, purchase_price,
-          selling_rate, selling_price, sale_price, expire_date, supplier_name, purchase_date,
+          selling_rate, selling_price, sale_price, expire_date, supplier_name, store_id, store_name, purchase_date,
           status, image_path, weight, weight_unit, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `).run(
         clean(formData.get('item_code'), `STK-${Date.now()}`),
         itemName,
@@ -185,6 +193,8 @@ export async function POST(req) {
         sellingPrice,
         clean(formData.get('expire_date')) || null,
         clean(formData.get('supplier_name')),
+        selectedStore?.id || null,
+        selectedStore?.name || '',
         entryDate,
         clean(formData.get('status'), 'Active'),
         image_path,
@@ -197,10 +207,10 @@ export async function POST(req) {
       if (quantity > 0) {
         sqlite.prepare(`
           INSERT INTO stock_movements (
-            stock_id, movement_type, movement_date, reference_type, reference_id, qty, notes, created_at
+            stock_id, store_id, store_name, movement_type, movement_date, reference_type, reference_id, qty, notes, created_at
           )
-          VALUES (?, 'opening_stock', ?, 'stock', ?, ?, 'Manual stock entry', CURRENT_TIMESTAMP)
-        `).run(stockId, entryDate, stockId, quantity)
+          VALUES (?, ?, ?, 'opening_stock', ?, 'stock', ?, ?, 'Manual stock entry', CURRENT_TIMESTAMP)
+        `).run(stockId, selectedStore?.id || null, selectedStore?.name || '', entryDate, stockId, quantity)
       }
 
       return stockId
@@ -246,17 +256,23 @@ export async function PUT(req) {
       selling_price: toNumber(formData.get('selling_price'), 0),
       expire_date: clean(formData.get('expire_date')) || null,
       supplier_name: clean(formData.get('supplier_name')),
+      store_id: toNumber(formData.get('store_id'), 0) || null,
       purchase_date: clean(formData.get('purchase_date'), new Date().toISOString().slice(0, 10)),
       status: clean(formData.get('status'), 'Active'),
       image_path,
     }
 
     if (!stock.id) throw new Error('Invalid stock id')
+    if (!stock.store_id) throw new Error('Please select a store.')
     if (stock.quantity < 0) {
       throw new Error('A valid quantity is required.')
     }
 
     const sqlite = db.getConnection()
+    const selectedStore = stock.store_id
+      ? sqlite.prepare("SELECT id, name FROM stores WHERE id = ? AND (deleted_at IS NULL OR deleted_at = '')").get(stock.store_id)
+      : null
+    if (stock.store_id && !selectedStore) throw new Error('Please select a valid store.')
     sqlite.transaction(() => {
       const existing = sqlite.prepare('SELECT quantity FROM stocks WHERE id = ?').get(stock.id)
       if (!existing) throw new Error('Stock not found')
@@ -268,7 +284,7 @@ export async function PUT(req) {
         UPDATE stocks
         SET item_code = ?, item_name = ?, category = ?, quantity = ?, qty = ?,
             purchase_rate = ?, purchase_price = ?, selling_rate = ?, selling_price = ?, sale_price = ?, expire_date = ?,
-            supplier_name = ?, purchase_date = ?, status = ?, image_path = ?,
+            supplier_name = ?, store_id = ?, store_name = ?, purchase_date = ?, status = ?, image_path = ?,
             weight = ?, weight_unit = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).run(
@@ -284,6 +300,8 @@ export async function PUT(req) {
         stock.selling_price,
         stock.expire_date,
         stock.supplier_name,
+        selectedStore?.id || null,
+        selectedStore?.name || '',
         stock.purchase_date,
         stock.status,
         stock.image_path,
@@ -295,11 +313,13 @@ export async function PUT(req) {
       if (diff !== 0) {
         sqlite.prepare(`
           INSERT INTO stock_movements (
-            stock_id, movement_type, movement_date, reference_type, reference_id, qty, notes, created_at
+            stock_id, store_id, store_name, movement_type, movement_date, reference_type, reference_id, qty, notes, created_at
           )
-          VALUES (?, ?, ?, 'stock', ?, ?, 'Manual stock adjustment', CURRENT_TIMESTAMP)
+          VALUES (?, ?, ?, ?, ?, 'stock', ?, ?, 'Manual stock adjustment', CURRENT_TIMESTAMP)
         `).run(
           stock.id,
+          selectedStore?.id || null,
+          selectedStore?.name || '',
           diff > 0 ? 'adjustment_in' : 'adjustment_out',
           stock.purchase_date,
           stock.id,

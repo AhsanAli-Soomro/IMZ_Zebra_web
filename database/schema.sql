@@ -91,6 +91,17 @@ CREATE TABLE IF NOT EXISTS customers (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS stores (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  store_code TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  name TEXT NOT NULL,
+  address TEXT,
+  status TEXT DEFAULT 'Active',
+  deleted_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS stocks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   item_code TEXT NOT NULL,
@@ -103,6 +114,8 @@ CREATE TABLE IF NOT EXISTS stocks (
   selling_price REAL DEFAULT 0,
   expire_date TEXT,
   supplier_name TEXT,
+  store_id INTEGER,
+  store_name TEXT,
   purchase_date TEXT,
   status TEXT DEFAULT 'Active',
   image_path TEXT,
@@ -270,6 +283,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_counter_closings_date ON counter_closings(
 CREATE TABLE IF NOT EXISTS stock_movements (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   stock_id INTEGER NOT NULL,
+  store_id INTEGER,
+  store_name TEXT,
   movement_type TEXT NOT NULL CHECK (
     movement_type IN (
       'purchase_in',

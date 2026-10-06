@@ -2,6 +2,100 @@
 
 body {
   font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+  background: #f8fafc;
+  color: #111827;
+  overflow-x: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+img,
+svg,
+canvas {
+  max-width: 100%;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+button,
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgb(99 102 241 / 12%);
+}
+
+.app-main > * {
+  width: 100%;
+  max-width: 1600px;
+  margin-inline: auto;
+}
+
+.app-main .overflow-x-auto,
+.app-main .overflow-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-main table th,
+.app-main table td {
+  vertical-align: middle;
+}
+
+@media (max-width: 767px) {
+  .app-main > div[class*="p-6"],
+  .app-main > section[class*="p-6"] {
+    padding: 0.75rem !important;
+  }
+
+  .app-main h1 {
+    font-size: 1.35rem;
+    line-height: 1.75rem;
+  }
+
+  .app-main h2 {
+    line-height: 1.5rem;
+  }
+
+  .app-main form,
+  .app-main [class*="rounded-xl"],
+  .app-main [class*="rounded-lg"] {
+    max-width: 100%;
+  }
+
+  .app-main table {
+    font-size: 0.78rem;
+  }
+
+  .app-main table th,
+  .app-main table td {
+    padding: 0.65rem 0.75rem;
+  }
+
+  .app-main input,
+  .app-main select,
+  .app-main textarea,
+  .app-main button {
+    min-height: 2.5rem;
+  }
+
+  .app-main .fixed.inset-0 {
+    padding: 0.5rem !important;
+  }
 }
 
 @media print {

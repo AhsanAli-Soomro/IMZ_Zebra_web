@@ -33,6 +33,13 @@
     "directories": {
       "output": "dist"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "AhsanAli-Soomro",
+        "repo": "IMZ_Zebra_web"
+      }
+    ],
     "files": [
       "electron/**/*",
       ".next/standalone/**/*",
@@ -103,6 +110,7 @@
     "cookie": "^1.0.2",
     "csv-parse": "^5.6.0",
     "dotenv": "^17.3.1",
+    "electron-updater": "^6.8.9",
     "html2pdf.js": "^0.10.3",
     "json2csv": "^6.0.0-alpha.2",
     "jsonwebtoken": "^9.0.2",
