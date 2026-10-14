@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Select from 'react-select'
 
-const emptyRow = () => ({ partyId: '', amount: '', note: '' })
+const emptyRow = () => ({ partyId: '', amount: '', note: '', side: 'debit' })
 
 function money(value) {
   return new Intl.NumberFormat('en-PK', { maximumFractionDigits: 2 }).format(Number(value) || 0)
@@ -390,15 +390,15 @@ export default function BulkBalanceEntry({ type, onOpenLedger }) {
         </div>
       ) : <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <div className="min-w-[850px]">
-            <div className="grid grid-cols-[minmax(250px,1.5fr)_minmax(150px,.7fr)_minmax(210px,1fr)_minmax(220px,1fr)_90px] gap-3 bg-gray-900 px-5 py-3 text-sm font-semibold text-white">
-              <span>{partyLabel} Name</span><span>Previous Balance</span><span>Add Balance</span><span>Note</span><span>Action</span>
+          <div className="min-w-0">
+            <div className="hidden grid-cols-[minmax(220px,1.4fr)_minmax(140px,.7fr)_minmax(180px,1fr)_minmax(140px,.7fr)_minmax(180px,1fr)_90px] gap-3 bg-gray-900 px-5 py-3 text-sm font-semibold text-white md:grid">
+              <span>{partyLabel} Name</span><span>Previous Balance</span><span>Add Balance</span><span>Note</span><span>Debit / Credit</span><span>Action</span>
             </div>
             {rows.map((row, index) => {
               const selected = partyMap.get(String(row.partyId))
               const selectedIds = new Set(rows.filter((_, i) => i !== index).map((item) => String(item.partyId)))
               return (
-                <div key={index} className="grid grid-cols-[minmax(250px,1.5fr)_minmax(150px,.7fr)_minmax(210px,1fr)_minmax(220px,1fr)_90px] items-center gap-3 border-t border-gray-100 px-5 py-3">
+                <div key={index} className="grid grid-cols-1 items-stretch gap-2 border-t border-gray-100 px-3 py-3 sm:grid-cols-2 md:grid-cols-[minmax(220px,1.4fr)_minmax(140px,.7fr)_minmax(180px,1fr)_minmax(140px,.7fr)_minmax(180px,1fr)_90px] md:items-center md:gap-3 md:px-5">
                   <Select
                     ref={index === rows.length - 1 ? nextSelectRef : null}
                     value={partyOptions.find((option) => option.value === String(row.partyId)) || null}
@@ -428,6 +428,7 @@ export default function BulkBalanceEntry({ type, onOpenLedger }) {
                   <div className="rounded-lg bg-gray-50 px-3 py-2.5 font-semibold text-gray-700">Rs. {money(selected?.balance)}</div>
                   <input type="number" min="0.01" step="0.01" value={row.amount} disabled={saving} onChange={(event) => updateRow(index, 'amount', event.target.value)} onKeyDown={(event) => handleKeyDown(event, index)} placeholder="Enter amount" className="rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:border-indigo-500" />
                   <input value={row.note} disabled={saving} onChange={(event) => updateRow(index, 'note', event.target.value)} onKeyDown={(event) => handleKeyDown(event, index)} placeholder="Optional note" className="rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:border-indigo-500" />
+                  {isCustomer ? <select value={row.side} disabled={saving} onChange={(event) => updateRow(index, 'side', event.target.value)} className="rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:border-indigo-500"><option value="debit">Debit</option><option value="credit">Credit</option></select> : <div className="rounded-lg bg-gray-50 px-3 py-2.5 text-sm font-semibold text-gray-700">Credit</div>}
                   {index === rows.length - 1 ? <button type="button" onClick={() => addRow(index)} disabled={saving} className="rounded-lg bg-indigo-600 px-3 py-2.5 font-semibold text-white hover:bg-indigo-700">Add Row</button> : <button type="button" onClick={() => setRows((current) => current.filter((_, i) => i !== index))} disabled={saving} className="rounded-lg px-3 py-2.5 font-medium text-red-600 hover:bg-red-50">Remove</button>}
                 </div>
               )

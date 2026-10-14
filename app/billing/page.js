@@ -599,8 +599,8 @@ export default function BillingPage({ selectedCustomerId = null }) {
       <Navbar />
 
       <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col">
-        <div className="flex flex-1 overflow-hidden">
-          <aside className="w-[350px] bg-white border-r p-6 shadow-lg space-y-6 overflow-y-auto">
+        <div className="flex flex-1 min-h-0 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
+          <aside className="w-full shrink-0 border-b bg-white p-4 shadow-lg sm:p-6 lg:w-[350px] lg:overflow-y-auto lg:border-b-0 lg:border-r">
             <div className="border-b pb-3">
               <h2 className="text-xl font-semibold text-gray-700 mb-2">Customer Details</h2>
 
@@ -854,7 +854,7 @@ export default function BillingPage({ selectedCustomerId = null }) {
             </div>
           </aside>
 
-          <main className="flex-1 p-4 overflow-y-auto">
+          <main className="min-w-0 flex-1 overflow-y-auto p-3 sm:p-4">
             <div className="mb-4 w-full max-w-xs">
               <label className="block mb-1 font-semibold text-gray-700">Filter by Category</label>
               <select

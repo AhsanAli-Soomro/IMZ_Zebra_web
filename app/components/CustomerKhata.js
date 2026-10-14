@@ -16,6 +16,8 @@ function getEntryLabel(type) {
     adjustment_debit: 'Manual Debit',
     adjustment_credit: 'Manual Credit',
     customer_payment: 'Customer Payment',
+    bulk_balance_debit: 'Opening Balance Debit',
+    bulk_balance_credit: 'Opening Balance Credit',
   }
 
   return labels[type] || type || '-'

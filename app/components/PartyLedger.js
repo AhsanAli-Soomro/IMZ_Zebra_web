@@ -20,6 +20,8 @@ function entryLabel(type) {
     payment_received: 'Payment Received',
     customer_debit: 'Debit Adjustment',
     customer_credit: 'Credit Adjustment',
+    bulk_balance_debit: 'Opening Balance Debit',
+    bulk_balance_credit: 'Opening Balance Credit',
     purchase_credit: 'Purchase Invoice',
     supplier_payment: 'Payment Paid',
     supplier_debit: 'Debit Adjustment',
@@ -378,7 +380,7 @@ export default function PartyLedger({ type }) {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[820px] text-sm">
+              <table className="w-full min-w-[680px] text-sm">
                 <thead className="bg-gray-50 text-left text-gray-600">
                   <tr>
                     <th className="p-3">Date</th>

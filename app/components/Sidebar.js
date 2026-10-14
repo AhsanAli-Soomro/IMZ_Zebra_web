@@ -26,7 +26,7 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
     'Stock',
     'Stores',
     'Inventory',
-    'Customers',
+    { label: 'Customers', children: ['Customer Ledger'] },
     'Sale Invoice',
     'Purchase Invoice',
     'Suppliers',
@@ -73,7 +73,40 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
             )
           }
 
-          return null
+          return (
+            <div key={item.label} className="space-y-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setActive(item.label)
+                  onNavigate?.()
+                }}
+                className={`block w-full text-left px-3 py-2 rounded shrink-0 ${
+                  active === item.label || item.children?.includes(active) ? 'bg-indigo-600' : 'hover:bg-gray-800'
+                }`}
+              >
+                {item.label}
+              </button>
+              <div className="ml-3 border-l border-gray-700 pl-2">
+                {item.children?.map((child) => (
+                  <button
+                    key={child}
+                    type="button"
+                    onClick={() => {
+                      setActive(child)
+                      onNavigate?.()
+                    }}
+                    className={`block w-full rounded px-3 py-2 text-left text-sm ${
+                      active === child ? 'bg-indigo-500 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                    }`}
+                  >
+                    {child}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+
         })}
       </div>
     </aside>

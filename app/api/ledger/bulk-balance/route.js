@@ -8,7 +8,7 @@ export async function POST(request) {
     if (!entryDate || !Array.isArray(items) || !items.length) throw new Error('A date and balance rows are required.')
 
     const normalized = items.map((item) => ({
-      partyId: Number(item.partyId), amount: Number(item.amount), note: String(item.note || '').trim(),
+      partyId: Number(item.partyId), amount: Number(item.amount), note: String(item.note || '').trim(), side: item.side === 'credit' ? 'credit' : 'debit',
     }))
     if (normalized.some((item) => !item.partyId || !Number.isFinite(item.amount) || item.amount <= 0)) throw new Error('Each row requires a valid party and positive amount.')
     if (new Set(normalized.map((item) => item.partyId)).size !== normalized.length) throw new Error('Select each party only once.')
@@ -18,8 +18,6 @@ export async function POST(request) {
       const partyTable = type === 'customer' ? 'customers' : 'suppliers'
       const balanceExpression = type === 'customer' ? 'debit - credit' : 'credit - debit'
       const accountNameExpression = type === 'customer' ? 'name' : "COALESCE(NULLIF(company_name, ''), name)"
-      const entryType = type === 'customer' ? 'bulk_balance_debit' : 'supplier_bulk_balance_credit'
-      const debit = type === 'customer'
       const findParty = sqlite.prepare(`SELECT id, ${accountNameExpression} AS account_name FROM ${partyTable} WHERE id = ? AND (deleted_at IS NULL OR deleted_at = '')`)
       const findAccount = sqlite.prepare(`SELECT id FROM ledger_accounts WHERE owner_type = ? AND owner_id = ? ORDER BY id LIMIT 1`)
       const addAccount = sqlite.prepare(`INSERT INTO ledger_accounts (owner_type, owner_id, account_name, created_at, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
@@ -32,7 +30,11 @@ export async function POST(request) {
         if (!party) throw new Error(`${type} not found`)
         let account = findAccount.get(type, item.partyId)
         if (!account) account = { id: Number(addAccount.run(type, item.partyId, party.account_name).lastInsertRowid) }
-        insertEntry.run(account.id, entryDate, entryType, debit ? item.amount : 0, debit ? 0 : item.amount, `Bulk ${type} balance entry`, item.note)
+        const isDebit = type === 'customer' ? item.side === 'debit' : false
+        const entryType = type === 'customer'
+          ? (isDebit ? 'bulk_balance_debit' : 'bulk_balance_credit')
+          : 'supplier_bulk_balance_credit'
+        insertEntry.run(account.id, entryDate, entryType, isDebit ? item.amount : 0, isDebit ? 0 : item.amount, `Bulk ${type} balance entry`, item.note)
         let balance = 0
         for (const entry of entries.all(account.id)) {
           balance += type === 'customer' ? Number(entry.debit || 0) - Number(entry.credit || 0) : Number(entry.credit || 0) - Number(entry.debit || 0)
