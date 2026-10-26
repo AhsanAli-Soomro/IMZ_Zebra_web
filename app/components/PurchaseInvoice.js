@@ -279,7 +279,7 @@ export default function PurchaseInvoice() {
   }
 
   return (
-    <div className="p-3 sm:p-5 lg:p-6 bg-gray-50 min-h-screen">
+    <div className="purchase-invoice-page p-3 sm:p-5 lg:p-6 min-h-screen">
       <div className="bg-white rounded-xl shadow border p-5 mb-5">
         <h1 className="text-2xl font-bold text-indigo-700">Purchase Invoice</h1>
         <p className="text-sm text-gray-500 mt-1">
@@ -529,19 +529,30 @@ export default function PurchaseInvoice() {
                       onChange={(e) => {
                         const value = e.target.value
                         const selected = stocks.find(
-                          (stock) => String(stock.store_id) === String(row.storeId) && String(stock.item_name).toLowerCase() === value.toLowerCase()
+                          (stock) =>
+                            (!item.storeId || String(stock.store_id) === String(item.storeId)) &&
+                            String(stock.item_name || '').toLowerCase() === value.toLowerCase()
                         )
-                        setItems((prev) => prev.map((row, i) => i === index ? {
-                          ...row,
-                          itemName: value,
-                          stockId: selected?.id || '',
-                          itemCode: selected?.item_code || (row.stockId ? '' : row.itemCode),
-                          weight_unit: selected?.weight_unit || row.weight_unit,
-                          price:
-                            selected?.purchase_rate ||
-                            selected?.purchase_price ||
-                            row.price,
-                        } : row))
+                        setItems((prev) =>
+                          prev.map((row, i) => {
+                            if (i !== index) return row
+                            const updated = {
+                              ...row,
+                              itemName: value,
+                              stockId: selected?.id || '',
+                              storeId: selected?.store_id ? String(selected.store_id) : row.storeId,
+                              itemCode: selected?.item_code || (row.stockId ? '' : row.itemCode),
+                              weight: selected?.weight || row.weight,
+                              weight_unit: selected?.weight_unit || row.weight_unit,
+                              price:
+                                selected?.purchase_rate ||
+                                selected?.purchase_price ||
+                                row.price,
+                            }
+                            updated.amount = lineAmount(updated)
+                            return updated
+                          })
+                        )
                       }}
                       className="border rounded-md px-3 py-2 w-full"
                       placeholder="List se select ya new name likhein"
