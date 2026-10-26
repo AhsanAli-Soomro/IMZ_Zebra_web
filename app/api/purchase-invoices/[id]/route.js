@@ -72,6 +72,8 @@ export async function GET(_req, context) {
         paid_amount: toNumber(invoice.paid_amount),
         remaining_amount: toNumber(invoice.remaining_amount),
         payment_status: invoice.payment_status || 'unpaid',
+        broker_name: invoice.broker_name || '',
+        broker_commission: toNumber(invoice.broker_commission),
         items: items.map((item) => ({
           ...item,
           qty: toNumber(item.qty),

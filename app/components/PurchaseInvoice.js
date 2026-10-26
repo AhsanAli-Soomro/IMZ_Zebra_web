@@ -36,6 +36,7 @@ export default function PurchaseInvoice() {
     supplierId: '',
     supplierName: '',
     brokerName: '',
+    brokerCommission: '',
     warehouseName: '',
     invoiceType: 'purchase',
     purchaseDate: today(),
@@ -66,10 +67,12 @@ export default function PurchaseInvoice() {
     const discount = items.reduce((sum, item) => sum + Number(item.discount || 0), 0)
     const tax = items.reduce((sum, item) => sum + Number(item.tax || 0), 0)
     const transport = Number(form.transportExpense || 0)
+    const brokerCommission = Number(form.brokerCommission || 0)
     const total = subtotal - discount + tax + transport
+    const totalAfterCommission = total + brokerCommission
 
-    return { subtotal, discount, tax, transport, total }
-  }, [items, form.transportExpense])
+    return { subtotal, discount, tax, transport, brokerCommission, total, totalAfterCommission }
+  }, [items, form.transportExpense, form.brokerCommission])
 
   useEffect(() => {
     async function loadCompany() {
@@ -176,6 +179,7 @@ export default function PurchaseInvoice() {
       supplierId: '',
       supplierName: '',
       brokerName: '',
+      brokerCommission: '',
       warehouseName: '',
       invoiceType: 'purchase',
       purchaseDate: today(),
@@ -208,6 +212,7 @@ export default function PurchaseInvoice() {
         supplierId: form.supplierId ? Number(form.supplierId) : null,
         supplierName: form.supplierName,
         brokerName: form.brokerName,
+        brokerCommission: Number(form.brokerCommission || 0),
         warehouseName: form.warehouseName,
         invoiceType: form.invoiceType,
         purchaseDate: form.purchaseDate,
@@ -370,6 +375,19 @@ export default function PurchaseInvoice() {
                 onChange={(e) => setForm({ ...form, brokerName: e.target.value })}
                 className="border rounded-md px-3 py-2 w-full"
                 placeholder="Broker name"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Broker Commission</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.brokerCommission}
+                onChange={(e) => setForm({ ...form, brokerCommission: e.target.value })}
+                className="border rounded-md px-3 py-2 w-full"
+                placeholder="0"
               />
             </div>
 
@@ -643,7 +661,7 @@ export default function PurchaseInvoice() {
         </div>
 
         <div className="bg-white rounded-xl shadow border p-5">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4 text-sm">
             <div className="border rounded-lg p-3 bg-gray-50">
               <p className="text-gray-500">Subtotal</p>
               <p className="font-bold">Rs {money(totals.subtotal)}</p>
@@ -664,9 +682,19 @@ export default function PurchaseInvoice() {
               <p className="font-bold">Rs {money(totals.transport)}</p>
             </div>
 
-            <div className="border rounded-lg p-3 bg-indigo-50">
-              <p className="text-indigo-600">Total</p>
-              <p className="font-bold text-indigo-700">Rs {money(totals.total)}</p>
+            <div className="border rounded-lg p-3 bg-gray-50">
+              <p className="text-gray-500">Broker Commission</p>
+              <p className="font-bold">Rs {money(totals.brokerCommission)}</p>
+            </div>
+
+            <div className="border rounded-lg p-3 bg-gray-100">
+              <p className="text-gray-700">Total</p>
+              <p className="font-bold text-gray-900">Rs {money(totals.total)}</p>
+            </div>
+
+            <div className="border rounded-lg p-3 bg-indigo-50 border-indigo-200">
+              <p className="text-indigo-600 font-medium">Total After Comm.</p>
+              <p className="font-bold text-indigo-700">Rs {money(totals.totalAfterCommission)}</p>
             </div>
           </div>
 

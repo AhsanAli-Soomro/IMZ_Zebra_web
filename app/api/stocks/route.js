@@ -22,17 +22,19 @@ export async function GET(request) {
     const category = clean(searchParams.get('category'))
     const supplier = clean(searchParams.get('supplier'))
     const store = clean(searchParams.get('store'))
+    const lot = clean(searchParams.get('lot'))
     const lowStock = searchParams.get('lowStock') === '1'
     const expiringSoon = searchParams.get('expiringSoon') === '1'
     const conditions = ["(s.deleted_at IS NULL OR s.deleted_at = '')"]
     const params = []
     if (search) {
-      conditions.push('(s.item_code LIKE ? OR s.item_name LIKE ?)')
-      params.push(`%${search}%`, `%${search}%`)
+      conditions.push('(s.item_code LIKE ? OR s.item_name LIKE ? OR s.lot_no LIKE ?)')
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`)
     }
     if (category) { conditions.push('s.category = ?'); params.push(category) }
     if (supplier) { conditions.push('s.supplier_name = ?'); params.push(supplier) }
     if (store) { conditions.push('CAST(s.store_id AS TEXT) = ?'); params.push(store) }
+    if (lot) { conditions.push('(s.lot_no = ? OR s.lot_no LIKE ?)'); params.push(lot, `%${lot}%`) }
     if (lowStock) conditions.push('COALESCE(NULLIF(s.qty, 0), s.quantity, 0) <= 5')
     if (expiringSoon) conditions.push("date(s.expire_date) BETWEEN date('now') AND date('now', '+7 days')")
     const whereSql = `WHERE ${conditions.join(' AND ')}`
@@ -109,6 +111,7 @@ export async function GET(request) {
 
       return {
         ...row,
+        lot_no: row.lot_no || '',
         qty,
         quantity: qty,
         available_stock: qty,
@@ -153,6 +156,7 @@ export async function POST(req) {
       clean(formData.get('item_name')) ||
       clean(formData.get('item_code')) ||
       `Product-${Date.now()}`
+    const lotNo = clean(formData.get('lot_no') || formData.get('lot'))
     const quantity = toNumber(formData.get('quantity'), 0)
     const entryDate = clean(formData.get('purchase_date'), new Date().toISOString().slice(0, 10))
     const purchasePrice = toNumber(formData.get('purchase_price'), 0)
@@ -175,13 +179,14 @@ export async function POST(req) {
     const result = sqlite.transaction(() => {
       const insert = sqlite.prepare(`
         INSERT INTO stocks (
-          item_code, item_name, category, quantity, qty, purchase_rate, purchase_price,
+          item_code, lot_no, item_name, category, quantity, qty, purchase_rate, purchase_price,
           selling_rate, selling_price, sale_price, expire_date, supplier_name, store_id, store_name, purchase_date,
           status, image_path, weight, weight_unit, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `).run(
         clean(formData.get('item_code'), `STK-${Date.now()}`),
+        lotNo,
         itemName,
         clean(formData.get('category')),
         quantity,
@@ -207,10 +212,10 @@ export async function POST(req) {
       if (quantity > 0) {
         sqlite.prepare(`
           INSERT INTO stock_movements (
-            stock_id, store_id, store_name, movement_type, movement_date, reference_type, reference_id, qty, notes, created_at
+            stock_id, store_id, store_name, lot_no, movement_type, movement_date, reference_type, reference_id, qty, notes, created_at
           )
-          VALUES (?, ?, ?, 'opening_stock', ?, 'stock', ?, ?, 'Manual stock entry', CURRENT_TIMESTAMP)
-        `).run(stockId, selectedStore?.id || null, selectedStore?.name || '', entryDate, stockId, quantity)
+          VALUES (?, ?, ?, ?, 'opening_stock', ?, 'stock', ?, ?, 'Manual stock entry', CURRENT_TIMESTAMP)
+        `).run(stockId, selectedStore?.id || null, selectedStore?.name || '', lotNo, entryDate, stockId, quantity)
       }
 
       return stockId
@@ -242,6 +247,7 @@ export async function PUT(req) {
     const stock = {
       id: Number(formData.get('id')),
       item_code: clean(formData.get('item_code'), `STK-${Date.now()}`),
+      lot_no: clean(formData.get('lot_no') || formData.get('lot')),
       item_name:
         clean(formData.get('item_name')) ||
         clean(formData.get('item_code')) ||
@@ -282,13 +288,14 @@ export async function PUT(req) {
 
       sqlite.prepare(`
         UPDATE stocks
-        SET item_code = ?, item_name = ?, category = ?, quantity = ?, qty = ?,
+        SET item_code = ?, lot_no = ?, item_name = ?, category = ?, quantity = ?, qty = ?,
             purchase_rate = ?, purchase_price = ?, selling_rate = ?, selling_price = ?, sale_price = ?, expire_date = ?,
             supplier_name = ?, store_id = ?, store_name = ?, purchase_date = ?, status = ?, image_path = ?,
             weight = ?, weight_unit = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).run(
         stock.item_code,
+        stock.lot_no,
         stock.item_name,
         stock.category,
         stock.quantity,
@@ -313,13 +320,14 @@ export async function PUT(req) {
       if (diff !== 0) {
         sqlite.prepare(`
           INSERT INTO stock_movements (
-            stock_id, store_id, store_name, movement_type, movement_date, reference_type, reference_id, qty, notes, created_at
+            stock_id, store_id, store_name, lot_no, movement_type, movement_date, reference_type, reference_id, qty, notes, created_at
           )
           VALUES (?, ?, ?, ?, ?, 'stock', ?, ?, 'Manual stock adjustment', CURRENT_TIMESTAMP)
         `).run(
           stock.id,
           selectedStore?.id || null,
           selectedStore?.name || '',
+          stock.lot_no,
           diff > 0 ? 'adjustment_in' : 'adjustment_out',
           stock.purchase_date,
           stock.id,

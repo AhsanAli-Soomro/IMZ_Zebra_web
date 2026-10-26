@@ -221,11 +221,26 @@ export async function GET(request) {
       [...dateParams, ...purchaseParams]
     )
 
+    const brokerRows = await db.query(
+      `SELECT
+        (SELECT COALESCE(SUM(broker_commission), 0)
+         FROM bills b
+         ${whereSql}) AS sales_broker_commission,
+        (SELECT COALESCE(SUM(broker_commission), 0)
+         FROM purchase_invoices
+         ${purchaseSql}) AS purchase_broker_commission`,
+      [...dateParams, ...purchaseParams]
+    )
+
     const totalTransport = num(transportRows[0]?.sales_transport) + num(transportRows[0]?.purchase_transport)
+    const totalBrokerCommission = num(brokerRows[0]?.sales_broker_commission) + num(brokerRows[0]?.purchase_broker_commission)
     const grossProfit = num(profitSummary.sold_gross_profit)
-    const netProfit = grossProfit - totalTransport
+    const netProfit = grossProfit - totalTransport - totalBrokerCommission
 
     profitSummary.total_transport_expenses = totalTransport
+    profitSummary.sales_broker_commission = num(brokerRows[0]?.sales_broker_commission)
+    profitSummary.purchase_broker_commission = num(brokerRows[0]?.purchase_broker_commission)
+    profitSummary.total_broker_commission = totalBrokerCommission
     profitSummary.gross_profit = grossProfit
     profitSummary.net_profit = netProfit
     profitSummary.loss = netProfit < 0 ? Math.abs(netProfit) : 0

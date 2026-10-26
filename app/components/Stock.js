@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 
 function stockTotal(quantity, weight, rate) {
@@ -9,9 +9,12 @@ function stockTotal(quantity, weight, rate) {
 
 export default function Stocks() {
   const [stocks, setStocks] = useState([])
+  const [allStocks, setAllStocks] = useState([])
+  const [allLots, setAllLots] = useState([])
   const [form, setForm] = useState({
     id: null,
     item_code: '',
+    lot_no: '',
     item_name: '',
     category: '',
     quantity: '',
@@ -37,6 +40,7 @@ export default function Stocks() {
   const [searchCategory, setSearchCategory] = useState('')
   const [searchSupplier, setSearchSupplier] = useState('')
   const [searchStore, setSearchStore] = useState('')
+  const [searchLot, setSearchLot] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalStocks, setTotalStocks] = useState(0)
@@ -48,12 +52,31 @@ export default function Stocks() {
 
   const paginatedStocks = stocks
 
+  const fetchAllStocks = async () => {
+    try {
+      const res = await axios.get('/api/stocks')
+      const items = res.data?.data || []
+      setAllStocks(items)
+      const uniqueLots = Array.from(
+        new Set(
+          items
+            .map((s) => (s.lot_no ? String(s.lot_no).trim() : ''))
+            .filter(Boolean)
+        )
+      ).sort()
+      setAllLots(uniqueLots)
+    } catch (err) {
+      console.error('Failed to fetch stocks for lookups:', err)
+    }
+  }
+
   const fetchStocks = async () => {
     const params = { paginate: 1, page: currentPage, limit: itemsPerPage }
     if (searchTerm.trim()) params.search = searchTerm.trim()
     if (searchCategory) params.category = searchCategory
     if (searchSupplier) params.supplier = searchSupplier
     if (searchStore) params.store = searchStore
+    if (searchLot) params.lot = searchLot
     const res = await axios.get('/api/stocks', { params })
     setStocks(res.data.data || [])
     setTotalPages(res.data.pagination?.totalPages || 1)
@@ -79,17 +102,146 @@ export default function Stocks() {
     fetchCategories()
     fetchSuppliers()
     fetchStores()
+    fetchAllStocks()
   }, [])
 
   useEffect(() => {
     const timer = setTimeout(fetchStocks, 250)
     return () => clearTimeout(timer)
-  }, [currentPage, searchTerm, searchCategory, searchSupplier, searchStore])
+  }, [currentPage, searchTerm, searchCategory, searchSupplier, searchStore, searchLot])
+
+  const uniqueItemCodes = useMemo(() => {
+    return Array.from(
+      new Set(
+        allStocks
+          .map((s) => (s.item_code ? String(s.item_code).trim() : ''))
+          .filter(Boolean)
+      )
+    )
+  }, [allStocks])
+
+  const uniqueItemNames = useMemo(() => {
+    return Array.from(
+      new Set(
+        allStocks
+          .map((s) => (s.item_name ? String(s.item_name).trim() : ''))
+          .filter(Boolean)
+      )
+    )
+  }, [allStocks])
+
+  const availableLotsForProduct = useMemo(() => {
+    if (!form.item_code && !form.item_name) return allLots
+    const code = (form.item_code || '').trim().toLowerCase()
+    const name = (form.item_name || '').trim().toLowerCase()
+    const productLots = allStocks
+      .filter((s) => {
+        const sCode = (s.item_code || '').trim().toLowerCase()
+        const sName = (s.item_name || '').trim().toLowerCase()
+        return (code && sCode === code) || (name && sName === name)
+      })
+      .map((s) => (s.lot_no ? String(s.lot_no).trim() : ''))
+      .filter(Boolean)
+    return Array.from(new Set([...productLots, ...allLots]))
+  }, [form.item_code, form.item_name, allStocks, allLots])
+
+  const handleItemCodeChange = (code) => {
+    const trimmed = code.trim().toLowerCase()
+    const matchingStock = allStocks.find(
+      (s) => (s.item_code || '').trim().toLowerCase() === trimmed
+    )
+
+    if (matchingStock && !form.id) {
+      setForm((prev) => ({
+        ...prev,
+        item_code: code,
+        item_name: prev.item_name || matchingStock.item_name || '',
+        category: prev.category || matchingStock.category || '',
+        weight_unit: prev.weight_unit || matchingStock.weight_unit || 'kg',
+        supplier_name: prev.supplier_name || matchingStock.supplier_name || '',
+        store_id: prev.store_id || (matchingStock.store_id ? String(matchingStock.store_id) : ''),
+      }))
+    } else {
+      setForm((prev) => ({ ...prev, item_code: code }))
+    }
+  }
+
+  const handleLotChange = (lot) => {
+    const trimmedLot = lot.trim().toLowerCase()
+    if (!trimmedLot) {
+      setForm((prev) => ({ ...prev, lot_no: lot }))
+      return
+    }
+
+    const code = (form.item_code || '').trim().toLowerCase()
+    let match = null
+    if (code) {
+      match = allStocks.find(
+        (s) =>
+          (s.item_code || '').trim().toLowerCase() === code &&
+          (s.lot_no || '').trim().toLowerCase() === trimmedLot
+      )
+    }
+    if (!match) {
+      match = allStocks.find((s) => (s.lot_no || '').trim().toLowerCase() === trimmedLot)
+    }
+
+    if (match && !form.id) {
+      const qty = match.quantity || ''
+      const weight = match.weight || ''
+      const pRate = match.purchase_rate || ''
+      const sRate = match.selling_rate || ''
+
+      setForm((prev) => ({
+        ...prev,
+        lot_no: lot,
+        item_code: prev.item_code || match.item_code || '',
+        item_name: match.item_name || prev.item_name,
+        category: match.category || prev.category,
+        quantity: qty,
+        weight: weight,
+        weight_unit: match.weight_unit || prev.weight_unit || 'kg',
+        purchase_rate: pRate,
+        purchase_price: stockTotal(qty, weight, pRate),
+        selling_rate: sRate,
+        selling_price: stockTotal(qty, weight, sRate),
+        expire_date: match.expire_date ? formatDate(match.expire_date) : prev.expire_date,
+        supplier_name: match.supplier_name || prev.supplier_name,
+        store_id: match.store_id ? String(match.store_id) : prev.store_id,
+        purchase_date: match.purchase_date ? formatDate(match.purchase_date) : prev.purchase_date,
+        status: match.status || prev.status,
+      }))
+    } else {
+      setForm((prev) => ({ ...prev, lot_no: lot }))
+    }
+  }
+
+  const handleItemNameChange = (name) => {
+    const trimmed = name.trim().toLowerCase()
+    const matchingStock = allStocks.find(
+      (s) => (s.item_name || '').trim().toLowerCase() === trimmed
+    )
+
+    if (matchingStock && !form.id) {
+      setForm((prev) => ({
+        ...prev,
+        item_name: name,
+        item_code: prev.item_code || matchingStock.item_code || '',
+        category: prev.category || matchingStock.category || '',
+        weight_unit: prev.weight_unit || matchingStock.weight_unit || 'kg',
+        supplier_name: prev.supplier_name || matchingStock.supplier_name || '',
+        store_id: prev.store_id || (matchingStock.store_id ? String(matchingStock.store_id) : ''),
+      }))
+    } else {
+      setForm((prev) => ({ ...prev, item_name: name }))
+    }
+  }
 
   const resetForm = () => {
     setForm({
       id: null,
       item_code: '',
+      lot_no: '',
       item_name: '',
       category: '',
       quantity: '',
@@ -148,6 +300,7 @@ export default function Stocks() {
 
       resetForm()
       await fetchStocks()
+      await fetchAllStocks()
       setNotice({
         type: 'success',
         text: 'Product successfully update ho gaya.',
@@ -181,6 +334,7 @@ export default function Stocks() {
       const count = pendingStocks.length
       setPendingStocks([])
       await fetchStocks()
+      await fetchAllStocks()
       setNotice({ type: 'success', text: `${count} products ki list successfully save ho gayi.` })
     } catch (error) {
       setNotice({
@@ -209,6 +363,7 @@ export default function Stocks() {
     setForm({
       id: stock.id,
       item_code: stock.item_code || '',
+      lot_no: stock.lot_no || '',
       item_name: stock.item_name || '',
       category: stock.category || '',
       quantity: stock.quantity || '',
@@ -237,11 +392,13 @@ export default function Stocks() {
     })
 
     setImageFile(null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const handleDelete = async (id) => {
     await axios.delete('/api/stocks', { data: { id } })
-    fetchStocks()
+    await fetchStocks()
+    await fetchAllStocks()
   }
 
   return (
@@ -271,14 +428,39 @@ export default function Stocks() {
           <input
             list="existing-item-codes"
             value={form.item_code}
-            onChange={(e) => setForm({ ...form, item_code: e.target.value })}
+            onChange={(e) => handleItemCodeChange(e.target.value)}
             required
             className="border border-gray-300 p-2 rounded-md w-full"
             placeholder="New code manually likhein"
           />
           <datalist id="existing-item-codes">
-            {stocks.map((stock) => (
-              <option key={stock.id} value={stock.item_code}>{stock.item_name}</option>
+            {uniqueItemCodes.map((code) => {
+              const matched = allStocks.find((s) => s.item_code === code)
+              return (
+                <option key={code} value={code}>
+                  {matched?.item_name || code}
+                </option>
+              )
+            })}
+          </datalist>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Lot Number / Lot #
+          </label>
+          <input
+            list="existing-lot-numbers"
+            value={form.lot_no}
+            onChange={(e) => handleLotChange(e.target.value)}
+            className="border border-gray-300 p-2 rounded-md w-full"
+            placeholder="Lot # likhein ya choose karein"
+          />
+          <datalist id="existing-lot-numbers">
+            {availableLotsForProduct.map((lot) => (
+              <option key={lot} value={lot}>
+                Lot: {lot}
+              </option>
             ))}
           </datalist>
         </div>
@@ -288,15 +470,20 @@ export default function Stocks() {
           <input
             list="existing-item-names"
             value={form.item_name}
-            onChange={(e) => setForm({ ...form, item_name: e.target.value })}
+            onChange={(e) => handleItemNameChange(e.target.value)}
             required
             className="border border-gray-300 p-2 rounded-md w-full"
             placeholder="List se dekhein ya new name likhein"
           />
           <datalist id="existing-item-names">
-            {stocks.map((stock) => (
-              <option key={stock.id} value={stock.item_name}>{stock.item_code}</option>
-            ))}
+            {uniqueItemNames.map((name) => {
+              const matched = allStocks.find((s) => s.item_name === name)
+              return (
+                <option key={name} value={name}>
+                  {matched?.item_code ? `Code: ${matched.item_code}` : name}
+                </option>
+              )
+            })}
           </datalist>
         </div>
 
@@ -539,8 +726,13 @@ export default function Stocks() {
               {pendingStocks.length ? pendingStocks.map((pending, index) => (
                 <div key={pending.key} className="flex justify-between gap-3 p-3 text-sm">
                   <span>
-                    {index + 1}. {pending.data.item_code} — {pending.data.item_name}
-                    {' '}({Number(pending.data.weight || 0).toLocaleString()} kg)
+                    {index + 1}. <strong className="font-semibold text-gray-900">{pending.data.item_code}</strong> — {pending.data.item_name}
+                    {pending.data.lot_no ? (
+                      <span className="ml-1.5 px-2 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800 rounded border border-amber-300">
+                        Lot: {pending.data.lot_no}
+                      </span>
+                    ) : null}
+                    {' '}({Number(pending.data.weight || 0).toLocaleString()} kg · Qty: {Number(pending.data.quantity || 0).toLocaleString()})
                     {pending.data.store_id ? ` — ${stores.find((store) => String(store.id) === String(pending.data.store_id))?.name || 'Store'}` : ''}
                   </span>
                   <button type="button" onClick={() => setPendingStocks((rows) => rows.filter((row) => row.key !== pending.key))} className="text-red-600">Remove</button>
@@ -555,64 +747,124 @@ export default function Stocks() {
       )}
 
       <div className="overflow-x-auto bg-white p-4 rounded-lg shadow-lg">
-        <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-          <input
-            type="text"
-            placeholder="Search by name or code"
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value)
-              setCurrentPage(1)
-            }}
-            className="border p-2 rounded-md w-full"
-          />
+        <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Search Product</label>
+            <input
+              type="text"
+              placeholder="🔍 Search name, code, lot..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="border border-gray-300 p-2 rounded-md w-full text-sm"
+            />
+          </div>
 
-          <select
-            value={searchCategory}
-            onChange={(e) => {
-              setSearchCategory(e.target.value)
-              setCurrentPage(1)
-            }}
-            className="border p-2 rounded-md w-full"
-          >
-            <option value="">All Categories</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.name}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Filter by Lot</label>
+            <select
+              value={searchLot}
+              onChange={(e) => {
+                setSearchLot(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="border border-gray-300 p-2 rounded-md w-full text-sm bg-white"
+            >
+              <option value="">🏷️ All Lots</option>
+              {allLots.map((lot) => (
+                <option key={lot} value={lot}>
+                  Lot: {lot}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          <select
-            value={searchSupplier}
-            onChange={(e) => {
-              setSearchSupplier(e.target.value)
-              setCurrentPage(1)
-            }}
-            className="border p-2 rounded-md w-full"
-          >
-            <option value="">All Suppliers</option>
-            {suppliers.map((sup) => (
-              <option key={sup.id} value={sup.name}>
-                {sup.name}
-              </option>
-            ))}
-          </select>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Category</label>
+            <select
+              value={searchCategory}
+              onChange={(e) => {
+                setSearchCategory(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="border border-gray-300 p-2 rounded-md w-full text-sm bg-white"
+            >
+              <option value="">All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.name}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          <select
-            value={searchStore}
-            onChange={(e) => {
-              setSearchStore(e.target.value)
-              setCurrentPage(1)
-            }}
-            className="border p-2 rounded-md w-full"
-          >
-            <option value="">All Stores</option>
-            {stores.map((store) => (
-              <option key={store.id} value={store.id}>{store.name}</option>
-            ))}
-          </select>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Supplier</label>
+            <select
+              value={searchSupplier}
+              onChange={(e) => {
+                setSearchSupplier(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="border border-gray-300 p-2 rounded-md w-full text-sm bg-white"
+            >
+              <option value="">All Suppliers</option>
+              {suppliers.map((sup) => (
+                <option key={sup.id} value={sup.name}>
+                  {sup.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Store</label>
+            <select
+              value={searchStore}
+              onChange={(e) => {
+                setSearchStore(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="border border-gray-300 p-2 rounded-md w-full text-sm bg-white"
+            >
+              <option value="">All Stores</option>
+              {stores.map((store) => (
+                <option key={store.id} value={store.id}>{store.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
+
+        {(searchTerm || searchLot || searchCategory || searchSupplier || searchStore) && (
+          <div className="mb-4 flex flex-wrap items-center justify-between bg-indigo-50 border border-indigo-200 px-3 py-2 rounded-lg text-xs text-indigo-800 gap-2">
+            <span>
+              <strong>Active Filters:</strong>{' '}
+              {searchTerm && <span className="mr-2">Search: &ldquo;{searchTerm}&rdquo;</span>}
+              {searchLot && <span className="mr-2">🏷️ Lot: {searchLot}</span>}
+              {searchCategory && <span className="mr-2">Category: {searchCategory}</span>}
+              {searchSupplier && <span className="mr-2">Supplier: {searchSupplier}</span>}
+              {searchStore && (
+                <span>Store: {stores.find((s) => String(s.id) === String(searchStore))?.name || searchStore}</span>
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('')
+                setSearchLot('')
+                setSearchCategory('')
+                setSearchSupplier('')
+                setSearchStore('')
+                setCurrentPage(1)
+              }}
+              className="text-indigo-700 underline font-semibold hover:text-indigo-900"
+            >
+              Reset Filters
+            </button>
+          </div>
+        )}
 
         <div className="overflow-auto rounded-md border border-gray-200">
           <table className="min-w-full text-sm text-left">
@@ -620,6 +872,7 @@ export default function Stocks() {
               <tr>
                 <th className="p-3">Image</th>
                 <th className="p-3">Code</th>
+                <th className="p-3">Lot No</th>
                 <th className="p-3">Name</th>
                 <th className="p-3">Category</th>
                 <th className="p-3">Qty</th>
@@ -659,7 +912,16 @@ export default function Stocks() {
                     )}
                   </td>
 
-                  <td className="p-3">{stock.item_code}</td>
+                  <td className="p-3 font-semibold text-gray-800">{stock.item_code}</td>
+                  <td className="p-3">
+                    {stock.lot_no ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300 whitespace-nowrap">
+                        🏷️ {stock.lot_no}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-xs italic">-</span>
+                    )}
+                  </td>
                   <td className="p-3 font-medium">{stock.item_name}</td>
                   <td className="p-3">{stock.category}</td>
                   <td className="p-3">{stock.quantity}</td>
@@ -727,7 +989,7 @@ export default function Stocks() {
 
               {!paginatedStocks.length && (
                 <tr>
-                  <td colSpan={15} className="p-6 text-center text-gray-500">
+                  <td colSpan={16} className="p-6 text-center text-gray-500">
                     No stock found.
                   </td>
                 </tr>

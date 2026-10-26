@@ -175,6 +175,7 @@ export default function ReportsDashboard() {
         totalSales: profit.total_sales || 0,
         totalPurchases: profit.total_purchases || 0,
         transport: profit.total_transport_expenses || 0,
+        brokerCommission: profit.total_broker_commission || 0,
         grossProfit: profit.gross_profit || 0,
         netProfit: profit.net_profit || 0,
         loss: profit.loss || 0,
@@ -212,12 +213,18 @@ export default function ReportsDashboard() {
                 },
                 {
                     title: 'Net Profit',
-                    subtitle: 'Gross profit - transport',
+                    subtitle: 'Gross profit - transport & commission',
                     value: totalSummary.netProfit,
                     className:
                         totalSummary.netProfit >= 0
                             ? 'bg-cyan-50 text-cyan-800 border-cyan-200'
                             : 'bg-red-50 text-red-800 border-red-200',
+                },
+                {
+                    title: 'Broker Commission',
+                    subtitle: 'Sales + purchase broker commission',
+                    value: totalSummary.brokerCommission,
+                    className: 'bg-amber-50 text-amber-800 border-amber-200',
                 },
                 {
                     title: 'Bank Balance',
@@ -262,6 +269,12 @@ export default function ReportsDashboard() {
                 subtitle: 'Purchase + sales transport',
                 value: totalSummary.transport,
                 className: 'bg-gray-50 text-gray-800 border-gray-200',
+            },
+            {
+                title: 'Broker Commission',
+                subtitle: 'Sales + purchase broker commission',
+                value: totalSummary.brokerCommission,
+                className: 'bg-amber-50 text-amber-800 border-amber-200',
             },
         ]
     }, [profitView, data, rows])

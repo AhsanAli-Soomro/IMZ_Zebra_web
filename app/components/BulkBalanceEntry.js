@@ -3,18 +3,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Select from 'react-select'
 
-const emptyRow = () => ({ partyId: '', amount: '', note: '', side: 'debit' })
+const emptyRow = (partyType = 'customer') => ({
+  partyId: '',
+  amount: '',
+  note: '',
+  side: partyType === 'supplier' ? 'credit' : 'debit',
+})
 
 function money(value) {
   return new Intl.NumberFormat('en-PK', { maximumFractionDigits: 2 }).format(Number(value) || 0)
 }
 
-export default function BulkBalanceEntry({ type, onOpenLedger }) {
+export default function BulkBalanceEntry({ type, onOpenLedger, onOpenKhata }) {
   const isCustomer = type === 'customer'
   const partyLabel = isCustomer ? 'Customer' : 'Supplier'
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [parties, setParties] = useState([])
-  const [rows, setRows] = useState([emptyRow()])
+  const [rows, setRows] = useState(() => [emptyRow(type)])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -57,6 +62,7 @@ export default function BulkBalanceEntry({ type, onOpenLedger }) {
   useEffect(() => {
     setMenuPortalTarget(document.body)
     loadParties()
+    setRows([emptyRow(type)])
   }, [type])
 
   const showCustomers = async (page = customerPage, search = customerSearch) => {
@@ -262,7 +268,7 @@ export default function BulkBalanceEntry({ type, onOpenLedger }) {
       setMessage(`Select a ${partyLabel.toLowerCase()} and enter a valid balance.`)
       return
     }
-    if (index === rows.length - 1) setRows((current) => [...current, emptyRow()])
+    if (index === rows.length - 1) setRows((current) => [...current, emptyRow(type)])
     setMessage('')
     setTimeout(() => nextSelectRef.current?.focus(), 0)
   }
@@ -292,7 +298,7 @@ export default function BulkBalanceEntry({ type, onOpenLedger }) {
       })
       const json = await response.json()
       if (!response.ok || !json.success) throw new Error(json.message || 'Balances could not be saved.')
-      setRows([emptyRow()])
+      setRows([emptyRow(type)])
       setMessage(`${json.count} ${type} balance${json.count === 1 ? '' : 's'} successfully update ho gaye.`)
       await loadParties()
     } catch (error) {
@@ -356,7 +362,7 @@ export default function BulkBalanceEntry({ type, onOpenLedger }) {
           <div className="overflow-x-auto rounded-xl border border-gray-200">
             <table className="w-full min-w-[850px] text-sm">
               <thead className="bg-gray-900 text-white"><tr><th className="px-4 py-3 text-left">Name</th><th className="px-4 py-3 text-left">Email</th><th className="px-4 py-3 text-left">Phone</th><th className="px-4 py-3 text-left">Address</th><th className="px-4 py-3 text-left">Previous Balance</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-left">Action</th></tr></thead>
-              <tbody>{filteredCustomers.length ? filteredCustomers.map((customer, index) => <tr key={customer.id} className={`border-t ${index % 2 ? 'bg-gray-50' : 'bg-white'}`}><td className="px-4 py-3 font-semibold text-gray-900">{customer.name || '-'}</td><td className="px-4 py-3">{customer.email || '-'}</td><td className="px-4 py-3">{customer.phone || '-'}</td><td className="px-4 py-3">{customer.address || '-'}</td><td className="px-4 py-3 font-semibold">Rs. {money(partyMap.get(String(customer.id))?.balance)}</td><td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${String(customer.status).toLowerCase() === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{customer.status || '-'}</span></td><td className="px-4 py-3"><button type="button" onClick={() => setEditingCustomer({ ...customer })} className="rounded-lg bg-amber-500 px-3 py-1.5 font-semibold text-white hover:bg-amber-600">Edit</button></td></tr>) : <tr><td colSpan="7" className="px-4 py-10 text-center text-gray-500">No customers found.</td></tr>}</tbody>
+              <tbody>{filteredCustomers.length ? filteredCustomers.map((customer, index) => <tr key={customer.id} className={`border-t ${index % 2 ? 'bg-gray-50' : 'bg-white'}`}><td className="px-4 py-3 font-semibold text-gray-900">{customer.name || '-'}</td><td className="px-4 py-3">{customer.email || '-'}</td><td className="px-4 py-3">{customer.phone || '-'}</td><td className="px-4 py-3">{customer.address || '-'}</td><td className="px-4 py-3 font-semibold">Rs. {money(partyMap.get(String(customer.id))?.balance)}</td><td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${String(customer.status).toLowerCase() === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{customer.status || '-'}</span></td><td className="px-4 py-3"><div className="flex items-center gap-2"><button type="button" onClick={() => setEditingCustomer({ ...customer })} className="rounded-lg bg-amber-500 px-3 py-1.5 font-semibold text-white hover:bg-amber-600">Edit</button>{onOpenKhata && <button type="button" onClick={() => onOpenKhata(customer.id)} className="rounded-lg bg-blue-600 px-3 py-1.5 font-semibold text-white hover:bg-blue-700">Ledger</button>}</div></td></tr>) : <tr><td colSpan="7" className="px-4 py-10 text-center text-gray-500">No customers found.</td></tr>}</tbody>
             </table>
           </div>
           <Pagination page={customerPage} pages={customerPages} onChange={setCustomerPage} />
@@ -385,7 +391,7 @@ export default function BulkBalanceEntry({ type, onOpenLedger }) {
             <div><label className="mb-1 block text-sm font-semibold">Status</label><div className="flex gap-2"><select value={editingSupplier.status || 'Active'} onChange={(event) => setEditingSupplier({ ...editingSupplier, status: event.target.value })} className="min-w-0 flex-1 rounded-lg border border-gray-300 px-2 py-2.5"><option>Active</option><option>Inactive</option></select><button type="submit" disabled={supplierSaving} className="rounded-lg bg-indigo-600 px-3 py-2.5 font-semibold text-white disabled:bg-gray-400">{supplierSaving ? 'Saving...' : 'Save'}</button><button type="button" onClick={() => setEditingSupplier(null)} className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 font-semibold">Cancel</button></div></div>
           </form>}
           {message && <p className={`mb-4 text-sm font-medium ${message.includes('successfully') ? 'text-green-700' : 'text-red-600'}`}>{message}</p>}
-          <div className="overflow-x-auto rounded-xl border border-gray-200"><table className="w-full min-w-[1050px] text-sm"><thead className="bg-gray-900 text-white"><tr><th className="px-4 py-3 text-left">Name</th><th className="px-4 py-3 text-left">Company</th><th className="px-4 py-3 text-left">Email</th><th className="px-4 py-3 text-left">Phone</th><th className="px-4 py-3 text-left">Address</th><th className="px-4 py-3 text-left">Previous Balance</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-left">Action</th></tr></thead><tbody>{filteredSuppliers.length ? filteredSuppliers.map((supplier, index) => <tr key={supplier.id} className={`border-t ${index % 2 ? 'bg-gray-50' : 'bg-white'}`}><td className="px-4 py-3 font-semibold">{supplier.name || '-'}</td><td className="px-4 py-3">{supplier.company_name || '-'}</td><td className="px-4 py-3">{supplier.email || '-'}</td><td className="px-4 py-3">{supplier.phone || '-'}</td><td className="px-4 py-3">{supplier.address || '-'}</td><td className="px-4 py-3 font-semibold">Rs. {money(partyMap.get(String(supplier.id))?.balance)}</td><td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${String(supplier.status).toLowerCase() === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{supplier.status || '-'}</span></td><td className="px-4 py-3"><button type="button" onClick={() => setEditingSupplier({ ...supplier })} className="rounded-lg bg-amber-500 px-3 py-1.5 font-semibold text-white hover:bg-amber-600">Edit</button></td></tr>) : <tr><td colSpan="8" className="px-4 py-10 text-center text-gray-500">No suppliers found.</td></tr>}</tbody></table></div>
+          <div className="overflow-x-auto rounded-xl border border-gray-200"><table className="w-full min-w-[1050px] text-sm"><thead className="bg-gray-900 text-white"><tr><th className="px-4 py-3 text-left">Name</th><th className="px-4 py-3 text-left">Company</th><th className="px-4 py-3 text-left">Email</th><th className="px-4 py-3 text-left">Phone</th><th className="px-4 py-3 text-left">Address</th><th className="px-4 py-3 text-left">Previous Balance</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-left">Action</th></tr></thead><tbody>{filteredSuppliers.length ? filteredSuppliers.map((supplier, index) => <tr key={supplier.id} className={`border-t ${index % 2 ? 'bg-gray-50' : 'bg-white'}`}><td className="px-4 py-3 font-semibold">{supplier.name || '-'}</td><td className="px-4 py-3">{supplier.company_name || '-'}</td><td className="px-4 py-3">{supplier.email || '-'}</td><td className="px-4 py-3">{supplier.phone || '-'}</td><td className="px-4 py-3">{supplier.address || '-'}</td><td className="px-4 py-3 font-semibold">Rs. {money(partyMap.get(String(supplier.id))?.balance)}</td><td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${String(supplier.status).toLowerCase() === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{supplier.status || '-'}</span></td><td className="px-4 py-3"><div className="flex items-center gap-2"><button type="button" onClick={() => setEditingSupplier({ ...supplier })} className="rounded-lg bg-amber-500 px-3 py-1.5 font-semibold text-white hover:bg-amber-600">Edit</button>{onOpenKhata && <button type="button" onClick={() => onOpenKhata(supplier.id)} className="rounded-lg bg-blue-600 px-3 py-1.5 font-semibold text-white hover:bg-blue-700">Ledger</button>}</div></td></tr>) : <tr><td colSpan="8" className="px-4 py-10 text-center text-gray-500">No suppliers found.</td></tr>}</tbody></table></div>
           <Pagination page={supplierPage} pages={supplierPages} onChange={setSupplierPage} />
         </div>
       ) : <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -428,7 +434,15 @@ export default function BulkBalanceEntry({ type, onOpenLedger }) {
                   <div className="rounded-lg bg-gray-50 px-3 py-2.5 font-semibold text-gray-700">Rs. {money(selected?.balance)}</div>
                   <input type="number" min="0.01" step="0.01" value={row.amount} disabled={saving} onChange={(event) => updateRow(index, 'amount', event.target.value)} onKeyDown={(event) => handleKeyDown(event, index)} placeholder="Enter amount" className="rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:border-indigo-500" />
                   <input value={row.note} disabled={saving} onChange={(event) => updateRow(index, 'note', event.target.value)} onKeyDown={(event) => handleKeyDown(event, index)} placeholder="Optional note" className="rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:border-indigo-500" />
-                  {isCustomer ? <select value={row.side} disabled={saving} onChange={(event) => updateRow(index, 'side', event.target.value)} className="rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:border-indigo-500"><option value="debit">Debit</option><option value="credit">Credit</option></select> : <div className="rounded-lg bg-gray-50 px-3 py-2.5 text-sm font-semibold text-gray-700">Credit</div>}
+                  <select
+                    value={row.side || (isCustomer ? 'debit' : 'credit')}
+                    disabled={saving}
+                    onChange={(event) => updateRow(index, 'side', event.target.value)}
+                    className="rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:border-indigo-500"
+                  >
+                    <option value="debit">Debit</option>
+                    <option value="credit">Credit</option>
+                  </select>
                   {index === rows.length - 1 ? <button type="button" onClick={() => addRow(index)} disabled={saving} className="rounded-lg bg-indigo-600 px-3 py-2.5 font-semibold text-white hover:bg-indigo-700">Add Row</button> : <button type="button" onClick={() => setRows((current) => current.filter((_, i) => i !== index))} disabled={saving} className="rounded-lg px-3 py-2.5 font-medium text-red-600 hover:bg-red-50">Remove</button>}
                 </div>
               )

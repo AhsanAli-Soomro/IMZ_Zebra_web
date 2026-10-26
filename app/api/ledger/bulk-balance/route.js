@@ -30,10 +30,10 @@ export async function POST(request) {
         if (!party) throw new Error(`${type} not found`)
         let account = findAccount.get(type, item.partyId)
         if (!account) account = { id: Number(addAccount.run(type, item.partyId, party.account_name).lastInsertRowid) }
-        const isDebit = type === 'customer' ? item.side === 'debit' : false
+        const isDebit = item.side === 'debit'
         const entryType = type === 'customer'
           ? (isDebit ? 'bulk_balance_debit' : 'bulk_balance_credit')
-          : 'supplier_bulk_balance_credit'
+          : (isDebit ? 'supplier_bulk_balance_debit' : 'supplier_bulk_balance_credit')
         insertEntry.run(account.id, entryDate, entryType, isDebit ? item.amount : 0, isDebit ? 0 : item.amount, `Bulk ${type} balance entry`, item.note)
         let balance = 0
         for (const entry of entries.all(account.id)) {

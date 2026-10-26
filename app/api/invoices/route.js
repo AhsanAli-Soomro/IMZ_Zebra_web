@@ -13,6 +13,8 @@ export async function POST(request) {
       discount: body.discount || 0,
       tax: body.tax || 0,
       shipping: body.shipping || 0,
+      brokerName: body.brokerName || body.broker_name || '',
+      brokerCommission: body.brokerCommission || body.broker_commission || 0,
       paidAmount: body.paidAmount || 0,
       paymentType: body.paymentType || 'cash',
       sourceOfPayment: body.sourceOfPayment || 'Customer',

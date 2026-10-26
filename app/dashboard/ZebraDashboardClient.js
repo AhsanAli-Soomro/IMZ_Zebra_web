@@ -99,7 +99,16 @@ export default function ZebraDashboardClient() {
       case 'inventory':
         return <Inventory />
       case 'customers':
-        return <BulkBalanceEntry type="customer" onOpenLedger={() => setActive('Daily Ledger')} />
+        return (
+          <BulkBalanceEntry
+            type="customer"
+            onOpenLedger={() => setActive('Customer Ledger')}
+            onOpenKhata={(id) => {
+              setSelectedCustomerId(id)
+              setActive('Customer Khata')
+            }}
+          />
+        )
       case 'customer khata':
         return <CustomerKhata customerId={selectedCustomerId} />
       case 'customer ledger':
@@ -109,7 +118,16 @@ export default function ZebraDashboardClient() {
       case 'purchase invoice':
         return <PurchaseInvoice />
       case 'suppliers':
-        return <BulkBalanceEntry type="supplier" onOpenLedger={() => setActive('Daily Ledger')} />
+        return (
+          <BulkBalanceEntry
+            type="supplier"
+            onOpenLedger={() => setActive('Supplier Ledger')}
+            onOpenKhata={(id) => {
+              setSelectedSupplierId(id)
+              setActive('Supplier Khata')
+            }}
+          />
+        )
       case 'supplier khata':
         return <SupplierKhata supplierId={selectedSupplierId} />
       case 'supplier ledger':

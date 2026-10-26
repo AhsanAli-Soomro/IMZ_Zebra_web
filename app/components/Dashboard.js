@@ -49,6 +49,7 @@ export default function DashboardPage() {
         { label: 'Low Stock Alerts', value: total.low_stock_count, color: 'from-orange-500 to-orange-700' },
         { label: 'Bank Balance', value: total.bank_balance, color: 'from-cyan-500 to-cyan-700' },
         { label: 'Transport Expense', value: total.total_transport_expenses, color: 'from-gray-500 to-gray-700' },
+        { label: 'Broker Commission', value: total.total_broker_commission, color: 'from-amber-500 to-amber-700' },
         { label: 'Products Sold', value: total.total_products_sold, color: 'from-pink-500 to-pink-700' },
     ]
 

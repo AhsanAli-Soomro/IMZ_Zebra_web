@@ -56,6 +56,8 @@ export default function BillingPage({ selectedCustomerId = null }) {
     invoiceType: 'sale',
     supplierName: '',
     transportExpense: '',
+    brokerName: '',
+    brokerCommission: '',
   })
 
   const emptyItem = () => ({
@@ -375,6 +377,11 @@ export default function BillingPage({ selectedCustomerId = null }) {
         throw new Error('Each invoice item requires a valid product and quantity.')
       }
 
+      const noPriceItem = validItems.find((item) => !Number(item.price) || Number(item.price) <= 0)
+      if (noPriceItem) {
+        throw new Error(`${noPriceItem.itemName || 'Product'}: Selling price / Rate lazmi darj karein.`)
+      }
+
       if (selectedCustomerMode === 'existing' && !form.customerId) {
         throw new Error('Select a customer.')
       }
@@ -424,6 +431,8 @@ export default function BillingPage({ selectedCustomerId = null }) {
         tax: Number(form.tax || 0),
         shipping: Number(form.transportExpense || form.shipping || 0),
         transportExpense: Number(form.transportExpense || 0),
+        brokerName: form.brokerName || '',
+        brokerCommission: Number(form.brokerCommission || 0),
         total: Number(totals.total || 0),
         notes: form.notes || '',
         createdBy: 1,
@@ -555,6 +564,8 @@ export default function BillingPage({ selectedCustomerId = null }) {
       invoiceType: invoiceDetail.invoice_type || 'sale',
       supplierName: invoiceDetail.supplier_name || '',
       transportExpense: String(invoiceDetail.transport_expense || invoiceDetail.shipping || ''),
+      brokerName: invoiceDetail.broker_name || '',
+      brokerCommission: String(invoiceDetail.broker_commission || ''),
     })
 
     const mappedItems =
@@ -747,10 +758,31 @@ export default function BillingPage({ selectedCustomerId = null }) {
                 <span>Rs {money(form.transportExpense || form.shipping || 0)}</span>
               </p>
 
+              {Number(form.brokerCommission || 0) > 0 && (
+                <p className="flex justify-between">
+                  <span>Broker Commission:</span>
+                  <span>Rs {money(form.brokerCommission)}</span>
+                </p>
+              )}
+
               <p className="flex justify-between font-bold mt-2">
                 <span>Net Pay:</span>
                 <span>Rs {money(totals.total)}</span>
               </p>
+
+              {Number(form.brokerCommission || 0) > 0 && (
+                <p className="flex justify-between text-indigo-700 font-bold border-t pt-1">
+                  <span>Total After Comm:</span>
+                  <span>
+                    Rs{' '}
+                    {money(
+                      form.invoiceType === 'purchase'
+                        ? Number(totals.total || 0) + Number(form.brokerCommission || 0)
+                        : Number(totals.total || 0) - Number(form.brokerCommission || 0)
+                    )}
+                  </span>
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col space-y-2">
@@ -822,6 +854,29 @@ export default function BillingPage({ selectedCustomerId = null }) {
                   value={form.transportExpense}
                   onChange={(e) => setForm({ ...form, transportExpense: e.target.value })}
                   className="w-24 text-right border px-2 py-1 rounded focus:ring-indigo-400"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Broker Name</label>
+                <input
+                  placeholder="Broker Name"
+                  value={form.brokerName}
+                  onChange={(e) => setForm({ ...form, brokerName: e.target.value })}
+                  className="w-full border px-2 py-1 rounded focus:ring-indigo-400 mt-1"
+                />
+              </div>
+
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-medium">Broker Commission</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.brokerCommission}
+                  onChange={(e) => setForm({ ...form, brokerCommission: e.target.value })}
+                  className="w-24 text-right border px-2 py-1 rounded focus:ring-indigo-400"
+                  placeholder="0"
                 />
               </div>
 

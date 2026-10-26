@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import db from '@/lib/db.js'
+import { attachItemsToEntries } from '@/lib/ledger.js'
 
 function number(value) {
   const parsed = Number(value)
@@ -73,6 +74,8 @@ export async function GET(request) {
     const totalDebit = normalizedEntries.reduce((sum, entry) => sum + entry.debit, 0)
     const totalCredit = normalizedEntries.reduce((sum, entry) => sum + entry.credit, 0)
 
+    const entriesWithItems = await attachItemsToEntries(normalizedEntries)
+
     return NextResponse.json({
       success: true,
       data: {
@@ -81,7 +84,7 @@ export async function GET(request) {
           total_credit: totalCredit,
           balance: isCustomer ? totalDebit - totalCredit : totalCredit - totalDebit,
         },
-        entries: normalizedEntries,
+        entries: entriesWithItems,
         pagination: {
           limit,
           returned: normalizedEntries.length,

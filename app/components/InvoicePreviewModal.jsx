@@ -143,6 +143,13 @@ export default function InvoicePreviewModal({
 
   if (!open) return null
 
+  const isPurchase = invoice?.invoice_type === 'purchase'
+  const brokerCommission = Number(invoice?.broker_commission || 0)
+  const invoiceTotal = Number(invoice?.total || 0)
+  const totalAfterCommission = isPurchase
+    ? invoiceTotal + brokerCommission
+    : invoiceTotal - brokerCommission
+
   return (
     <>
       <style jsx global>{`
@@ -371,15 +378,31 @@ export default function InvoicePreviewModal({
                           </h3>
 
                           {invoice.invoice_type !== 'purchase' ? (
-                            <p className="mt-2 text-sm text-gray-600">
-                              Phone: {invoice.customer_phone || '—'}
-                            </p>
+                            <>
+                              <p className="mt-2 text-sm text-gray-600">
+                                Phone: {invoice.customer_phone || '—'}
+                              </p>
+                              {invoice.broker_name && (
+                                <p className="text-sm text-gray-600">
+                                  Broker: {invoice.broker_name}
+                                </p>
+                              )}
+                              {Number(invoice.broker_commission || 0) > 0 && (
+                                <p className="text-sm text-gray-600">
+                                  Broker Commission: Rs {money(invoice.broker_commission)}
+                                </p>
+                              )}
+                            </>
                           ) : (
                             <>
                               <p className="mt-2 text-sm text-gray-600">
                                 Broker: {invoice.broker_name || '—'}
                               </p>
-
+                              {Number(invoice.broker_commission || 0) > 0 && (
+                                <p className="text-sm text-gray-600">
+                                  Broker Commission: Rs {money(invoice.broker_commission)}
+                                </p>
+                              )}
                               <p className="text-sm text-gray-600">
                                 Warehouse: {invoice.warehouse_name || '—'}
                               </p>
@@ -394,13 +417,22 @@ export default function InvoicePreviewModal({
                         </div>
                       </div>
 
-                      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+                      <div className={`mb-6 grid gap-4 ${brokerCommission > 0 ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
                         <div className="rounded-xl border bg-gray-50 p-4">
                           <p className="text-sm text-gray-500">Total</p>
                           <p className="mt-1 text-2xl font-bold text-gray-900">
-                            Rs {money(invoice.total)}
+                            Rs {money(invoiceTotal)}
                           </p>
                         </div>
+
+                        {brokerCommission > 0 && (
+                          <div className="rounded-xl border bg-indigo-50 p-4">
+                            <p className="text-sm text-indigo-700 font-medium">Total After Comm.</p>
+                            <p className="mt-1 text-2xl font-bold text-indigo-900">
+                              Rs {money(totalAfterCommission)}
+                            </p>
+                          </div>
+                        )}
 
                         <div className="rounded-xl border bg-green-50 p-4">
                           <p className="text-sm text-green-700">Paid</p>
@@ -502,10 +534,24 @@ export default function InvoicePreviewModal({
                                 )}
                               </span>
                             </div>
+                            {Number(invoice.broker_commission || 0) > 0 && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-gray-600">Broker Commission</span>
+                                <span className="font-medium">
+                                  Rs {money(invoice.broker_commission)}
+                                </span>
+                              </div>
+                            )}
                             <div className="flex items-center justify-between border-t pt-2 text-base font-bold">
                               <span>Total</span>
-                              <span>Rs {money(invoice.total)}</span>
+                              <span>Rs {money(invoiceTotal)}</span>
                             </div>
+                            {brokerCommission > 0 && (
+                              <div className="flex items-center justify-between border-t border-dashed pt-2 text-base font-bold text-indigo-700 bg-indigo-50/60 px-2 py-1 rounded">
+                                <span>Total After Commission</span>
+                                <span>Rs {money(totalAfterCommission)}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -564,11 +610,14 @@ export default function InvoicePreviewModal({
                                 : invoice.customer_name || 'Walk-in Customer'}
                             </p>
 
-                            {invoice.invoice_type === 'purchase' && (
-                              <>
-                                <p>Broker: {invoice.broker_name || '—'}</p>
-                                <p>Warehouse: {invoice.warehouse_name || '—'}</p>
-                              </>
+                            {invoice.broker_name && (
+                              <p>Broker: {invoice.broker_name}</p>
+                            )}
+                            {Number(invoice.broker_commission || 0) > 0 && (
+                              <p>Broker Comm: Rs {money(invoice.broker_commission)}</p>
+                            )}
+                            {invoice.invoice_type === 'purchase' && invoice.warehouse_name && (
+                              <p>Warehouse: {invoice.warehouse_name}</p>
                             )}
                           </div>
 
@@ -650,10 +699,22 @@ export default function InvoicePreviewModal({
                                 )}
                               </span>
                             </div>
+                            {Number(invoice.broker_commission || 0) > 0 && (
+                              <div className="flex justify-between">
+                                <span>Broker Comm</span>
+                                <span>{money(invoice.broker_commission)}</span>
+                              </div>
+                            )}
                             <div className="flex justify-between pt-1 text-[11px] font-bold">
                               <span>Total</span>
-                              <span>{money(invoice.total)}</span>
+                              <span>{money(invoiceTotal)}</span>
                             </div>
+                            {brokerCommission > 0 && (
+                              <div className="flex justify-between border-t border-gray-800 pt-1 text-[11px] font-bold">
+                                <span>Total After Comm</span>
+                                <span>{money(totalAfterCommission)}</span>
+                              </div>
+                            )}
                           </div>
 
                           <div className="space-y-1 border-b border-gray-800 py-2 text-[10px]">

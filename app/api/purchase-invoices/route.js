@@ -58,6 +58,7 @@ export async function POST(req) {
     const supplierName = clean(body.supplierName || body.supplier_name)
     let supplierId = toNumber(body.supplierId || body.supplier_id)
     const brokerName = clean(body.brokerName || body.broker_name)
+    const brokerCommission = toNumber(body.brokerCommission || body.broker_commission)
     const warehouseName = clean(body.warehouseName || body.warehouse_name)
     const invoiceType = clean(body.invoiceType || body.invoice_type, 'purchase')
     const purchaseDate = clean(body.purchaseDate || body.purchase_date || body.invoiceDate, today())
@@ -73,6 +74,7 @@ export async function POST(req) {
     const safeItems = items.map((item, index) => {
       const stockId = toNumber(item.stockId || item.stock_id)
       const itemCode = clean(item.itemCode || item.item_code)
+      const lotNo = clean(item.lotNo || item.lot_no || item.lot)
       const itemName = clean(item.itemName || item.item_name || item.productName || item.product_name)
       const qty = toNumber(item.qty || 1)
       const weight = toNumber(item.weight)
@@ -93,6 +95,7 @@ export async function POST(req) {
       return {
         stockId,
         itemCode,
+        lotNo,
         itemName,
         qty,
         weight,
@@ -159,12 +162,13 @@ export async function POST(req) {
           payment_type,
           payment_status,
           broker_name,
+          broker_commission,
           warehouse_name,
           notes,
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `)
 
       let paidAmount = toNumber(body.paidAmount || body.paid_amount)
@@ -207,6 +211,7 @@ export async function POST(req) {
         paymentType,
         paymentStatus,
         brokerName,
+        brokerCommission,
         warehouseName,
         notes
       )
@@ -219,6 +224,7 @@ export async function POST(req) {
           stock_id,
           product_name,
           item_name,
+          lot_no,
           qty,
           weight,
           weight_unit,
@@ -230,7 +236,7 @@ export async function POST(req) {
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `)
 
       const findStockById = sqlite.prepare(`
@@ -257,6 +263,7 @@ export async function POST(req) {
       const stockInsert = sqlite.prepare(`
         INSERT INTO stocks (
           item_code,
+          lot_no,
           item_name,
           category,
           quantity,
@@ -275,7 +282,7 @@ export async function POST(req) {
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `)
 
       const stockUpdate = sqlite.prepare(`
@@ -289,6 +296,7 @@ export async function POST(req) {
           supplier_name = ?,
           weight = COALESCE(weight, 0) + ?,
           weight_unit = ?,
+          lot_no = COALESCE(NULLIF(lot_no, ''), ?),
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `)
@@ -298,6 +306,7 @@ export async function POST(req) {
           stock_id,
           store_id,
           store_name,
+          lot_no,
           movement_type,
           movement_date,
           reference_type,
@@ -306,7 +315,7 @@ export async function POST(req) {
           notes,
           created_at
         )
-        VALUES (?, ?, ?, 'purchase_in', ?, 'purchase_invoice', ?, ?, ?, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, 'purchase_in', ?, 'purchase_invoice', ?, ?, CURRENT_TIMESTAMP)
       `)
 
       for (const item of safeItems) {
@@ -331,6 +340,7 @@ export async function POST(req) {
             supplierName,
             item.weight,
             item.weightUnit,
+            item.lotNo || '',
             stockId
           )
         } else {
@@ -338,6 +348,7 @@ export async function POST(req) {
 
           const stockResult = stockInsert.run(
             code,
+            item.lotNo || '',
             item.itemName,
             '',
             item.qty,
@@ -362,6 +373,7 @@ export async function POST(req) {
           stockId,
           item.itemName,
           item.itemName,
+          item.lotNo || '',
           item.qty,
           item.weight,
           item.weightUnit,
@@ -376,6 +388,7 @@ export async function POST(req) {
           stockId,
           selectedStore.id,
           selectedStore.name,
+          item.lotNo || '',
           purchaseDate,
           purchaseInvoiceId,
           item.qty,

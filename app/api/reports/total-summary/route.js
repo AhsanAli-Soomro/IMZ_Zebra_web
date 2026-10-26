@@ -70,13 +70,16 @@ export async function GET() {
     const purchaseRows = await db.query(`
       SELECT
         COALESCE(SUM(total), 0) AS total_purchase_amount,
-        COALESCE(SUM(transport_expense), 0) AS purchase_transport
+        COALESCE(SUM(transport_expense), 0) AS purchase_transport,
+        COALESCE(SUM(broker_commission), 0) AS purchase_broker_commission
       FROM purchase_invoices
       WHERE deleted_at IS NULL OR deleted_at = ''
     `)
 
     const salesTransportRows = await db.query(`
-      SELECT COALESCE(SUM(shipping), 0) AS sales_transport
+      SELECT
+        COALESCE(SUM(shipping), 0) AS sales_transport,
+        COALESCE(SUM(broker_commission), 0) AS sales_broker_commission
       FROM bills
       WHERE deleted_at IS NULL OR deleted_at = ''
     `)
@@ -90,8 +93,11 @@ export async function GET() {
     const totalTransport =
       Number(purchaseRows[0]?.purchase_transport || 0) +
       Number(salesTransportRows[0]?.sales_transport || 0)
+    const totalBrokerCommission =
+      Number(purchaseRows[0]?.purchase_broker_commission || 0) +
+      Number(salesTransportRows[0]?.sales_broker_commission || 0)
     const grossProfit = Number(profitRows[0]?.total_profit || 0)
-    const netProfit = grossProfit - totalTransport
+    const netProfit = grossProfit - totalTransport - totalBrokerCommission
 
     const data = {
       total_invoices: Number(invoiceRows[0]?.total_invoices || 0),
@@ -103,6 +109,9 @@ export async function GET() {
       loss: netProfit < 0 ? Math.abs(netProfit) : 0,
       total_purchase_amount: Number(purchaseRows[0]?.total_purchase_amount || 0),
       total_transport_expenses: totalTransport,
+      total_broker_commission: totalBrokerCommission,
+      sales_broker_commission: Number(salesTransportRows[0]?.sales_broker_commission || 0),
+      purchase_broker_commission: Number(purchaseRows[0]?.purchase_broker_commission || 0),
       available_stock: Number(stockRows[0]?.available_stock || 0),
       stock_count: Number(stockRows[0]?.product_count || 0),
       low_stock_count: Number(stockRows[0]?.low_stock_count || 0),

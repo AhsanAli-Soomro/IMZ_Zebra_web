@@ -340,7 +340,10 @@ export default function History() {
           const inInvoice = group.invoices.some((inv) =>
             String(inv.invoice_no || inv.purchase_no || '').toLowerCase().includes(q)
           )
-          return inName || inInvoice
+          const inBroker = group.invoices.some((inv) =>
+            String(inv.broker_name || '').toLowerCase().includes(q)
+          )
+          return inName || inInvoice || inBroker
         })
       : rows
 
@@ -670,7 +673,13 @@ export default function History() {
                           {formatDate(invoice.invoice_date || invoice.purchase_date)}
                         </td>
                         <td className="px-4 py-3 font-medium">
-                          {invoice.invoice_no || invoice.purchase_no}
+                          <div>{invoice.invoice_no || invoice.purchase_no}</div>
+                          {invoice.broker_name && (
+                            <div className="text-xs text-gray-500 font-normal">
+                              Broker: {invoice.broker_name}
+                              {Number(invoice.broker_commission || 0) > 0 && ` (Rs ${money(invoice.broker_commission)})`}
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right">Rs {money(invoice.total)}</td>
                         <td className="px-4 py-3 text-right text-green-700">

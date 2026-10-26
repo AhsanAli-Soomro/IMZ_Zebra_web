@@ -29,7 +29,7 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
     { label: 'Customers', children: ['Customer Ledger'] },
     'Sale Invoice',
     'Purchase Invoice',
-    'Suppliers',
+    { label: 'Suppliers', children: ['Supplier Ledger'] },
     'Categories',
     ...(userType === 'Employee' ? [] : ['Employees']),
     'Billing History',

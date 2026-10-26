@@ -10,33 +10,27 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Table name is required' }, { status: 400 })
     }
 
-    const tableRows = await db.query(`
-      SELECT name
-      FROM sqlite_master
-      WHERE type = 'table'
-        AND name NOT LIKE 'sqlite_%'
-    `)
+    const sqlite = db.getConnection()
+    const tableRow = sqlite
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name = ?"
+      )
+      .get(table)
 
-    const allowedTables = Array.isArray(tableRows) ? tableRows.map((row) => row.name) : []
-
-    if (!allowedTables.includes(table)) {
-      return NextResponse.json({ error: 'Invalid table name' }, { status: 400 })
+    if (!tableRow) {
+      return NextResponse.json({ error: `Table "${table}" not found` }, { status: 404 })
     }
 
-    const rows = await db.query(`SELECT * FROM \`${table}\``)
+    const cols = sqlite.prepare(`PRAGMA table_info(\`${table}\`)`).all().map((c) => c.name)
+    const rows = sqlite.prepare(`SELECT * FROM \`${table}\``).all()
 
-    if (!Array.isArray(rows) || rows.length === 0) {
-      return new Response('No data found.', {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-          'Content-Disposition': `attachment; filename="${table}.csv"`,
-        },
-      })
+    let csv = ''
+    if (!rows || rows.length === 0) {
+      csv = cols.join(',') + '\n'
+    } else {
+      const parser = new Parser({ fields: cols })
+      csv = parser.parse(rows)
     }
-
-    const parser = new Parser()
-    const csv = parser.parse(rows)
 
     return new Response(csv, {
       headers: {
@@ -46,6 +40,9 @@ export async function POST(req) {
     })
   } catch (err) {
     console.error('Export error:', err)
-    return new Response(`Error: ${err.message}`, { status: 500 })
+    return NextResponse.json(
+      { error: 'Export failed', message: err.message },
+      { status: 500 }
+    )
   }
 }

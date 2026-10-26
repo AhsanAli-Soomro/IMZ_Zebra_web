@@ -17,7 +17,7 @@ function lineAmount(item) {
   const weight = Number(item.weight || 0)
   const price = Number(item.price || 0)
 
-  return qty * weight * price
+  return qty * (weight > 0 ? weight : 1) * price
 }
 
 export default function InvoiceCreate({ selectedCustomerId = null }) {
@@ -41,6 +41,8 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
     discount: '',
     tax: '',
     shipping: '',
+    brokerName: '',
+    brokerCommission: '',
     notes: '',
   })
 
@@ -66,16 +68,20 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
     const discount = Number(form.discount || 0)
     const tax = Number(form.tax || 0)
     const shipping = Number(form.shipping || 0)
+    const brokerCommission = Number(form.brokerCommission || 0)
 
     const total = subtotal - itemDiscount - discount + itemTax + tax + shipping
+    const totalAfterCommission = total - brokerCommission
 
     return {
       subtotal,
       itemDiscount,
       itemTax,
+      brokerCommission,
       total,
+      totalAfterCommission,
     }
-  }, [items, form.discount, form.tax, form.shipping])
+  }, [items, form.discount, form.tax, form.shipping, form.brokerCommission])
 
   const stockShortages = useMemo(() => {
     const selectedByStock = items.reduce((totalsByStock, item) => {
@@ -224,7 +230,10 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
     const weightUnit = stock?.weight_unit || 'kg'
     const autoPrice = Number(
       stock?.selling_rate ||
-      (weight > 0 ? Number(stock?.selling_price || 0) / weight : 0)
+      stock?.sale_price ||
+      (weight > 0 ? Number(stock?.selling_price || 0) / weight : 0) ||
+      Number(stock?.selling_price || 0) ||
+      0
     )
     setItems((prev) =>
       prev.map((item, i) =>
@@ -233,8 +242,8 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
             ...item,
             stockId,
             itemName: stock?.item_name || '',
-            price: autoPrice,
-            weight,
+            price: autoPrice > 0 ? autoPrice : '',
+            weight: weight > 0 ? weight : '',
             weight_unit: weightUnit,
             amount: lineAmount({ ...item, weight, price: autoPrice }),
           }
@@ -254,6 +263,8 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
       discount: '',
       tax: '',
       shipping: '',
+      brokerName: '',
+      brokerCommission: '',
       notes: '',
     })
     setItems([emptyItem()])
@@ -265,8 +276,22 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
     setMessage('')
 
     try {
-      if (!items.length || items.some((item) => !Number(item.stockId) || Number(item.qty) <= 0)) {
-        throw new Error('Each invoice item requires a valid product and quantity.')
+      if (!items.length) {
+        throw new Error('At least one item is required.')
+      }
+
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i]
+        const name = it.itemName || `Item #${i + 1}`
+        if (!Number(it.stockId)) {
+          throw new Error(`Item #${i + 1}: Please select a product.`)
+        }
+        if (Number(it.qty) <= 0) {
+          throw new Error(`${name}: Valid quantity is required.`)
+        }
+        if (!it.price || Number(it.price) <= 0) {
+          throw new Error(`${name}: Selling price / Rate (Rate/Kg) lazmi darj karein.`)
+        }
       }
 
       if (stockShortages.length) {
@@ -306,6 +331,8 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
           form.shipping ||
           0
         ),
+        brokerName: form.brokerName || '',
+        brokerCommission: Number(form.brokerCommission || 0),
         notes: form.notes,
         createdBy: 1,
 
@@ -418,6 +445,8 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
       discount: String(invoiceDetail.discount || ''),
       tax: String(invoiceDetail.tax || ''),
       shipping: String(invoiceDetail.shipping || ''),
+      brokerName: invoiceDetail.broker_name || '',
+      brokerCommission: String(invoiceDetail.broker_commission || ''),
       notes: invoiceDetail.notes || '',
 
     })
@@ -656,6 +685,32 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
               </div>
             </div>
 
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className={labelClass}>Broker Name</label>
+                <input
+                  type="text"
+                  value={form.brokerName}
+                  onChange={(e) => setForm({ ...form, brokerName: e.target.value })}
+                  className={fieldClass}
+                  placeholder="Broker name"
+                />
+              </div>
+
+              <div>
+                <label className={labelClass}>Broker Commission</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.brokerCommission}
+                  onChange={(e) => setForm({ ...form, brokerCommission: e.target.value })}
+                  className={fieldClass}
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
             <div className="mt-4">
               <label className={labelClass}>Notes</label>
               <textarea
@@ -693,7 +748,7 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
                         <option value="">Select Product</option>
                         {stocks.map((stock) => (
                           <option key={stock.id} value={stock.id}>
-                            {stock.item_name} — {stock.store_name || 'No Store'} (Stock: {stock.quantity})
+                            {stock.item_name} {stock.lot_no ? `[Lot: ${stock.lot_no}] ` : ''}— {stock.store_name || 'No Store'} (Stock: {stock.quantity})
                           </option>
                         ))}
                       </select>
@@ -743,9 +798,12 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
                       <label className={labelClass}>Rate / Kg</label>
                       <input
                         type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
                         value={item.price}
                         onChange={(e) => updateItem(index, 'price', e.target.value)}
-                        className={fieldClass}
+                        className={`${fieldClass} ${item.stockId && (!item.price || Number(item.price) <= 0) ? 'border-amber-400 bg-amber-50/50' : ''}`}
                       />
                     </div>
 
@@ -811,24 +869,34 @@ export default function InvoiceCreate({ selectedCustomerId = null }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex-1 min-w-[150px] border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 shadow-sm">
+            <div className="flex-1 min-w-[130px] border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 shadow-sm">
               <p className="text-xs text-gray-500">Subtotal</p>
               <p className="text-lg font-semibold text-gray-900">Rs {money(totals.subtotal)}</p>
             </div>
 
-            <div className="flex-1 min-w-[150px] border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 shadow-sm">
+            <div className="flex-1 min-w-[130px] border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 shadow-sm">
               <p className="text-xs text-gray-500">Discount</p>
               <p className="text-lg font-semibold text-gray-900">Rs {money(totals.itemDiscount)}</p>
             </div>
 
-            <div className="flex-1 min-w-[150px] border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 shadow-sm">
+            <div className="flex-1 min-w-[130px] border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 shadow-sm">
               <p className="text-xs text-gray-500">Tax</p>
               <p className="text-lg font-semibold text-gray-900">Rs {money(totals.itemTax)}</p>
             </div>
 
-            <div className="flex-1 min-w-[160px] border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 shadow-sm">
-              <p className="text-xs text-indigo-600 font-medium">Total</p>
-              <p className="text-xl font-bold text-indigo-700">Rs {money(totals.total)}</p>
+            <div className="flex-1 min-w-[140px] border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 shadow-sm">
+              <p className="text-xs text-gray-500">Broker Commission</p>
+              <p className="text-lg font-semibold text-gray-900">Rs {money(totals.brokerCommission)}</p>
+            </div>
+
+            <div className="flex-1 min-w-[150px] border border-gray-200 rounded-lg px-3 py-2 bg-gray-100 shadow-sm">
+              <p className="text-xs text-gray-700 font-medium">Total</p>
+              <p className="text-lg font-bold text-gray-900">Rs {money(totals.total)}</p>
+            </div>
+
+            <div className="flex-1 min-w-[160px] border border-indigo-200 rounded-lg px-3 py-2 bg-indigo-50 shadow-sm">
+              <p className="text-xs text-indigo-600 font-medium">Total After Comm.</p>
+              <p className="text-xl font-bold text-indigo-700">Rs {money(totals.totalAfterCommission)}</p>
             </div>
           </div>
 
