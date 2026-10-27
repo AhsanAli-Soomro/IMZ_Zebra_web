@@ -22,4 +22,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPrinters: () => ipcRenderer.invoke('get-printers'),
   downloadInvoicePdf: (payload) => ipcRenderer.invoke('download-invoice-pdf', payload),
   createClientShortcut: (payload) => ipcRenderer.invoke('shortcut:create-client', payload),
+
+  getNetworkConfig: () => ipcRenderer.invoke('network:get-config'),
+  saveNetworkConfig: (cfg) => ipcRenderer.invoke('network:save-config', cfg),
+  getLocalIp: () => ipcRenderer.invoke('network:get-local-ip'),
 })

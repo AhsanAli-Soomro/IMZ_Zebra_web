@@ -12,6 +12,7 @@ export default function Navbar() {
   const [companyLogo, setCompanyLogo] = useState(null)
   const [userType, setUserType] = useState('')
   const [broadcastMsg, setBroadcastMsg] = useState('')
+  const [serverLanIp, setServerLanIp] = useState('')
   const path = usePathname()
   const isDashboard = path === '/dashboard'
   const fetchProfile = async () => {
@@ -32,6 +33,12 @@ export default function Navbar() {
     if (typeof window !== 'undefined') {
       const msg = window.localStorage.getItem('zebra_broadcast_msg')
       if (msg) setBroadcastMsg(msg)
+
+      if (window.electronAPI?.getLocalIp) {
+        window.electronAPI.getLocalIp().then((ip) => {
+          if (ip && ip !== '127.0.0.1') setServerLanIp(ip)
+        }).catch(() => {})
+      }
     }
   }, [])
 
@@ -73,6 +80,18 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center justify-end gap-2 sm:gap-4">
+        {serverLanIp && (
+          <span
+            className="hidden lg:inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-1 rounded-lg text-[11px] font-mono font-bold cursor-pointer hover:bg-emerald-100 transition-colors"
+            title="Click to copy Main Server IP for connecting Counter PCs"
+            onClick={() => {
+              navigator.clipboard?.writeText(serverLanIp)
+              alert(`Main Server IP (${serverLanIp}) copied! Use this on Counter PCs.`)
+            }}
+          >
+            <span>📶 Server IP: {serverLanIp}</span>
+          </span>
+        )}
         <SoftwareUpdateButton />
         {userType === 'Admin' && <button
           onClick={() => router.push(isDashboard ? '/billing' : '/dashboard')}

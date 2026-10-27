@@ -118,6 +118,16 @@ export default function LoginPage() {
         >
           {loading ? 'Logging in...' : 'Login'}
         </button>
+
+        <div className="mt-4 text-center border-t pt-3">
+          <button
+            type="button"
+            onClick={() => router.push('/network-setup')}
+            className="text-[11px] text-gray-400 hover:text-emerald-700 font-semibold transition-colors"
+          >
+            ⚙️ Network Mode / Server Settings
+          </button>
+        </div>
       </form>
     </div>
   )

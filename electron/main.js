@@ -4,6 +4,7 @@ const path = require('path')
 const http = require('http')
 const net = require('net')
 const fs = require('fs')
+const os = require('os')
 const license = require('./license')
 const { autoUpdater } = require('electron-updater')
 let mainWindow = null
@@ -207,7 +208,52 @@ function getIconPath() {
 
   return path.join(__dirname, '..', 'build', 'icon.ico')
 }
+function getLocalLanIp() {
+  try {
+    const ifaces = os.networkInterfaces()
+    for (const dev in ifaces) {
+      for (const details of ifaces[dev]) {
+        if (details.family === 'IPv4' && !details.internal) {
+          return details.address
+        }
+      }
+    }
+  } catch {}
+  return '127.0.0.1'
+}
+
+function getNetworkConfig() {
+  try {
+    const cfgPath = path.join(app.getPath('userData'), 'network-config.json')
+    if (fs.existsSync(cfgPath)) {
+      return JSON.parse(fs.readFileSync(cfgPath, 'utf-8'))
+    }
+  } catch (err) {
+    console.warn('Could not read network-config.json:', err.message)
+  }
+  return null
+}
+
+function saveNetworkConfig(cfg) {
+  try {
+    const cfgPath = path.join(app.getPath('userData'), 'network-config.json')
+    if (cfg === null) {
+      if (fs.existsSync(cfgPath)) fs.unlinkSync(cfgPath)
+      return true
+    }
+    fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2), 'utf-8')
+    return true
+  } catch (err) {
+    console.error('Could not save network-config.json:', err)
+    return false
+  }
+}
+
 function createWindow(port, route = '/') {
+  createWindowDirect(`http://127.0.0.1:${port}${route}`)
+}
+
+function createWindowDirect(fullUrl) {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -236,6 +282,25 @@ function createWindow(port, route = '/') {
 
   mainWindow.webContents.on('did-fail-load', (_e, code, desc) => {
     console.error('did-fail-load:', code, desc)
+    const netCfg = getNetworkConfig()
+    if (netCfg && netCfg.mode === 'counter' && mainWindow && !mainWindow.isDestroyed()) {
+      dialog
+        .showMessageBox(mainWindow, {
+          type: 'warning',
+          title: 'Main Server Not Reachable',
+          message: `Could not connect to Main Server at ${netCfg.serverUrl}.\n\n1. Make sure Main Server PC is turned on and Zebra IMS is running.\n2. Make sure this PC is connected to the same Wi-Fi or LAN router.\n\nWould you like to retry or change server settings?`,
+          buttons: ['Retry Connection', 'Change Server IP'],
+        })
+        .then(({ response }) => {
+          if (response === 1) {
+            saveNetworkConfig(null)
+            app.relaunch()
+            app.exit(0)
+          } else {
+            mainWindow.loadURL(fullUrl)
+          }
+        })
+    }
   })
 
   mainWindow.webContents.on('render-process-gone', (_e, details) => {
@@ -246,7 +311,7 @@ function createWindow(port, route = '/') {
     console.log('renderer console:', { level, message, line, sourceId })
   })
 
-  mainWindow.loadURL(`http://127.0.0.1:${port}${route}`)
+  mainWindow.loadURL(fullUrl)
 }
 
 /* =========================
@@ -641,6 +706,23 @@ ipcMain.handle('shortcut:create-client', async (_event, payload) => {
   }
 })
 
+ipcMain.handle('network:get-config', async () => {
+  const cfg = getNetworkConfig()
+  return {
+    ...cfg,
+    localIp: getLocalLanIp(),
+  }
+})
+
+ipcMain.handle('network:save-config', async (_event, cfg) => {
+  saveNetworkConfig(cfg)
+  return { success: true }
+})
+
+ipcMain.handle('network:get-local-ip', async () => {
+  return getLocalLanIp()
+})
+
 function ensureDatabaseExists() {
   const userDataPath = app.getPath('userData')
   const targetDbPath = path.join(userDataPath, 'ims.sqlite')
@@ -680,6 +762,15 @@ async function startApp() {
 
   try {
     const isDev = !app.isPackaged
+    const netCfg = getNetworkConfig()
+
+    // 1. Counter Mode: Direct connect to Main Server (No local DB, no local server needed!)
+    if (netCfg && netCfg.mode === 'counter' && netCfg.serverUrl) {
+      console.log('Starting in Counter PC Mode. Connecting to Main Server:', netCfg.serverUrl)
+      createWindowDirect(`${netCfg.serverUrl}/login`)
+      return
+    }
+
     const activation = await isActivated()
     const dbPath = ensureDatabaseExists()
 
@@ -689,7 +780,15 @@ async function startApp() {
       console.log('Skipping Electron migration in dev mode')
     }
 
-    const initialRoute = activation.ok ? '/login' : '/activate'
+    // Determine initial route: if first install and no network config, prompt network setup!
+    let initialRoute = '/'
+    if (!netCfg) {
+      initialRoute = '/network-setup'
+    } else if (!activation.ok) {
+      initialRoute = '/activate'
+    } else {
+      initialRoute = '/login'
+    }
 
     if (isDev) {
       const devPort = 3002
@@ -711,7 +810,7 @@ async function startApp() {
       env: {
         ...process.env,
         PORT: String(port),
-        HOSTNAME: '127.0.0.1',
+        HOSTNAME: '0.0.0.0', // Binds to all interfaces for local LAN Counter PCs!
         NODE_ENV: 'production',
         SQLITE_DB_PATH: dbPath,
         DATABASE_URL: dbPath,
