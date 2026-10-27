@@ -317,6 +317,34 @@ async function isActivated() {
 }
 
 /**
+ * Resilient query executor with automatic retry for serverless cold-starts & transient ECONNRESET
+ */
+async function queryWithRetry(fn, retries = 3) {
+  let lastErr = null
+  for (let i = 1; i <= retries; i++) {
+    try {
+      const sql = neon(NEON_DATABASE_URL)
+      return await fn(sql)
+    } catch (err) {
+      lastErr = err
+      const isRetryable =
+        err?.message?.includes('fetch failed') ||
+        err?.message?.includes('ECONNRESET') ||
+        err?.message?.includes('ETIMEDOUT') ||
+        err?.sourceError?.code === 'ECONNRESET' ||
+        err?.sourceError?.message?.includes('ECONNRESET')
+
+      if (isRetryable && i < retries) {
+        await new Promise((res) => setTimeout(res, 600 * i))
+        continue
+      }
+      throw err
+    }
+  }
+  throw lastErr
+}
+
+/**
  * Online registration and status check against Neon PostgreSQL
  */
 async function checkActivationOnline() {
@@ -324,38 +352,36 @@ async function checkActivationOnline() {
   const isLegacy = isLegacyValidLicense(readLicenseFile())
 
   try {
-    const sql = neon(NEON_DATABASE_URL)
-
-    // Upsert system into Neon table with auto-migration support
-    const rows = await sql`
-      INSERT INTO system_licenses (
-        machine_id, mac_address, hostname, os_info, activation_key, status,
-        customer_name, notes, first_seen_at, activated_at, last_online_at
-      )
-      VALUES (
-        ${sysInfo.machineId}, ${sysInfo.macAddress}, ${sysInfo.hostname}, ${sysInfo.osInfo}, ${sysInfo.activationKey},
-        ${isLegacy ? 'active' : 'pending'},
-        ${isLegacy ? 'Existing Customer (Auto-Migrated)' : null},
-        ${isLegacy ? 'Auto-migrated from previous software version' : null},
-        NOW(),
-        ${isLegacy ? new Date().toISOString() : null},
-        NOW()
-      )
-      ON CONFLICT (machine_id) DO UPDATE SET
-        mac_address = EXCLUDED.mac_address,
-        hostname = EXCLUDED.hostname,
-        os_info = EXCLUDED.os_info,
-        status = CASE
-          WHEN system_licenses.status = 'pending' AND ${isLegacy} THEN 'active'
-          ELSE system_licenses.status
-        END,
-        customer_name = COALESCE(system_licenses.customer_name, EXCLUDED.customer_name),
-        notes = COALESCE(system_licenses.notes, EXCLUDED.notes),
-        last_online_at = NOW()
-      RETURNING *;
-    `
-
-    const record = rows[0]
+    const record = await queryWithRetry(async (sql) => {
+      const rows = await sql`
+        INSERT INTO system_licenses (
+          machine_id, mac_address, hostname, os_info, activation_key, status,
+          customer_name, notes, first_seen_at, activated_at, last_online_at
+        )
+        VALUES (
+          ${sysInfo.machineId}, ${sysInfo.macAddress}, ${sysInfo.hostname}, ${sysInfo.osInfo}, ${sysInfo.activationKey},
+          ${isLegacy ? 'active' : 'pending'},
+          ${isLegacy ? 'Existing Customer (Auto-Migrated)' : null},
+          ${isLegacy ? 'Auto-migrated from previous software version' : null},
+          NOW(),
+          ${isLegacy ? new Date().toISOString() : null},
+          NOW()
+        )
+        ON CONFLICT (machine_id) DO UPDATE SET
+          mac_address = EXCLUDED.mac_address,
+          hostname = EXCLUDED.hostname,
+          os_info = EXCLUDED.os_info,
+          status = CASE
+            WHEN system_licenses.status = 'pending' AND ${isLegacy} THEN 'active'
+            ELSE system_licenses.status
+          END,
+          customer_name = COALESCE(system_licenses.customer_name, EXCLUDED.customer_name),
+          notes = COALESCE(system_licenses.notes, EXCLUDED.notes),
+          last_online_at = NOW()
+        RETURNING *;
+      `
+      return rows[0] || null
+    })
     if (!record) {
       return {
         ok: false,
