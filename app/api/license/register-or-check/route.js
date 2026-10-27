@@ -13,7 +13,18 @@ function signPayload(payload) {
 export async function POST(req) {
   try {
     const body = await req.json()
-    const { machine_id, mac_address, hostname, os_info, activation_key } = body || {}
+    const {
+      machine_id,
+      mac_address,
+      hostname,
+      os_info,
+      activation_key,
+      company_name,
+      contact,
+      city,
+      address,
+      users_data,
+    } = body || {}
 
     if (!machine_id || !mac_address) {
       return NextResponse.json(
@@ -28,6 +39,11 @@ export async function POST(req) {
       hostname: String(hostname || 'Unknown-PC').trim(),
       os_info: String(os_info || 'Unknown-OS').trim(),
       activation_key: String(activation_key || '').trim(),
+      company_name: company_name ? String(company_name).trim() : null,
+      contact: contact ? String(contact).trim() : null,
+      city: city ? String(city).trim() : null,
+      address: address ? String(address).trim() : null,
+      users_data: users_data ? (typeof users_data === 'string' ? users_data : JSON.stringify(users_data)) : null,
     })
 
     if (!record) {
@@ -46,23 +62,31 @@ export async function POST(req) {
         machineId: record.machine_id,
         macAddress: record.mac_address,
         activationKey: record.activation_key,
-        customerName: record.customer_name || '',
+        customerName: record.customer_name || record.company_name || '',
         expiresAt: record.expires_at || null,
         activatedAt: record.activated_at || new Date().toISOString(),
+        maxUsers: record.max_users || 5,
+        allowedTabs: record.allowed_tabs || 'ALL',
+        watermarkEnabled: record.watermark_enabled !== false,
       }
       signature = signPayload(licensePayload)
     }
 
     return NextResponse.json({
       ok: true,
-      status: record.status, // 'pending', 'active', 'rejected', 'expired'
+      status: record.status, // 'pending', 'active', 'rejected', 'expired', 'suspended'
       machineId: record.machine_id,
       macAddress: record.mac_address,
       hostname: record.hostname,
       activationKey: record.activation_key,
-      customerName: record.customer_name,
+      customerName: record.customer_name || record.company_name,
       expiresAt: record.expires_at,
       activatedAt: record.activated_at,
+      maxUsers: record.max_users || 5,
+      allowedTabs: record.allowed_tabs || 'ALL',
+      statusMessage: record.status_message || '',
+      broadcastMessage: record.broadcast_message || '',
+      watermarkEnabled: record.watermark_enabled !== false,
       licensePayload,
       signature,
     })

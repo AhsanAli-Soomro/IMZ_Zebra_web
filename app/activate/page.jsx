@@ -178,6 +178,18 @@ export default function ActivatePage() {
                 </p>
               </div>
             </div>
+          ) : status === 'suspended' ? (
+            <div className="bg-red-50 border border-red-300 p-4 rounded-2xl flex items-center gap-3">
+              <span className="text-3xl">🔒</span>
+              <div>
+                <p className="text-sm font-bold text-red-900">
+                  Software Access Suspended
+                </p>
+                <p className="text-xs text-red-700 mt-0.5">
+                  {message || (typeof window !== 'undefined' ? window.localStorage.getItem('zebra_suspend_msg') : null) || 'Access has been suspended by Administrator Ahsan Ali Soomro. Please contact for renewal.'}
+                </p>
+              </div>
+            </div>
           ) : status === 'rejected' ? (
             <div className="bg-red-50 border border-red-200 p-4 rounded-2xl flex items-center gap-3">
               <span className="text-2xl">🚫</span>

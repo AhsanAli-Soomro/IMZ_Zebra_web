@@ -7,11 +7,71 @@ import { getStoredUser } from '@/lib/storage'
 export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
   const router = useRouter()
   const [userType, setUserType] = useState(null)
+  const [allowedTabs, setAllowedTabs] = useState(['ALL'])
 
   useEffect(() => {
     const user = getStoredUser()
     setUserType(user?.user_type || null)
-  }, [])
+
+    // Load cached tabs
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = window.localStorage.getItem('zebra_allowed_tabs')
+        if (cached) {
+          const parsed = JSON.parse(cached)
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setAllowedTabs(parsed)
+          }
+        }
+      } catch {}
+    }
+
+    // Background sync with Neon cloud
+    async function syncLicense() {
+      try {
+        let machineInfo = {}
+        if (typeof window !== 'undefined' && window.electronAPI?.getMachineInfo) {
+          machineInfo = await window.electronAPI.getMachineInfo()
+        }
+
+        const res = await fetch('/api/license/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(machineInfo),
+        })
+        const data = await res.json()
+        if (data && data.ok) {
+          if (data.allowed_tabs) {
+            setAllowedTabs(data.allowed_tabs)
+            window.localStorage.setItem('zebra_allowed_tabs', JSON.stringify(data.allowed_tabs))
+          }
+          if (data.max_users) {
+            window.localStorage.setItem('zebra_max_users', String(data.max_users))
+          }
+          if (data.broadcast_message) {
+            window.localStorage.setItem('zebra_broadcast_msg', data.broadcast_message)
+          } else {
+            window.localStorage.removeItem('zebra_broadcast_msg')
+          }
+          if (data.status === 'suspended') {
+            window.localStorage.setItem('zebra_suspended', 'true')
+            window.localStorage.setItem(
+              'zebra_suspend_msg',
+              data.status_message || 'Software access has been suspended. Please contact Ahsan Ali Soomro.'
+            )
+            router.replace('/activate')
+          } else {
+            window.localStorage.removeItem('zebra_suspended')
+            window.localStorage.removeItem('zebra_suspend_msg')
+          }
+        }
+      } catch (err) {
+        console.warn('Sidebar license sync notice:', err.message)
+      }
+    }
+
+    syncLicense()
+  }, [router])
 
   const handleLogout = () => {
     if (typeof window !== 'undefined') {
@@ -21,7 +81,7 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
     router.replace('/login')
   }
 
-  const menuItems = [
+  const baseMenuItems = [
     'Dashboard',
     'Stock',
     'Stores',
@@ -42,8 +102,17 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
     'Expenses',
     'Calculator',
     'Import Export Data',
-    // 'Settings',
   ]
+
+  const isTabAllowed = (name) => {
+    if (!allowedTabs || allowedTabs.length === 0 || allowedTabs.includes('ALL')) return true
+    return allowedTabs.includes(name)
+  }
+
+  const menuItems = baseMenuItems.filter((item) => {
+    const label = typeof item === 'string' ? item : item.label
+    return isTabAllowed(label)
+  })
 
   return (
     <aside

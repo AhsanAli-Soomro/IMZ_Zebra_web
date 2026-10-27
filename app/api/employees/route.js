@@ -44,6 +44,28 @@ export async function POST(req) {
       phone
     } = body
 
+    // 1. Enforce max user limit
+    const countRows = await db.query('SELECT count(*) as total FROM users')
+    const totalUsers = countRows?.[0]?.total || 0
+
+    let maxUsers = 5
+    try {
+      const settRows = await db.query("SELECT value FROM app_settings WHERE key = 'license_max_users' LIMIT 1")
+      if (settRows && settRows[0]?.value) {
+        maxUsers = Number(settRows[0].value) || 5
+      }
+    } catch {}
+
+    if (maxUsers > 0 && totalUsers >= maxUsers) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `User limit reached (${totalUsers}/${maxUsers} allowed). Please contact Ahsan Ali Soomro to upgrade your license.`
+        },
+        { status: 403 }
+      )
+    }
+
     await db.query(
       `INSERT INTO users (name, email, password, user_type, salary, dob, date_of_joining, phone)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

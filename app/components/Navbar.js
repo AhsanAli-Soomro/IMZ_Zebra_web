@@ -11,6 +11,7 @@ export default function Navbar() {
   const [companyName, setCompanyName] = useState('')
   const [companyLogo, setCompanyLogo] = useState(null)
   const [userType, setUserType] = useState('')
+  const [broadcastMsg, setBroadcastMsg] = useState('')
   const path = usePathname()
   const isDashboard = path === '/dashboard'
   const fetchProfile = async () => {
@@ -27,6 +28,11 @@ export default function Navbar() {
     setUser(storedUser)
     setUserType(storedUser?.user_type || '')
     fetchProfile()
+
+    if (typeof window !== 'undefined') {
+      const msg = window.localStorage.getItem('zebra_broadcast_msg')
+      if (msg) setBroadcastMsg(msg)
+    }
   }, [])
 
 
@@ -40,7 +46,23 @@ export default function Navbar() {
   }
 
   return (
-    <div className="relative z-30 w-full border-b bg-white py-3 pl-16 pr-3 sm:px-5 lg:px-6 flex flex-wrap justify-between items-center gap-3">
+    <>
+      {broadcastMsg && (
+        <div className="w-full bg-amber-500 text-white px-4 py-1.5 text-xs font-bold flex items-center justify-between shadow-inner">
+          <div className="flex items-center gap-2">
+            <span>📢 Admin Notice:</span>
+            <span>{broadcastMsg}</span>
+          </div>
+          <button
+            onClick={() => setBroadcastMsg('')}
+            className="text-white hover:text-amber-200 text-base leading-none"
+            title="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+      <div className="relative z-30 w-full border-b bg-white py-3 pl-16 pr-3 sm:px-5 lg:px-6 flex flex-wrap justify-between items-center gap-3">
       <div className="flex min-w-0 items-center">
         <img
           src={companyLogo || '/default-logo.png'}
@@ -69,5 +91,6 @@ export default function Navbar() {
         </button>
       </div>
     </div>
+    </>
   )
 }

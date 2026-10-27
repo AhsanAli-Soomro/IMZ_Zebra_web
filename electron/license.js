@@ -407,9 +407,12 @@ async function checkActivationOnline() {
         machineId: sysInfo.machineId,
         macAddress: sysInfo.macAddress,
         activationKey: sysInfo.activationKey,
-        customerName: record.customer_name || '',
+        customerName: record.customer_name || record.company_name || '',
         expiresAt: record.expires_at || null,
         activatedAt: record.activated_at || new Date().toISOString(),
+        maxUsers: record.max_users || 5,
+        allowedTabs: record.allowed_tabs || 'ALL',
+        watermarkEnabled: record.watermark_enabled !== false,
       }
       const signature = signPayload(payload)
 
@@ -423,13 +426,17 @@ async function checkActivationOnline() {
         status: 'active',
         reason: 'activated',
         expiresAt: record.expires_at || null,
-        customerName: record.customer_name || '',
+        customerName: record.customer_name || record.company_name || '',
         payload,
+        maxUsers: record.max_users || 5,
+        allowedTabs: record.allowed_tabs || 'ALL',
+        statusMessage: record.status_message || '',
+        broadcastMessage: record.broadcast_message || '',
         ...sysInfo,
       }
     }
 
-    // If status is pending, rejected, or expired: remove local license if any
+    // If status is pending, rejected, suspended, or expired: remove local license if any
     const licenseFile = getLicensePath()
     if (fs.existsSync(licenseFile)) {
       try {
@@ -439,15 +446,19 @@ async function checkActivationOnline() {
 
     return {
       ok: false,
-      status: record.status, // 'pending', 'rejected', 'expired'
+      status: record.status, // 'pending', 'rejected', 'expired', 'suspended'
       expiresAt: record.expires_at || null,
-      customerName: record.customer_name || '',
+      customerName: record.customer_name || record.company_name || '',
       message:
-        record.status === 'pending'
+        record.status === 'suspended'
+          ? (record.status_message || 'Software access has been suspended by the administrator. Please contact Ahsan Ali Soomro.')
+          : record.status === 'pending'
           ? 'Activation request is pending approval by the owner.'
           : record.status === 'rejected'
           ? 'License request was rejected by the owner.'
           : 'License has expired.',
+      ...sysInfo,
+    }
       ...sysInfo,
     }
   } catch (err) {
