@@ -212,7 +212,9 @@ function createWindow(port, route = '/') {
       preload: path.join(__dirname, 'preload.js'),
     },
   })
-
+  if (!app.isPackaged) {
+    mainWindow.webContents.openDevTools()
+  }
   mainWindow.once('ready-to-show', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.show()
@@ -244,7 +246,7 @@ function createWindow(port, route = '/') {
 
 ipcMain.handle('license:check', async () => {
   try {
-    return isActivated()
+    return await isActivated()
   } catch (err) {
     console.error('license:check error', err)
     return {
@@ -252,6 +254,26 @@ ipcMain.handle('license:check', async () => {
       reason: 'check_failed',
       message: err.message || 'Activation check failed',
     }
+  }
+})
+ipcMain.handle('license:check-online', async () => {
+  try {
+    return await license.checkActivationOnline()
+  } catch (err) {
+    console.error('license:check-online error', err)
+    return {
+      ok: false,
+      reason: 'check_failed',
+      message: err.message || 'Online activation check failed',
+    }
+  }
+})
+ipcMain.handle('license:get-machine-info', async () => {
+  try {
+    return license.getSystemInfo()
+  } catch (err) {
+    console.error('license:get-machine-info error', err)
+    return null
   }
 })
 ipcMain.handle('license:reset', async () => {
@@ -515,7 +537,7 @@ async function startApp() {
 
   try {
     const isDev = !app.isPackaged
-    const activation = isActivated()
+    const activation = await isActivated()
     const dbPath = ensureDatabaseExists()
 
     if (!isDev) {

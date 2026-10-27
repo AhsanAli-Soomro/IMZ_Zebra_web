@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('electronAPI', {
   licenseCheck: () => ipcRenderer.invoke('license:check'),
+  licenseCheckOnline: () => ipcRenderer.invoke('license:check-online'),
+  getMachineInfo: () => ipcRenderer.invoke('license:get-machine-info'),
   licenseActivate: (key) => ipcRenderer.invoke('license:activate', key),
   licenseClear: () => ipcRenderer.invoke('license:clear'),
   resetLicense: () => ipcRenderer.invoke('license:reset'),
