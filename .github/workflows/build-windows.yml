@@ -48,7 +48,7 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Habib-Rice-Corporation-Windows-Setup
+          name: Zebra-IMS-Windows-Setup
           path: |
             dist/*.exe
             dist/*.yml
@@ -67,9 +67,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-windows
-          name: Latest Windows Setup
+          name: Latest Zebra IMS Setup
           body: |
-            Latest Windows installer for Habib Rice Corporation.
+            Latest Windows installer for Zebra IMS by Ahsan Ali Soomro.
 
             This release is automatically generated from the latest main/master build.
           files: |

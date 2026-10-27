@@ -2,8 +2,8 @@ import "./globals.css";
 // import ClientProviders from "./components/client-providers";
 
 export const metadata = {
-  title: "Habib Rice Corporation",
-  description: "Habib Rice Corporation - IMS",
+  title: "Zebra IMS",
+  description: "Zebra IMS - Inventory & Management System",
 };
 
 export default function RootLayout({ children }) {

@@ -64,7 +64,15 @@ export default function ActivatePage() {
     if (res?.ok && (res?.status === 'active' || res?.reason === 'activated')) {
       setStatus('active')
       setMessage('Software activated successfully!')
-      setTimeout(() => {
+      setTimeout(async () => {
+        try {
+          const profileRes = await fetch('/api/company-profile')
+          const profile = await profileRes.json()
+          if (!profile?.company_name || profile.company_name.trim() === '') {
+            router.replace('/setup')
+            return
+          }
+        } catch {}
         router.replace('/login')
       }, 1000)
     } else {
@@ -106,7 +114,15 @@ export default function ActivatePage() {
       if (res?.ok) {
         setMessage('Software activated with Master Key!')
         setStatus('active')
-        setTimeout(() => {
+        setTimeout(async () => {
+          try {
+            const profileRes = await fetch('/api/company-profile')
+            const profile = await profileRes.json()
+            if (!profile?.company_name || profile.company_name.trim() === '') {
+              router.replace('/setup')
+              return
+            }
+          } catch {}
           router.replace('/login')
         }, 1200)
       } else {
@@ -128,7 +144,7 @@ export default function ActivatePage() {
             🛡️
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight">
-            Habib Rice Corporation
+            Zebra IMS
           </h1>
           <p className="text-xs text-emerald-200 mt-1 uppercase tracking-widest font-bold">
             Enterprise IMS • System Activation

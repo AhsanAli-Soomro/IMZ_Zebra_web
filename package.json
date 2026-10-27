@@ -1,8 +1,8 @@
 {
-  "name": "habib-rice-corporation",
+  "name": "zebra-ims",
   "version": "0.1.7",
   "private": true,
-  "description": "Habib Rice Corporation IMS desktop application",
+  "description": "Zebra IMS desktop application",
   "author": "Ahsan Ali Soomro",
   "main": "electron/main.js",
   "scripts": {
@@ -26,9 +26,9 @@
     "migrate": "node scripts/run-migrations.js"
   },
   "build": {
-    "appId": "com.habibrice.corporation",
-    "productName": "Habib Rice Corporation",
-    "artifactName": "Habib-Rice-Corporation-Setup-${version}.${ext}",
+    "appId": "com.ahsansoomro.zebraims",
+    "productName": "Zebra IMS",
+    "artifactName": "Zebra-IMS-Setup-${version}.${ext}",
     "afterPack": "scripts/after-pack.js",
     "directories": {
       "output": "dist"
@@ -93,8 +93,8 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "shortcutName": "Habib Rice Corporation",
-      "uninstallDisplayName": "Habib Rice Corporation",
+      "shortcutName": "Zebra IMS",
+      "uninstallDisplayName": "Zebra IMS",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "deleteAppDataOnUninstall": false,

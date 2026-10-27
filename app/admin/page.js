@@ -103,10 +103,10 @@ export default function AdminPage() {
           </div>
           <div>
             <h2 className="text-base font-extrabold tracking-tight">
-              Habib Rice Corporation
+              Zebra IMS
             </h2>
             <p className="text-[11px] text-emerald-200">
-              Web Admin Portal • ims.com/admin
+              Admin Licensing Portal • ims.com/admin
             </p>
           </div>
         </div>

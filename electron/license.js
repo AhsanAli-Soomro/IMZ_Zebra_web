@@ -151,8 +151,8 @@ function getMachineHash() {
 }
 
 function getActivationKey(machineId, macAddress) {
-  const raw = sha256(`HRC_KEY_${machineId}_${macAddress}_ZEBRA`).toUpperCase()
-  return `HRC-${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`
+  const raw = sha256(`ZBR_KEY_${machineId}_${macAddress}_ZEBRA`).toUpperCase()
+  return `ZBR-${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`
 }
 
 function getSystemInfo() {

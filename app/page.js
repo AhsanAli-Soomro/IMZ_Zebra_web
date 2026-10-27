@@ -15,6 +15,14 @@ export default function HomePage() {
         if (!mounted) return
 
         if (result?.ok) {
+          try {
+            const profileRes = await fetch('/api/company-profile')
+            const profile = await profileRes.json()
+            if (!profile?.company_name || profile.company_name.trim() === '') {
+              router.replace('/setup')
+              return
+            }
+          } catch {}
           router.replace('/login')
         } else {
           router.replace('/activate')

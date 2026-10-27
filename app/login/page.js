@@ -77,12 +77,12 @@ export default function LoginPage() {
       >
         <div className="flex flex-col items-center">
           <img
-            src={loading ? '/loading.gif' : companyData?.logo_url}
-            alt={loading ? 'Loading...' : companyData?.company_name}
-            className='w-24 h-auto mb-2'
+            src={loading ? '/loading.gif' : (companyData?.logo_url || '/default-logo.png')}
+            alt={loading ? 'Loading...' : (companyData?.company_name || 'Zebra IMS')}
+            className='w-24 h-auto mb-2 object-contain max-h-24'
           />
-          <h3 className="text-2xl font-semibold mb-4">
-            {companyData?.company_name || ''}
+          <h3 className="text-2xl font-semibold mb-4 text-center">
+            {companyData?.company_name || 'Zebra IMS'}
           </h3>
         </div>
         <h1 className="text-xl font-semibold mb-6">Login</h1>
