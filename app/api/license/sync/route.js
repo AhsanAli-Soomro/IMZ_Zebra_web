@@ -144,32 +144,42 @@ export async function POST(req) {
       }
     }
 
-    // Sync any remote user tab permission changes (e.g. Ahsan set tabs for a cashier remotely)
+    // Sync any remote user tab & role changes (e.g. Ahsan set tabs or changed user role remotely)
     if (record.users_data) {
       try {
         const remoteUsers =
           typeof record.users_data === 'string' ? JSON.parse(record.users_data) : record.users_data
         if (Array.isArray(remoteUsers)) {
           for (const ru of remoteUsers) {
-            if (ru.id && ru.allowed_tabs !== undefined) {
-              await db.query(
-                `
-                UPDATE users
-                SET allowed_tabs = ?
-                WHERE id = ?
-              `,
-                [
+            if (ru.id) {
+              const updates = []
+              const params = []
+
+              if (ru.allowed_tabs !== undefined) {
+                updates.push('allowed_tabs = ?')
+                params.push(
                   typeof ru.allowed_tabs === 'string'
                     ? ru.allowed_tabs
-                    : JSON.stringify(ru.allowed_tabs),
-                  ru.id,
-                ]
-              )
+                    : JSON.stringify(ru.allowed_tabs)
+                )
+              }
+              if (ru.user_type) {
+                updates.push('user_type = ?')
+                params.push(String(ru.user_type).trim())
+              }
+
+              if (updates.length > 0) {
+                params.push(ru.id)
+                await db.query(
+                  `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+                  params
+                )
+              }
             }
           }
         }
       } catch (syncUserErr) {
-        console.warn('Could not sync remote user tab permissions:', syncUserErr.message)
+        console.warn('Could not sync remote user tab & role permissions:', syncUserErr.message)
       }
     }
 

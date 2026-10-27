@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
+import { ROLE_DEFINITIONS, getRoleMeta } from '@/lib/roles'
 
 export const ALL_SIDEBAR_TABS = [
   { id: 'Dashboard', label: 'Dashboard', icon: '📊', category: 'Core' },
@@ -322,6 +323,49 @@ export default function LicenseManager() {
       alert(err?.response?.data?.error || err.message || 'Failed to save user tab permissions')
     } finally {
       setActionLoading(null)
+    }
+  }
+
+  const handleChangeUserRole = async (user, newRole) => {
+    if (!selectedLicense || !user) return
+    const roleMeta = getRoleMeta(newRole)
+    const newTabs = roleMeta.tabs.includes('ALL') ? 'ALL' : roleMeta.tabs
+
+    const updatedUsers = viewingUsers.map((u) => {
+      if (u.id === user.id) {
+        return {
+          ...u,
+          user_type: newRole,
+          role_assigned_by_admin: true,
+          allowed_tabs: (!u.allowed_tabs || u.allowed_tabs === 'ALL') ? newTabs : u.allowed_tabs,
+        }
+      }
+      return u
+    })
+
+    setViewingUsers(updatedUsers)
+    setActionLoading(selectedLicense.id)
+
+    try {
+      await axios.post('/api/license/admin/update', {
+        id: selectedLicense.id,
+        users_data: updatedUsers,
+      })
+      fetchLicenses()
+    } catch (err) {
+      alert(err?.response?.data?.error || err.message || 'Failed to update user role')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const applyRoleDefaultTabs = () => {
+    if (!editingUserForTabs) return
+    const meta = getRoleMeta(editingUserForTabs.user_type)
+    if (meta.tabs.includes('ALL')) {
+      setUserSpecificTabs(ALL_SIDEBAR_TABS.map((t) => t.id))
+    } else {
+      setUserSpecificTabs(meta.tabs)
     }
   }
 
@@ -743,6 +787,29 @@ export default function LicenseManager() {
                           <span>{item.max_users || 5}</span>
                           <span className="text-[10px] text-indigo-600 font-bold ml-1">View</span>
                         </button>
+                        {parsedUsers.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {Array.from(new Set(parsedUsers.map((u) => u.user_type || 'Employee')))
+                              .slice(0, 3)
+                              .map((roleName, rIdx) => {
+                                const meta = getRoleMeta(roleName)
+                                return (
+                                  <span
+                                    key={rIdx}
+                                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold border ${meta.badge}`}
+                                  >
+                                    <span>{meta.icon}</span>
+                                    <span>{meta.shortLabel}</span>
+                                  </span>
+                                )
+                              })}
+                            {new Set(parsedUsers.map((u) => u.user_type || 'Employee')).size > 3 && (
+                              <span className="text-[9px] text-gray-400 font-bold self-center">
+                                +more
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
 
                       {/* Modules / Tabs */}
@@ -1161,15 +1228,30 @@ export default function LicenseManager() {
                           <td className="py-2 px-3 font-bold text-gray-800">{u.name || '—'}</td>
                           <td className="py-2 px-3 font-mono text-gray-600">{u.email || '—'}</td>
                           <td className="py-2 px-3">
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                u.user_type === 'Admin'
-                                  ? 'bg-purple-100 text-purple-800'
-                                  : 'bg-gray-100 text-gray-700'
-                              }`}
-                            >
-                              {u.user_type || 'User'}
-                            </span>
+                            <div className="relative inline-block">
+                              <select
+                                value={u.user_type || 'Employee'}
+                                onChange={(e) => handleChangeUserRole(u, e.target.value)}
+                                disabled={actionLoading === selectedLicense?.id}
+                                className={`text-[11px] font-bold pl-2.5 pr-6 py-1 rounded-lg border appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition-all ${
+                                  getRoleMeta(u.user_type).badge
+                                }`}
+                                title="Click to change this user's role on the server"
+                              >
+                                {Object.values(ROLE_DEFINITIONS).map((r) => (
+                                  <option
+                                    key={r.key}
+                                    value={r.key}
+                                    className="bg-white text-gray-900 font-semibold py-1"
+                                  >
+                                    {r.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-gray-500 text-[9px]">
+                                ▼
+                              </div>
+                            </div>
                           </td>
                           <td className="py-2 px-3">
                             <button
@@ -1234,8 +1316,12 @@ export default function LicenseManager() {
                 <h3 className="text-lg font-bold text-gray-900">
                   📑 Custom Tabs for: {editingUserForTabs.name || editingUserForTabs.email}
                 </h3>
-                <p className="text-xs text-gray-500">
-                  Role: <span className="font-semibold text-gray-700">{editingUserForTabs.user_type}</span> • Only checked tabs will appear in their sidebar.
+                <p className="text-xs text-gray-500 flex items-center gap-1.5 mt-0.5">
+                  <span>Role:</span>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${getRoleMeta(editingUserForTabs.user_type).badge}`}>
+                    {getRoleMeta(editingUserForTabs.user_type).icon} {getRoleMeta(editingUserForTabs.user_type).label}
+                  </span>
+                  <span>• Only checked tabs will appear in their sidebar.</span>
                 </p>
               </div>
               <button
@@ -1246,11 +1332,20 @@ export default function LicenseManager() {
               </button>
             </div>
 
-            <div className="flex items-center justify-between bg-indigo-50 p-2.5 rounded-xl border border-indigo-200 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-indigo-50 p-2.5 rounded-xl border border-indigo-200 text-xs gap-2">
               <span className="font-semibold text-indigo-900">
                 Enabled for User: <strong className="text-indigo-700">{userSpecificTabs.length} / {ALL_SIDEBAR_TABS.length}</strong>
               </span>
-              <div className="space-x-2">
+              <div className="space-x-2 flex items-center">
+                <button
+                  type="button"
+                  onClick={applyRoleDefaultTabs}
+                  className="px-2.5 py-1 bg-white border border-indigo-200 text-indigo-700 rounded-lg font-bold hover:bg-indigo-100 text-xs shadow-sm flex items-center gap-1"
+                  title={`Apply default tabs for ${getRoleMeta(editingUserForTabs.user_type).shortLabel}`}
+                >
+                  <span>⚡</span>
+                  <span>{getRoleMeta(editingUserForTabs.user_type).shortLabel} Defaults</span>
+                </button>
                 <button
                   type="button"
                   onClick={selectAllUserTabs}
