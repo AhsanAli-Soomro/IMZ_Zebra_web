@@ -483,8 +483,6 @@ async function checkActivationOnline() {
           : 'License has expired.',
       ...sysInfo,
     }
-      ...sysInfo,
-    }
   } catch (err) {
     console.error('Online license check error:', err.message)
 
