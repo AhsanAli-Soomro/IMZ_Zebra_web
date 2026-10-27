@@ -42,7 +42,6 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
     'Expenses',
     'Calculator',
     'Import Export Data',
-    ...(userType === 'Employee' ? [] : ['License Management']),
     // 'Settings',
   ]
 

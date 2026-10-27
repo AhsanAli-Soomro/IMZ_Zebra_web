@@ -32,7 +32,6 @@ import DailyLedger from '../components/DailyLedger'
 import CustomerLedger from '../components/CustomerLedger'
 import SupplierLedger from '../components/SupplierLedger'
 import BulkBalanceEntry from '../components/BulkBalanceEntry'
-import LicenseManager from '../components/LicenseManager'
 
 export default function ZebraDashboardClient() {
   const router = useRouter()
@@ -160,8 +159,6 @@ export default function ZebraDashboardClient() {
         return <ProfitLossCalculator />
       case 'expenses':
         return <ExpensesPage />
-      case 'license management':
-        return <LicenseManager />
       default:
         return <DashboardPage />
     }
