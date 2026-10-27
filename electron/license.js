@@ -344,24 +344,44 @@ async function queryWithRetry(fn, retries = 3) {
   throw lastErr
 }
 
+function getLocalCompanyProfile() {
+  try {
+    const dbPath = process.env.SQLITE_DB_PATH || (app && path.join(app.getPath('userData'), 'ims.sqlite'))
+    if (dbPath && fs.existsSync(dbPath)) {
+      const Database = require('better-sqlite3')
+      const db = new Database(dbPath, { readonly: true })
+      const row = db.prepare('SELECT company_name, contact, city, address FROM company_profile LIMIT 1').get()
+      db.close()
+      return row || {}
+    }
+  } catch (e) {}
+  return {}
+}
+
 /**
  * Online registration and status check against Neon PostgreSQL
  */
 async function checkActivationOnline() {
   const sysInfo = getSystemInfo()
   const isLegacy = isLegacyValidLicense(readLicenseFile())
+  const companyProfile = getLocalCompanyProfile()
 
   try {
     const record = await queryWithRetry(async (sql) => {
       const rows = await sql`
         INSERT INTO system_licenses (
           machine_id, mac_address, hostname, os_info, activation_key, status,
-          customer_name, notes, first_seen_at, activated_at, last_online_at
+          customer_name, company_name, contact, city, address,
+          notes, first_seen_at, activated_at, last_online_at
         )
         VALUES (
           ${sysInfo.machineId}, ${sysInfo.macAddress}, ${sysInfo.hostname}, ${sysInfo.osInfo}, ${sysInfo.activationKey},
           ${isLegacy ? 'active' : 'pending'},
-          ${isLegacy ? 'Existing Customer (Auto-Migrated)' : null},
+          ${isLegacy ? 'Existing Customer (Auto-Migrated)' : (companyProfile.company_name || null)},
+          ${companyProfile.company_name || null},
+          ${companyProfile.contact || null},
+          ${companyProfile.city || null},
+          ${companyProfile.address || null},
           ${isLegacy ? 'Auto-migrated from previous software version' : null},
           NOW(),
           ${isLegacy ? new Date().toISOString() : null},
@@ -371,11 +391,15 @@ async function checkActivationOnline() {
           mac_address = EXCLUDED.mac_address,
           hostname = EXCLUDED.hostname,
           os_info = EXCLUDED.os_info,
+          customer_name = COALESCE(system_licenses.customer_name, EXCLUDED.customer_name),
+          company_name = COALESCE(EXCLUDED.company_name, system_licenses.company_name),
+          contact = COALESCE(EXCLUDED.contact, system_licenses.contact),
+          city = COALESCE(EXCLUDED.city, system_licenses.city),
+          address = COALESCE(EXCLUDED.address, system_licenses.address),
           status = CASE
             WHEN system_licenses.status = 'pending' AND ${isLegacy} THEN 'active'
             ELSE system_licenses.status
           END,
-          customer_name = COALESCE(system_licenses.customer_name, EXCLUDED.customer_name),
           notes = COALESCE(system_licenses.notes, EXCLUDED.notes),
           last_online_at = NOW()
         RETURNING *;

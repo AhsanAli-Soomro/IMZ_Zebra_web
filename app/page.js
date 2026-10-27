@@ -11,18 +11,26 @@ export default function HomePage() {
 
     async function check() {
       try {
+        // 1. Check if Company Profile has been set up first
+        let hasCompany = false
+        try {
+          const profileRes = await fetch('/api/company-profile')
+          const profile = await profileRes.json()
+          if (profile?.company_name && profile.company_name.trim() !== '') {
+            hasCompany = true
+          }
+        } catch {}
+
+        if (!hasCompany) {
+          if (mounted) router.replace('/setup')
+          return
+        }
+
+        // 2. If company profile exists, check License Activation
         const result = await window.electronAPI.licenseCheck()
         if (!mounted) return
 
         if (result?.ok) {
-          try {
-            const profileRes = await fetch('/api/company-profile')
-            const profile = await profileRes.json()
-            if (!profile?.company_name || profile.company_name.trim() === '') {
-              router.replace('/setup')
-              return
-            }
-          } catch {}
           router.replace('/login')
         } else {
           router.replace('/activate')
@@ -39,6 +47,5 @@ export default function HomePage() {
     }
   }, [router])
 
-  // return <div style={{ padding: 24 }}>Loading...</div>
   return null
 }

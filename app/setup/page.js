@@ -97,7 +97,7 @@ export default function SetupPage() {
 
       const result = await res.json()
       if (res.ok && result.success) {
-        setSuccess('Setup completed successfully! Creating desktop shortcut & launching Zebra IMS...')
+        setSuccess('Setup saved! Proceeding to software activation...')
         
         // Auto-create Desktop Shortcut with client company name and logo
         try {
@@ -114,7 +114,7 @@ export default function SetupPage() {
           window.localStorage.setItem('zebra_setup_done', 'true')
         }
         setTimeout(() => {
-          router.replace('/login')
+          router.replace('/activate')
         }, 1200)
       } else {
         setError(result.error || 'Failed to save company profile.')
@@ -320,7 +320,7 @@ export default function SetupPage() {
               disabled={loading}
               className="py-3 px-6 bg-[#07502f] hover:bg-[#0b5d38] text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-950/20 transition-all flex items-center justify-center gap-2 shrink-0"
             >
-              <span>{loading ? 'Saving Setup...' : 'Save & Launch Zebra IMS 🚀'}</span>
+              <span>{loading ? 'Saving Setup...' : 'Save & Proceed to Activation 🛡️'}</span>
             </button>
           </div>
         </form>
