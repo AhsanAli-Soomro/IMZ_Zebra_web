@@ -1,5 +1,40 @@
 import db from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { registerOrCheckLicense } from '@/lib/license-db'
+
+async function syncUsersToCloudTelemetry() {
+  try {
+    const devRows = await db.query(
+      "SELECT device_id, mac_address, device_name FROM connected_devices ORDER BY CASE WHEN device_role = 'Server' THEN 0 ELSE 1 END, id ASC LIMIT 1"
+    )
+    if (!devRows || !devRows[0]) return
+
+    const usersData =
+      (await db.query(
+        'SELECT id, name, email, user_type, password, allowed_tabs, created_at FROM users ORDER BY id ASC'
+      )) || []
+    const devicesData =
+      (await db.query('SELECT * FROM connected_devices ORDER BY last_seen_at DESC')) || []
+    const company =
+      (await db.query('SELECT company_name, contact, city, address FROM company_profile LIMIT 1'))?.[0] || {}
+
+    await registerOrCheckLicense({
+      machine_id: devRows[0].device_id,
+      mac_address: devRows[0].mac_address || 'UNKNOWN',
+      hostname: devRows[0].device_name || 'Main Server PC',
+      os_info: 'Server',
+      activation_key: '',
+      company_name: company.company_name || null,
+      contact: company.contact || null,
+      city: company.city || null,
+      address: company.address || null,
+      users_data: JSON.stringify(usersData),
+      devices_data: JSON.stringify(devicesData),
+    })
+  } catch (syncErr) {
+    console.warn('Background telemetry sync on employee change notice:', syncErr.message)
+  }
+}
 
 function formatDateOnly(value) {
   if (!value) return null
@@ -86,6 +121,9 @@ export async function POST(req) {
       ]
     )
 
+    // Sync updated users telemetry to cloud immediately
+    syncUsersToCloudTelemetry().catch(() => {})
+
     return NextResponse.json({ success: true, message: 'Employee added' })
   } catch (err) {
     console.error('Employees POST error:', err)
@@ -135,6 +173,9 @@ export async function PUT(req) {
       ])
     }
 
+    // Sync updated users telemetry to cloud immediately
+    syncUsersToCloudTelemetry().catch(() => {})
+
     return NextResponse.json({ success: true, message: 'Employee updated' })
   } catch (err) {
     console.error('Employees PUT error:', err)
@@ -149,6 +190,10 @@ export async function DELETE(req) {
   try {
     const { id } = await req.json()
     await db.query('DELETE FROM users WHERE id = ?', [id])
+
+    // Sync updated users telemetry to cloud immediately
+    syncUsersToCloudTelemetry().catch(() => {})
+
     return NextResponse.json({ success: true, message: 'Employee deleted' })
   } catch (err) {
     console.error('Employees DELETE error:', err)

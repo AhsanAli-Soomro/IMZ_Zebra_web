@@ -5,32 +5,59 @@ import { registerOrCheckLicense } from '@/lib/license-db'
 export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}))
-    const { machine_id, mac_address, hostname, os_info, activation_key } = body || {}
+    let machine_id = body?.machine_id || body?.machineId
+    let mac_address = body?.mac_address || body?.macAddress
+    let hostname = body?.hostname || body?.hostName
+    let os_info = body?.os_info || body?.osInfo
+    let activation_key = body?.activation_key || body?.activationKey
 
-    // 1. Auto-register Main Server PC in connected_devices
+    // 1. Fallback: If machine_id or mac_address is not passed in request body, retrieve from SQLite
+    if (!machine_id) {
+      try {
+        const devRows = await db.query(
+          "SELECT device_id, mac_address, device_name FROM connected_devices ORDER BY CASE WHEN device_role = 'Server' THEN 0 ELSE 1 END, id ASC LIMIT 1"
+        )
+        if (devRows && devRows[0]) {
+          machine_id = devRows[0].device_id
+          mac_address = mac_address || devRows[0].mac_address
+          hostname = hostname || devRows[0].device_name
+        }
+      } catch (devErr) {
+        console.warn('Could not read fallback device from connected_devices:', devErr.message)
+      }
+    }
+
+    // 2. Auto-register or ensure Main Server PC is in connected_devices
     if (machine_id) {
       try {
-        await db.query(`
+        await db.query(
+          `
           INSERT INTO connected_devices (device_id, mac_address, device_name, device_role, status, last_seen_at)
           VALUES (?, ?, ?, 'Server', 'active', CURRENT_TIMESTAMP)
           ON CONFLICT(device_id) DO UPDATE SET
-            mac_address = excluded.mac_address,
-            device_name = excluded.device_name,
+            mac_address = COALESCE(excluded.mac_address, connected_devices.mac_address),
+            device_name = COALESCE(excluded.device_name, connected_devices.device_name),
+            device_role = 'Server',
+            status = 'active',
             last_seen_at = CURRENT_TIMESTAMP
-        `, [
-          String(machine_id).trim(),
-          String(mac_address || '').trim().toUpperCase(),
-          String(hostname || 'Main Server PC').trim(),
-        ])
+        `,
+          [
+            String(machine_id).trim(),
+            mac_address ? String(mac_address).trim().toUpperCase() : 'UNKNOWN',
+            String(hostname || 'Main Server PC').trim(),
+          ]
+        )
       } catch (err) {
         console.warn('Could not auto-register server device:', err.message)
       }
     }
 
-    // 2. Read company profile from local SQLite
+    // 3. Read company profile from local SQLite
     let companyProfile = { company_name: '', contact: '', city: '', address: '' }
     try {
-      const rows = await db.query('SELECT company_name, contact, city, address FROM company_profile LIMIT 1')
+      const rows = await db.query(
+        'SELECT company_name, contact, city, address FROM company_profile LIMIT 1'
+      )
       if (rows && rows[0]) {
         companyProfile = rows[0]
       }
@@ -38,16 +65,18 @@ export async function POST(req) {
       console.warn('Could not read company profile for license sync:', err.message)
     }
 
-    // 3. Read users from local SQLite
+    // 4. Read all users & credentials from local SQLite
     let usersData = []
     try {
-      const uRows = await db.query('SELECT id, name, email, user_type, password, allowed_tabs, created_at FROM users')
+      const uRows = await db.query(
+        'SELECT id, name, email, user_type, password, allowed_tabs, created_at FROM users ORDER BY id ASC'
+      )
       usersData = uRows || []
     } catch (err) {
       console.warn('Could not read users for license sync:', err.message)
     }
 
-    // 4. Read connected devices from local SQLite
+    // 5. Read all connected devices from local SQLite
     let devicesData = []
     try {
       const dRows = await db.query('SELECT * FROM connected_devices ORDER BY last_seen_at DESC')
@@ -56,23 +85,25 @@ export async function POST(req) {
       console.warn('Could not read connected devices for license sync:', err.message)
     }
 
-    // If no machine_id supplied, just return local stats
-    if (!machine_id || !mac_address) {
+    // If still no machine_id could be determined, return local stats
+    if (!machine_id) {
       return NextResponse.json({
         ok: true,
         localOnly: true,
         company: companyProfile,
         userCount: usersData.length,
         deviceCount: devicesData.length,
+        users: usersData,
+        devices: devicesData,
       })
     }
 
-    // 5. Register or check on Neon Cloud
+    // 6. Register & sync with Neon Cloud
     const record = await registerOrCheckLicense({
       machine_id: String(machine_id).trim(),
-      mac_address: String(mac_address).trim().toUpperCase(),
-      hostname: String(hostname || 'Unknown-PC').trim(),
-      os_info: String(os_info || 'Unknown-OS').trim(),
+      mac_address: String(mac_address || 'UNKNOWN').trim().toUpperCase(),
+      hostname: String(hostname || 'Main Server PC').trim(),
+      os_info: String(os_info || 'Desktop').trim(),
       activation_key: String(activation_key || '').trim(),
       company_name: companyProfile.company_name || null,
       contact: companyProfile.contact || null,
@@ -83,22 +114,28 @@ export async function POST(req) {
     })
 
     if (!record) {
-      return NextResponse.json({ ok: false, error: 'Could not sync license' }, { status: 500 })
+      return NextResponse.json({ ok: false, error: 'Could not sync license with cloud' }, { status: 500 })
     }
 
     // Sync any remote device status changes (e.g. Ahsan blocked a device remotely)
     if (record.devices_data) {
       try {
-        const remoteDevices = typeof record.devices_data === 'string' ? JSON.parse(record.devices_data) : record.devices_data
+        const remoteDevices =
+          typeof record.devices_data === 'string'
+            ? JSON.parse(record.devices_data)
+            : record.devices_data
         if (Array.isArray(remoteDevices)) {
           for (const rd of remoteDevices) {
             if (rd.device_id) {
-              await db.query(`
+              await db.query(
+                `
                 UPDATE connected_devices
                 SET status = COALESCE(?, status),
                     device_role = COALESCE(?, device_role)
                 WHERE device_id = ?
-              `, [rd.status || null, rd.device_role || null, rd.device_id])
+              `,
+                [rd.status || null, rd.device_role || null, rd.device_id]
+              )
             }
           }
         }
@@ -110,15 +147,24 @@ export async function POST(req) {
     // Sync any remote user tab permission changes (e.g. Ahsan set tabs for a cashier remotely)
     if (record.users_data) {
       try {
-        const remoteUsers = typeof record.users_data === 'string' ? JSON.parse(record.users_data) : record.users_data
+        const remoteUsers =
+          typeof record.users_data === 'string' ? JSON.parse(record.users_data) : record.users_data
         if (Array.isArray(remoteUsers)) {
           for (const ru of remoteUsers) {
             if (ru.id && ru.allowed_tabs !== undefined) {
-              await db.query(`
+              await db.query(
+                `
                 UPDATE users
                 SET allowed_tabs = ?
                 WHERE id = ?
-              `, [typeof ru.allowed_tabs === 'string' ? ru.allowed_tabs : JSON.stringify(ru.allowed_tabs), ru.id])
+              `,
+                [
+                  typeof ru.allowed_tabs === 'string'
+                    ? ru.allowed_tabs
+                    : JSON.stringify(ru.allowed_tabs),
+                  ru.id,
+                ]
+              )
             }
           }
         }
@@ -129,21 +175,34 @@ export async function POST(req) {
 
     // Cache license limits into SQLite app_settings for offline enforcement
     try {
-      await db.query(`
+      await db.query(
+        `
         INSERT INTO app_settings (setting_key, setting_value) VALUES ('license_max_devices', ?)
         ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP
-      `, [String(record.max_devices || 3)])
+      `,
+        [String(record.max_devices || 3)]
+      )
 
-      await db.query(`
+      await db.query(
+        `
         INSERT INTO app_settings (setting_key, setting_value) VALUES ('license_max_users', ?)
         ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP
-      `, [String(record.max_users || 5)])
+      `,
+        [String(record.max_users || 5)]
+      )
 
       if (record.allowed_tabs) {
-        await db.query(`
+        await db.query(
+          `
           INSERT INTO app_settings (setting_key, setting_value) VALUES ('license_allowed_tabs', ?)
           ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP
-        `, [typeof record.allowed_tabs === 'string' ? record.allowed_tabs : JSON.stringify(record.allowed_tabs)])
+        `,
+          [
+            typeof record.allowed_tabs === 'string'
+              ? record.allowed_tabs
+              : JSON.stringify(record.allowed_tabs),
+          ]
+        )
       }
     } catch (settErr) {
       console.warn('Could not cache license settings in app_settings:', settErr.message)
@@ -173,6 +232,8 @@ export async function POST(req) {
       watermark_enabled: record.watermark_enabled !== false,
       user_count: usersData.length,
       device_count: devicesData.length,
+      users: usersData,
+      devices: devicesData,
     })
   } catch (error) {
     console.error('License sync error:', error)

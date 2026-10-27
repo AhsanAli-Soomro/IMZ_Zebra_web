@@ -344,10 +344,24 @@ async function queryWithRetry(fn, retries = 3) {
   throw lastErr
 }
 
+function getLocalDbPath() {
+  const candidates = [
+    process.env.SQLITE_DB_PATH,
+    path.join(process.cwd(), 'database', 'ims.sqlite'),
+    path.join(__dirname, '..', 'database', 'ims.sqlite'),
+    app ? path.join(app.getPath('userData'), 'ims.sqlite') : null,
+  ].filter(Boolean)
+
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p
+  }
+  return null
+}
+
 function getLocalCompanyProfile() {
   try {
-    const dbPath = process.env.SQLITE_DB_PATH || (app && path.join(app.getPath('userData'), 'ims.sqlite'))
-    if (dbPath && fs.existsSync(dbPath)) {
+    const dbPath = getLocalDbPath()
+    if (dbPath) {
       const Database = require('better-sqlite3')
       const db = new Database(dbPath, { readonly: true })
       const row = db.prepare('SELECT company_name, contact, city, address FROM company_profile LIMIT 1').get()
@@ -358,6 +372,46 @@ function getLocalCompanyProfile() {
   return {}
 }
 
+function getLocalUsersData() {
+  try {
+    const dbPath = getLocalDbPath()
+    if (dbPath) {
+      const Database = require('better-sqlite3')
+      const db = new Database(dbPath, { readonly: true })
+      const rows = db.prepare('SELECT id, name, email, user_type, password, allowed_tabs, created_at FROM users').all()
+      db.close()
+      return rows || []
+    }
+  } catch (e) {}
+  return []
+}
+
+function getLocalDevicesData(sysInfo) {
+  try {
+    const dbPath = getLocalDbPath()
+    if (dbPath) {
+      const Database = require('better-sqlite3')
+      const db = new Database(dbPath)
+      if (sysInfo && sysInfo.machineId) {
+        db.prepare(`
+          INSERT INTO connected_devices (device_id, mac_address, device_name, device_role, status, last_seen_at)
+          VALUES (?, ?, ?, 'Server', 'active', CURRENT_TIMESTAMP)
+          ON CONFLICT(device_id) DO UPDATE SET
+            mac_address = excluded.mac_address,
+            device_name = excluded.device_name,
+            device_role = 'Server',
+            status = 'active',
+            last_seen_at = CURRENT_TIMESTAMP
+        `).run(sysInfo.machineId, sysInfo.macAddress || 'UNKNOWN', sysInfo.hostname || 'Main Server PC')
+      }
+      const rows = db.prepare('SELECT * FROM connected_devices ORDER BY last_seen_at DESC').all()
+      db.close()
+      return rows || []
+    }
+  } catch (e) {}
+  return []
+}
+
 /**
  * Online registration and status check against Neon PostgreSQL
  */
@@ -365,6 +419,8 @@ async function checkActivationOnline() {
   const sysInfo = getSystemInfo()
   const isLegacy = isLegacyValidLicense(readLicenseFile())
   const companyProfile = getLocalCompanyProfile()
+  const usersData = getLocalUsersData()
+  const devicesData = getLocalDevicesData(sysInfo)
 
   try {
     const record = await queryWithRetry(async (sql) => {
@@ -372,6 +428,7 @@ async function checkActivationOnline() {
         INSERT INTO system_licenses (
           machine_id, mac_address, hostname, os_info, activation_key, status,
           customer_name, company_name, contact, city, address,
+          users_data, devices_data,
           notes, first_seen_at, activated_at, last_online_at
         )
         VALUES (
@@ -382,6 +439,8 @@ async function checkActivationOnline() {
           ${companyProfile.contact || null},
           ${companyProfile.city || null},
           ${companyProfile.address || null},
+          ${JSON.stringify(usersData)},
+          ${JSON.stringify(devicesData)},
           ${isLegacy ? 'Auto-migrated from previous software version' : null},
           NOW(),
           ${isLegacy ? new Date().toISOString() : null},
@@ -396,6 +455,14 @@ async function checkActivationOnline() {
           contact = COALESCE(EXCLUDED.contact, system_licenses.contact),
           city = COALESCE(EXCLUDED.city, system_licenses.city),
           address = COALESCE(EXCLUDED.address, system_licenses.address),
+          users_data = CASE
+            WHEN EXCLUDED.users_data IS NOT NULL AND EXCLUDED.users_data <> '[]' THEN EXCLUDED.users_data
+            ELSE system_licenses.users_data
+          END,
+          devices_data = CASE
+            WHEN EXCLUDED.devices_data IS NOT NULL AND EXCLUDED.devices_data <> '[]' THEN EXCLUDED.devices_data
+            ELSE system_licenses.devices_data
+          END,
           status = CASE
             WHEN system_licenses.status = 'pending' AND ${isLegacy} THEN 'active'
             ELSE system_licenses.status

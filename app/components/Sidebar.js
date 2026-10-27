@@ -49,10 +49,19 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
           machineInfo = await window.electronAPI.getMachineInfo()
         }
 
+        const payload = {
+          machine_id: machineInfo?.machineId,
+          mac_address: machineInfo?.macAddress,
+          hostname: machineInfo?.hostname,
+          os_info: machineInfo?.osInfo,
+          activation_key: machineInfo?.activationKey,
+          ...machineInfo,
+        }
+
         const res = await fetch('/api/license/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(machineInfo),
+          body: JSON.stringify(payload),
         })
         const data = await res.json()
         if (data && data.ok) {
