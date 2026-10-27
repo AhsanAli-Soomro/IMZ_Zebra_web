@@ -67,6 +67,15 @@ export default function CompanyProfilePage() {
     const data = await res.json()
 
     if (res.ok) {
+      try {
+        if (typeof window !== 'undefined' && window?.electronAPI?.createClientShortcut) {
+          await window.electronAPI.createClientShortcut({
+            companyName: form.company_name?.trim() || 'Zebra IMS',
+          })
+        }
+      } catch (scErr) {
+        console.warn('Shortcut sync notice:', scErr)
+      }
       alert('Profile updated!')
       window.location.reload()
     } else {

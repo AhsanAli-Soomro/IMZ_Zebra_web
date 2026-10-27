@@ -33,7 +33,7 @@ function getLicensePath() {
   if (app && typeof app.getPath === 'function') {
     return path.join(app.getPath('userData'), 'license.json')
   }
-  const baseDir = process.env.APP_USER_DATA_PATH || path.join(os.homedir(), '.habib-rice-ims')
+  const baseDir = process.env.APP_USER_DATA_PATH || path.join(os.homedir(), '.zebra-ims')
   return path.join(baseDir, 'license.json')
 }
 

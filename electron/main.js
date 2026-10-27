@@ -1,4 +1,4 @@
-const { app, BrowserWindow, utilityProcess, dialog, ipcMain } = require('electron')
+const { app, BrowserWindow, utilityProcess, dialog, ipcMain, shell, nativeImage } = require('electron')
 const { isActivated, activateWithKey, clearActivation } = require('./license')
 const path = require('path')
 const http = require('http')
@@ -190,6 +190,15 @@ function waitForServer(url, timeout = 30000) {
   })
 }
 function getIconPath() {
+  try {
+    if (app && typeof app.getPath === 'function') {
+      const customIcon = path.join(app.getPath('userData'), 'images', 'logo', 'client-icon.ico')
+      if (fs.existsSync(customIcon)) {
+        return customIcon
+      }
+    }
+  } catch {}
+
   const iconPath = getBundledPath('build', 'icon.ico')
 
   if (iconPath) {
@@ -495,6 +504,140 @@ ipcMain.handle('download-invoice-pdf', async (event, payload) => {
       code: 'PDF_ERROR',
       message: err.message || 'PDF save failed',
     }
+  }
+})
+
+function convertPngToIco(pngBuffer) {
+  const header = Buffer.alloc(6)
+  header.writeUInt16LE(0, 0)
+  header.writeUInt16LE(1, 2)
+  header.writeUInt16LE(1, 4)
+
+  const entry = Buffer.alloc(16)
+  entry.writeUInt8(0, 0) // 256px
+  entry.writeUInt8(0, 1) // 256px
+  entry.writeUInt8(0, 2)
+  entry.writeUInt8(0, 3)
+  entry.writeUInt16LE(1, 4)
+  entry.writeUInt16LE(32, 6)
+  entry.writeUInt32LE(pngBuffer.length, 8)
+  entry.writeUInt32LE(22, 12)
+
+  return Buffer.concat([header, entry, pngBuffer])
+}
+
+function ensureClientIcon() {
+  try {
+    const userData = app.getPath('userData')
+    const logoDir = path.join(userData, 'images', 'logo')
+    const icoPath = path.join(logoDir, 'client-icon.ico')
+
+    const searchDirs = [
+      logoDir,
+      path.join(__dirname, '..', 'public', 'logo'),
+    ]
+
+    for (const dir of searchDirs) {
+      if (fs.existsSync(dir)) {
+        const files = fs.readdirSync(dir)
+        const logoFile = files.find((f) => /^company-logo\.(png|jpe?g|webp)$/i.test(f))
+        if (logoFile) {
+          const srcPath = path.join(dir, logoFile)
+          if (typeof nativeImage !== 'undefined') {
+            const img = nativeImage.createFromPath(srcPath)
+            if (!img.isEmpty()) {
+              const resized = img.resize({ width: 256, height: 256 })
+              const pngBuf = resized.toPNG()
+              const icoBuf = convertPngToIco(pngBuf)
+              if (!fs.existsSync(logoDir)) {
+                fs.mkdirSync(logoDir, { recursive: true })
+              }
+              fs.writeFileSync(icoPath, icoBuf)
+              return icoPath
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error generating client-icon.ico:', err)
+  }
+
+  return getIconPath()
+}
+
+ipcMain.handle('shortcut:create-client', async (_event, payload) => {
+  try {
+    const companyName = payload?.companyName?.trim() || 'Zebra IMS'
+    const safeName = companyName.replace(/[\\/:*?"<>|]/g, '').trim() || 'Zebra IMS'
+
+    const iconPath = ensureClientIcon()
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setTitle(`${safeName} - Zebra IMS`)
+      if (iconPath && fs.existsSync(iconPath)) {
+        try {
+          mainWindow.setIcon(iconPath)
+        } catch (e) {}
+      }
+    }
+
+    if (process.platform === 'win32') {
+      const desktopDir = app.getPath('desktop')
+      const exePath = process.execPath
+      const targetDir = path.dirname(exePath)
+      const newShortcutPath = path.join(desktopDir, `${safeName}.lnk`)
+
+      let written = false
+      if (typeof shell.writeShortcutLink === 'function') {
+        try {
+          written = shell.writeShortcutLink(newShortcutPath, 'create', {
+            target: exePath,
+            cwd: targetDir,
+            description: safeName,
+            icon: iconPath,
+            iconIndex: 0,
+          })
+        } catch (err) {
+          console.warn('shell.writeShortcutLink error, trying PowerShell fallback:', err)
+        }
+      }
+
+      if (!written) {
+        const { exec } = require('child_process')
+        const escapedShortcut = newShortcutPath.replace(/'/g, "''")
+        const escapedExe = exePath.replace(/'/g, "''")
+        const escapedDir = targetDir.replace(/'/g, "''")
+        const escapedDesc = safeName.replace(/'/g, "''")
+        const escapedIcon = iconPath.replace(/'/g, "''")
+
+        const psCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "$WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('${escapedShortcut}'); $Shortcut.TargetPath = '${escapedExe}'; $Shortcut.WorkingDirectory = '${escapedDir}'; $Shortcut.Description = '${escapedDesc}'; $Shortcut.IconLocation = '${escapedIcon}'; $Shortcut.Save()"`
+
+        await new Promise((resolve) => {
+          exec(psCommand, (err) => {
+            if (err) console.error('PowerShell shortcut error:', err)
+            resolve()
+          })
+        })
+      }
+
+      // Remove default generic shortcut if different name
+      if (safeName.toLowerCase() !== 'zebra ims') {
+        const defaultShortcutPath = path.join(desktopDir, 'Zebra IMS.lnk')
+        if (fs.existsSync(defaultShortcutPath)) {
+          try {
+            fs.unlinkSync(defaultShortcutPath)
+          } catch (e) {}
+        }
+      }
+
+      return { success: true, shortcutPath: newShortcutPath, iconPath }
+    }
+
+    return { success: true, platform: process.platform }
+  } catch (err) {
+    console.error('shortcut:create-client error:', err)
+    return { success: false, error: err.message }
   }
 })
 

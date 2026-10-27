@@ -97,7 +97,19 @@ export default function SetupPage() {
 
       const result = await res.json()
       if (res.ok && result.success) {
-        setSuccess('Setup completed successfully! Launching Zebra IMS...')
+        setSuccess('Setup completed successfully! Creating desktop shortcut & launching Zebra IMS...')
+        
+        // Auto-create Desktop Shortcut with client company name and logo
+        try {
+          if (typeof window !== 'undefined' && window?.electronAPI?.createClientShortcut) {
+            await window.electronAPI.createClientShortcut({
+              companyName: form.company_name.trim(),
+            })
+          }
+        } catch (scErr) {
+          console.warn('Shortcut creation notice:', scErr)
+        }
+
         if (typeof window !== 'undefined') {
           window.localStorage.setItem('zebra_setup_done', 'true')
         }

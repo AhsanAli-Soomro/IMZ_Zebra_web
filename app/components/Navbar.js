@@ -18,6 +18,9 @@ export default function Navbar() {
     const data = await res.json()
     setCompanyName(data.company_name || '')
     setCompanyLogo(data.logo_url || null)
+    if (typeof document !== 'undefined' && data.company_name) {
+      document.title = `${data.company_name} - Zebra IMS`
+    }
   }
   useEffect(() => {
     const storedUser = getStoredUser()
