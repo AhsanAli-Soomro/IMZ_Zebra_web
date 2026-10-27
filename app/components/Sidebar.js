@@ -8,10 +8,25 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
   const router = useRouter()
   const [userType, setUserType] = useState(null)
   const [allowedTabs, setAllowedTabs] = useState(['ALL'])
+  const [userAllowedTabs, setUserAllowedTabs] = useState(['ALL'])
 
   useEffect(() => {
     const user = getStoredUser()
     setUserType(user?.user_type || null)
+
+    if (user?.allowed_tabs) {
+      try {
+        if (user.allowed_tabs === 'ALL') {
+          setUserAllowedTabs(['ALL'])
+        } else if (Array.isArray(user.allowed_tabs)) {
+          setUserAllowedTabs(user.allowed_tabs)
+        } else {
+          setUserAllowedTabs(JSON.parse(user.allowed_tabs))
+        }
+      } catch {
+        setUserAllowedTabs(['ALL'])
+      }
+    }
 
     // Load cached tabs
     if (typeof window !== 'undefined') {
@@ -105,8 +120,15 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
   ]
 
   const isTabAllowed = (name) => {
-    if (!allowedTabs || allowedTabs.length === 0 || allowedTabs.includes('ALL')) return true
-    return allowedTabs.includes(name)
+    // 1. Check global license module permissions
+    if (allowedTabs && allowedTabs.length > 0 && !allowedTabs.includes('ALL')) {
+      if (!allowedTabs.includes(name)) return false
+    }
+    // 2. Check per-user account permissions
+    if (userAllowedTabs && userAllowedTabs.length > 0 && !userAllowedTabs.includes('ALL')) {
+      if (!userAllowedTabs.includes(name)) return false
+    }
+    return true
   }
 
   const menuItems = baseMenuItems.filter((item) => {

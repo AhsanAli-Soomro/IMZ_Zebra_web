@@ -50,9 +50,11 @@ export async function POST(req) {
 
     let maxUsers = 5
     try {
-      const settRows = await db.query("SELECT value FROM app_settings WHERE key = 'license_max_users' LIMIT 1")
-      if (settRows && settRows[0]?.value) {
-        maxUsers = Number(settRows[0].value) || 5
+      const settRows = await db.query(
+        "SELECT setting_value FROM app_settings WHERE setting_key = 'license_max_users' LIMIT 1"
+      )
+      if (settRows && settRows[0]?.setting_value) {
+        maxUsers = Number(settRows[0].setting_value) || 5
       }
     } catch {}
 
@@ -122,6 +124,13 @@ export async function PUT(req) {
         id
       ]
     )
+
+    if (body.allowed_tabs !== undefined) {
+      await db.query('UPDATE users SET allowed_tabs = ? WHERE id = ?', [
+        typeof body.allowed_tabs === 'string' ? body.allowed_tabs : JSON.stringify(body.allowed_tabs),
+        id,
+      ])
+    }
 
     return NextResponse.json({ success: true, message: 'Employee updated' })
   } catch (err) {

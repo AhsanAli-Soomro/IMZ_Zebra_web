@@ -18,3 +18,4 @@ export async function GET() {
     timestamp: Date.now(),
   })
 }
+

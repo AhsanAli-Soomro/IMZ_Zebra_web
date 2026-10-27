@@ -8,6 +8,7 @@ export default function LoginPage() {
   const router = useRouter()
   const [formData, setFormData] = useState({ email: '', password: '' })
   const [errorMessage, setErrorMessage] = useState('')
+  const [deviceError, setDeviceError] = useState('')
   const [loading, setLoading] = useState(false)
   const [companyData, setCompanyData] = useState(null)
   const handleChange = (e) => {
@@ -30,6 +31,34 @@ export default function LoginPage() {
 
   useEffect(() => {
     getCompanyData()
+
+    async function checkDeviceStatus() {
+      try {
+        let machineInfo = {}
+        if (typeof window !== 'undefined' && window.electronAPI?.getMachineInfo) {
+          machineInfo = await window.electronAPI.getMachineInfo()
+        }
+        if (machineInfo?.machineId) {
+          const res = await fetch('/api/devices/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              device_id: machineInfo.machineId,
+              mac_address: machineInfo.macAddress,
+              device_name: machineInfo.hostname,
+              device_role: 'Counter',
+            }),
+          })
+          const data = await res.json()
+          if (!res.ok || !data.ok) {
+            setDeviceError(data.message || 'This computer is not authorized to access Zebra IMS.')
+          }
+        }
+      } catch (err) {
+        console.warn('Device status check notice:', err)
+      }
+    }
+    checkDeviceStatus()
   }, [])
 
   const handleSubmit = async (e) => {
@@ -87,6 +116,12 @@ export default function LoginPage() {
         </div>
         <h1 className="text-xl font-semibold mb-6">Login</h1>
 
+        {deviceError && (
+          <div className="bg-red-50 border border-red-300 text-red-800 text-xs p-3 rounded-lg mb-4 font-semibold leading-relaxed">
+            🚫 {deviceError}
+          </div>
+        )}
+
         {errorMessage && (
           <p className="text-red-500 mb-4">{errorMessage}</p>
         )}
@@ -113,10 +148,10 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          disabled={loading}
-          className="bg-blue-600 text-white w-full py-2 rounded hover:bg-blue-700"
+          disabled={loading || Boolean(deviceError)}
+          className="bg-blue-600 text-white w-full py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? 'Logging in...' : 'Login'}
+          {loading ? 'Logging in...' : deviceError ? 'Device Not Authorized' : 'Login'}
         </button>
 
         <div className="mt-4 text-center border-t pt-3">

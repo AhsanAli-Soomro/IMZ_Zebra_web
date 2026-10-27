@@ -41,6 +41,7 @@ export default function LicenseManager() {
   const [customDate, setCustomDate] = useState('')
   const [customerName, setCustomerName] = useState('')
   const [maxUsers, setMaxUsers] = useState(5)
+  const [maxDevices, setMaxDevices] = useState(3)
   const [statusMessage, setStatusMessage] = useState('')
   const [broadcastMessage, setBroadcastMessage] = useState('')
   const [notes, setNotes] = useState('')
@@ -53,6 +54,16 @@ export default function LicenseManager() {
   // 3. Client Users & Credentials Modal state
   const [isUsersModalOpen, setIsUsersModalOpen] = useState(false)
   const [viewingUsers, setViewingUsers] = useState([])
+
+  // 4. Per-User Tab Permissions Modal state
+  const [isUserTabsModalOpen, setIsUserTabsModalOpen] = useState(false)
+  const [editingUserForTabs, setEditingUserForTabs] = useState(null)
+  const [userSpecificTabs, setUserSpecificTabs] = useState([])
+
+  // 5. Client Connected Devices Modal state
+  const [isDevicesModalOpen, setIsDevicesModalOpen] = useState(false)
+  const [viewingDevices, setViewingDevices] = useState([])
+  const [deviceLimitInput, setDeviceLimitInput] = useState(3)
 
   const [copiedKey, setCopiedKey] = useState('')
 
@@ -123,6 +134,7 @@ export default function LicenseManager() {
     setModalStatus(license.status === 'pending' ? 'active' : license.status)
     setCustomerName(license.customer_name || license.company_name || '')
     setMaxUsers(license.max_users !== undefined && license.max_users !== null ? license.max_users : 5)
+    setMaxDevices(license.max_devices !== undefined && license.max_devices !== null ? license.max_devices : 3)
     setStatusMessage(license.status_message || '')
     setBroadcastMessage(license.broadcast_message || '')
     setNotes(license.notes || '')
@@ -168,6 +180,7 @@ export default function LicenseManager() {
         expires_at: expiresAt,
         customer_name: customerName.trim(),
         max_users: Number(maxUsers),
+        max_devices: Number(maxDevices),
         status_message: statusMessage.trim(),
         broadcast_message: broadcastMessage.trim(),
         notes: notes.trim(),
@@ -181,7 +194,7 @@ export default function LicenseManager() {
     }
   }
 
-  // --- Handlers: Tabs Permissions Modal ---
+  // --- Handlers: Modules & Tabs Permissions Modal ---
   const openTabsModal = (license) => {
     setSelectedLicense(license)
     let tabs = []
@@ -212,15 +225,16 @@ export default function LicenseManager() {
   }
 
   const clearAllTabs = () => {
-    setSelectedTabs(['Dashboard'])
+    setSelectedTabs([])
   }
 
   const handleSaveTabs = async () => {
     if (!selectedLicense) return
     setActionLoading(selectedLicense.id)
+
     try {
-      const isAll = selectedTabs.length === ALL_SIDEBAR_TABS.length
-      const payloadTabs = isAll ? 'ALL' : JSON.stringify(selectedTabs)
+      const payloadTabs =
+        selectedTabs.length === ALL_SIDEBAR_TABS.length ? 'ALL' : selectedTabs
 
       await axios.post('/api/license/admin/update', {
         id: selectedLicense.id,
@@ -248,6 +262,161 @@ export default function LicenseManager() {
     }
     setViewingUsers(Array.isArray(users) ? users : [])
     setIsUsersModalOpen(true)
+  }
+
+  // --- Handlers: Per-User Tab Permissions Modal ---
+  const openUserTabsModal = (user) => {
+    setEditingUserForTabs(user)
+    let tabs = []
+    try {
+      if (user.allowed_tabs === 'ALL' || !user.allowed_tabs) {
+        tabs = ALL_SIDEBAR_TABS.map((t) => t.id)
+      } else if (typeof user.allowed_tabs === 'string') {
+        const parsed = JSON.parse(user.allowed_tabs)
+        tabs = Array.isArray(parsed) ? parsed : ALL_SIDEBAR_TABS.map((t) => t.id)
+      } else if (Array.isArray(user.allowed_tabs)) {
+        tabs = user.allowed_tabs
+      }
+    } catch {
+      tabs = ALL_SIDEBAR_TABS.map((t) => t.id)
+    }
+    setUserSpecificTabs(tabs)
+    setIsUserTabsModalOpen(true)
+  }
+
+  const toggleUserTab = (tabId) => {
+    setUserSpecificTabs((prev) =>
+      prev.includes(tabId) ? prev.filter((id) => id !== tabId) : [...prev, tabId]
+    )
+  }
+
+  const selectAllUserTabs = () => {
+    setUserSpecificTabs(ALL_SIDEBAR_TABS.map((t) => t.id))
+  }
+
+  const clearAllUserTabs = () => {
+    setUserSpecificTabs([])
+  }
+
+  const handleSaveUserTabs = async () => {
+    if (!selectedLicense || !editingUserForTabs) return
+    setActionLoading(selectedLicense.id)
+
+    const updatedTabVal =
+      userSpecificTabs.length === ALL_SIDEBAR_TABS.length ? 'ALL' : userSpecificTabs
+
+    const updatedUsers = viewingUsers.map((u) =>
+      u.id === editingUserForTabs.id ? { ...u, allowed_tabs: updatedTabVal } : u
+    )
+    setViewingUsers(updatedUsers)
+
+    try {
+      await axios.post('/api/license/admin/update', {
+        id: selectedLicense.id,
+        users_data: updatedUsers,
+      })
+      setIsUserTabsModalOpen(false)
+      fetchLicenses()
+      alert(`Tab permissions updated for ${editingUserForTabs.name || editingUserForTabs.email}!`)
+    } catch (err) {
+      alert(err?.response?.data?.error || err.message || 'Failed to save user tab permissions')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // --- Handlers: Connected Devices & Counter PCs Modal ---
+  const openDevicesModal = (license) => {
+    setSelectedLicense(license)
+    let devs = []
+    try {
+      if (license.devices_data) {
+        devs = typeof license.devices_data === 'string' ? JSON.parse(license.devices_data) : license.devices_data
+      }
+    } catch {
+      devs = []
+    }
+    setViewingDevices(Array.isArray(devs) ? devs : [])
+    setDeviceLimitInput(license.max_devices || 3)
+    setIsDevicesModalOpen(true)
+  }
+
+  const handleSaveDeviceLimit = async () => {
+    if (!selectedLicense) return
+    setActionLoading(selectedLicense.id)
+    try {
+      await axios.post('/api/license/admin/update', {
+        id: selectedLicense.id,
+        max_devices: Number(deviceLimitInput),
+      })
+      selectedLicense.max_devices = Number(deviceLimitInput)
+      fetchLicenses()
+      alert('Device limit updated successfully!')
+    } catch (err) {
+      alert(err?.response?.data?.error || err.message || 'Failed to update device limit')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleToggleDeviceStatus = async (dev) => {
+    if (!selectedLicense) return
+    const nextStatus = dev.status === 'blocked' ? 'active' : 'blocked'
+    const updatedDevs = viewingDevices.map((d) =>
+      d.device_id === dev.device_id ? { ...d, status: nextStatus } : d
+    )
+    setViewingDevices(updatedDevs)
+    setActionLoading(selectedLicense.id)
+    try {
+      await axios.post('/api/license/admin/update', {
+        id: selectedLicense.id,
+        devices_data: updatedDevs,
+      })
+      fetchLicenses()
+    } catch (err) {
+      alert(err?.response?.data?.error || err.message || 'Failed to update device status')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleChangeDeviceRole = async (dev, newRole) => {
+    if (!selectedLicense) return
+    const updatedDevs = viewingDevices.map((d) =>
+      d.device_id === dev.device_id ? { ...d, device_role: newRole } : d
+    )
+    setViewingDevices(updatedDevs)
+    setActionLoading(selectedLicense.id)
+    try {
+      await axios.post('/api/license/admin/update', {
+        id: selectedLicense.id,
+        devices_data: updatedDevs,
+      })
+      fetchLicenses()
+    } catch (err) {
+      alert(err?.response?.data?.error || err.message || 'Failed to change role')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleDeleteDevice = async (dev) => {
+    if (!selectedLicense) return
+    if (!confirm(`Disconnect and remove computer "${dev.device_name || dev.device_id}"? This will free up 1 device slot.`)) return
+    const updatedDevs = viewingDevices.filter((d) => d.device_id !== dev.device_id)
+    setViewingDevices(updatedDevs)
+    setActionLoading(selectedLicense.id)
+    try {
+      await axios.post('/api/license/admin/update', {
+        id: selectedLicense.id,
+        devices_data: updatedDevs,
+      })
+      fetchLicenses()
+    } catch (err) {
+      alert(err?.response?.data?.error || err.message || 'Failed to remove device')
+    } finally {
+      setActionLoading(null)
+    }
   }
 
   // --- Handlers: Quick Suspend Toggle ---
@@ -308,130 +477,79 @@ export default function LicenseManager() {
         day: 'numeric',
       })
     } catch {
-      return dateStr
+      return 'Lifetime'
     }
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full max-w-7xl mx-auto">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
+    <div className="space-y-6">
+      {/* Top Banner / Header */}
+      <div className="bg-gradient-to-r from-[#07502f] to-[#04331e] rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
-              🔐 Zebra IMS • Admin Licensing Center
-            </h1>
-            <span className="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-0.5 rounded-full font-bold">
-              Neon Cloud
-            </span>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-2xl">🦓</span>
+            <h2 className="text-xl font-black tracking-tight">
+              Zebra IMS • Client Licenses & Multi-PC Nodes
+            </h2>
           </div>
-          <p className="text-sm text-gray-500 mt-1">
-            Manage client activations, user limits, credentials, remote tab permissions, and billing locks.
+          <p className="text-xs text-emerald-200/90 font-medium">
+            Control activation approvals, device & counter PC limits, credentials, and per-user module tabs.
           </p>
         </div>
 
-        <button
-          onClick={fetchLicenses}
-          disabled={loading}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold shadow-sm transition-all"
-        >
-          <span className={loading ? 'animate-spin' : ''}>🔄</span>
-          <span>Refresh Data</span>
-        </button>
-      </div>
-
-      {/* Error alert if any */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm flex items-center justify-between">
-          <span>⚠️ {error}</span>
-          <button onClick={fetchLicenses} className="underline font-bold text-xs">
-            Retry
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={fetchLicenses}
+            disabled={loading}
+            className="px-4 py-2 bg-emerald-600/80 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs backdrop-blur-sm transition-all flex items-center gap-1.5 shadow"
+          >
+            <span>{loading ? 'Refreshing...' : '🔄 Refresh Data'}</span>
           </button>
         </div>
-      )}
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-          <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
-            Total Devices
-          </span>
-          <strong className="text-2xl font-black text-gray-900 mt-1 block">
-            {stats.total}
-          </strong>
-          <span className="text-[11px] text-gray-500 mt-0.5 block">Installed Systems</span>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-amber-200 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">
-              Pending
-            </span>
-            {stats.pending > 0 && (
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
-            )}
-          </div>
-          <strong className="text-2xl font-black text-amber-600 mt-1 block">
-            {stats.pending}
-          </strong>
-          <span className="text-[11px] text-amber-700 font-medium mt-0.5 block">
-            Needs activation
-          </span>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-emerald-200 shadow-sm">
-          <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider block">
-            Active
-          </span>
-          <strong className="text-2xl font-black text-emerald-700 mt-1 block">
-            {stats.active}
-          </strong>
-          <span className="text-[11px] text-emerald-600 font-medium mt-0.5 block">
-            Licensed & Running
-          </span>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-rose-200 shadow-sm">
-          <span className="text-[11px] font-bold text-rose-600 uppercase tracking-wider block">
-            Suspended
-          </span>
-          <strong className="text-2xl font-black text-rose-700 mt-1 block">
-            {stats.suspended}
-          </strong>
-          <span className="text-[11px] text-rose-600 font-medium mt-0.5 block">
-            Locked / Payment Due
-          </span>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-          <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
-            Expired / Rejected
-          </span>
-          <strong className="text-2xl font-black text-gray-700 mt-1 block">
-            {stats.expired + stats.rejected}
-          </strong>
-          <span className="text-[11px] text-gray-500 mt-0.5 block">
-            {stats.expired} expired, {stats.rejected} rejected
-          </span>
-        </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm">
-        <div className="flex items-center gap-1.5 overflow-x-auto">
+      {/* Metric Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {[
+          { label: 'Total Clients', count: stats.total, color: 'border-gray-200 text-gray-800' },
+          { label: 'Pending Approvals', count: stats.pending, color: 'border-amber-300 bg-amber-50/50 text-amber-900', badge: stats.pending > 0 },
+          { label: 'Active Licenses', count: stats.active, color: 'border-emerald-300 bg-emerald-50/50 text-emerald-900' },
+          { label: 'Suspended (Locked)', count: stats.suspended, color: 'border-rose-300 bg-rose-50/50 text-rose-900' },
+          { label: 'Expired', count: stats.expired, color: 'border-gray-300 bg-gray-50 text-gray-600' },
+          { label: 'Rejected', count: stats.rejected, color: 'border-red-300 bg-red-50 text-red-700' },
+        ].map((item, idx) => (
+          <div
+            key={idx}
+            className={`p-3.5 rounded-2xl border bg-white shadow-sm flex flex-col justify-between ${item.color}`}
+          >
+            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center justify-between">
+              {item.label}
+              {item.badge && (
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+              )}
+            </span>
+            <span className="text-2xl font-black mt-2">{item.count}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter / Search Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm text-xs">
+        <div className="flex items-center gap-1 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
           {[
-            { id: 'all', label: `All (${stats.total})` },
-            { id: 'pending', label: `Pending (${stats.pending})`, color: 'amber' },
-            { id: 'active', label: `Active (${stats.active})`, color: 'emerald' },
-            { id: 'suspended', label: `Suspended (${stats.suspended})`, color: 'rose' },
-            { id: 'other', label: `Expired / Rejected (${stats.expired + stats.rejected})`, color: 'gray' },
+            { id: 'all', label: 'All Clients' },
+            { id: 'pending', label: `Pending (${stats.pending})` },
+            { id: 'active', label: `Active (${stats.active})` },
+            { id: 'suspended', label: `Suspended (${stats.suspended})` },
+            { id: 'other', label: 'Expired / Other' },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
                 filter === tab.id
-                  ? 'bg-gray-900 text-white'
+                  ? 'bg-emerald-800 text-white shadow-sm'
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
@@ -445,8 +563,8 @@ export default function LicenseManager() {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search Company, City, MAC, Key..."
-            className="w-full px-3 py-1.5 text-xs rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            placeholder="Search company, MAC, key, city..."
+            className="w-full px-3 py-1.5 rounded-xl border border-gray-200 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
           />
         </div>
       </div>
@@ -461,7 +579,8 @@ export default function LicenseManager() {
                 <th className="py-3 px-4 font-semibold">Contact & Location</th>
                 <th className="py-3 px-4 font-semibold">Activation Key & MAC</th>
                 <th className="py-3 px-4 font-semibold">Status</th>
-                <th className="py-3 px-4 font-semibold">User Limits</th>
+                <th className="py-3 px-4 font-semibold">Connected PCs</th>
+                <th className="py-3 px-4 font-semibold">Users</th>
                 <th className="py-3 px-4 font-semibold">Modules</th>
                 <th className="py-3 px-4 font-semibold">Expiration</th>
                 <th className="py-3 px-4 font-semibold text-right">Actions</th>
@@ -470,14 +589,14 @@ export default function LicenseManager() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan="8" className="py-8 text-center text-gray-500">
+                  <td colSpan="9" className="py-8 text-center text-gray-500">
                     Loading clients...
                   </td>
                 </tr>
               ) : filteredLicenses.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="py-8 text-center text-gray-400">
-                    No devices match this filter.
+                  <td colSpan="9" className="py-8 text-center text-gray-400">
+                    No clients match this filter.
                   </td>
                 </tr>
               ) : (
@@ -491,6 +610,11 @@ export default function LicenseManager() {
                   let parsedUsers = []
                   try {
                     parsedUsers = typeof item.users_data === 'string' ? JSON.parse(item.users_data) : item.users_data || []
+                  } catch {}
+
+                  let parsedDevices = []
+                  try {
+                    parsedDevices = typeof item.devices_data === 'string' ? JSON.parse(item.devices_data) : item.devices_data || []
                   } catch {}
 
                   let parsedTabs = []
@@ -587,6 +711,22 @@ export default function LicenseManager() {
                             Expired
                           </span>
                         )}
+                      </td>
+
+                      {/* Connected PCs / Devices Limit */}
+                      <td className="py-3 px-4 align-middle">
+                        <button
+                          type="button"
+                          onClick={() => openDevicesModal(item)}
+                          className="hover:underline font-semibold text-gray-800 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-200 hover:bg-sky-100 transition-colors"
+                          title="Click to view & manage connected Counter/Server PCs"
+                        >
+                          <span>💻</span>
+                          <span className="font-extrabold text-sky-900">{parsedDevices.length}</span>
+                          <span className="text-gray-400">/</span>
+                          <span className="font-bold text-sky-700">{item.max_devices || 3}</span>
+                          <span className="text-[10px] text-sky-600 font-bold ml-1">PCs</span>
+                        </button>
                       </td>
 
                       {/* User Limits */}
@@ -716,27 +856,48 @@ export default function LicenseManager() {
                   type="text"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="e.g. Al-Madina Rice Traders"
+                  placeholder="e.g. Habib Rice Corporation"
                   className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
-              {/* Max Users Limit */}
-              <div>
-                <label className="block font-bold text-gray-700 mb-1">
-                  Maximum Users Allowed (0 = Unlimited)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={maxUsers}
-                  onChange={(e) => setMaxUsers(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-emerald-500 font-bold"
-                />
-                <span className="text-[10px] text-gray-400 mt-0.5 block">
-                  Client cannot create more than this number of login users.
-                </span>
+              {/* Limits Row: Users and Connected PCs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Max Connected PCs */}
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    💻 Max Connected PCs (LAN)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={maxDevices}
+                    onChange={(e) => setMaxDevices(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-emerald-500 font-bold"
+                  />
+                  <span className="text-[10px] text-gray-400 mt-0.5 block">
+                    Total computers (Server + Counters).
+                  </span>
+                </div>
+
+                {/* Max Users Limit */}
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    👥 Max Login Users
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={maxUsers}
+                    onChange={(e) => setMaxUsers(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-emerald-500 font-bold"
+                  />
+                  <span className="text-[10px] text-gray-400 mt-0.5 block">
+                    User logins client can create.
+                  </span>
+                </div>
               </div>
 
               {/* Expiry Options */}
@@ -840,14 +1001,14 @@ export default function LicenseManager() {
         </div>
       )}
 
-      {/* 2. Modal: Module / Tab Permissions */}
+      {/* 2. Modal: Global Client Module / Tab Permissions */}
       {isTabsModalOpen && selectedLicense && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-6 space-y-4 border border-gray-100 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">
-                  📑 Sidebar Module Permissions
+                  📑 Client Global Module Permissions
                 </h3>
                 <p className="text-xs text-gray-500">
                   Select which sidebar tabs are enabled for{' '}
@@ -938,7 +1099,7 @@ export default function LicenseManager() {
       {/* 3. Modal: Client Users & Credentials */}
       {isUsersModalOpen && selectedLicense && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-6 space-y-4 border border-gray-100 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl p-6 space-y-4 border border-gray-100 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">
@@ -980,46 +1141,72 @@ export default function LicenseManager() {
                       <th className="py-2.5 px-3">Name</th>
                       <th className="py-2.5 px-3">Email</th>
                       <th className="py-2.5 px-3">Role</th>
+                      <th className="py-2.5 px-3">Sidebar Tabs</th>
                       <th className="py-2.5 px-3">Password / Access</th>
                       <th className="py-2.5 px-3 text-right">Created</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {viewingUsers.map((u, i) => (
-                      <tr key={i} className="hover:bg-gray-50">
-                        <td className="py-2 px-3 font-bold text-gray-800">{u.name || '—'}</td>
-                        <td className="py-2 px-3 font-mono text-gray-600">{u.email || '—'}</td>
-                        <td className="py-2 px-3">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              u.user_type === 'Admin'
-                                ? 'bg-purple-100 text-purple-800'
-                                : 'bg-gray-100 text-gray-700'
-                            }`}
-                          >
-                            {u.user_type || 'User'}
-                          </span>
-                        </td>
-                        <td className="py-2 px-3">
-                          {u.password ? (
+                    {viewingUsers.map((u, i) => {
+                      let userTabCount = ALL_SIDEBAR_TABS.length
+                      if (u.allowed_tabs && u.allowed_tabs !== 'ALL') {
+                        try {
+                          const parsed = Array.isArray(u.allowed_tabs) ? u.allowed_tabs : JSON.parse(u.allowed_tabs)
+                          userTabCount = parsed.length
+                        } catch {}
+                      }
+
+                      return (
+                        <tr key={i} className="hover:bg-gray-50">
+                          <td className="py-2 px-3 font-bold text-gray-800">{u.name || '—'}</td>
+                          <td className="py-2 px-3 font-mono text-gray-600">{u.email || '—'}</td>
+                          <td className="py-2 px-3">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                u.user_type === 'Admin'
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : 'bg-gray-100 text-gray-700'
+                              }`}
+                            >
+                              {u.user_type || 'User'}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3">
                             <button
                               type="button"
-                              onClick={() => copyToClipboard(u.password, `pwd_${i}`)}
-                              className="font-mono bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 px-2 py-0.5 rounded text-[11px] font-semibold flex items-center gap-1"
-                              title="Click to copy password"
+                              onClick={() => openUserTabsModal(u)}
+                              className="px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold hover:bg-indigo-100 text-[11px] flex items-center gap-1 transition-colors"
+                              title="Click to customize enabled tabs for this user account"
                             >
-                              <span>{u.password}</span>
-                              <span>{copiedKey === `pwd_${i}_${u.password}` ? '✓' : '📋'}</span>
+                              <span>📑</span>
+                              <span>
+                                {u.allowed_tabs === 'ALL' || !u.allowed_tabs
+                                  ? 'All 20 Tabs'
+                                  : `${userTabCount} Tabs`}
+                              </span>
                             </button>
-                          ) : (
-                            <span className="text-gray-400 font-mono">—</span>
-                          )}
-                        </td>
-                        <td className="py-2 px-3 text-right text-gray-500 text-[11px]">
-                          {u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="py-2 px-3">
+                            {u.password ? (
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(u.password, `pwd_${i}`)}
+                                className="font-mono bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 px-2 py-0.5 rounded text-[11px] font-semibold flex items-center gap-1"
+                                title="Click to copy password"
+                              >
+                                <span>{u.password}</span>
+                                <span>{copiedKey === `pwd_${i}_${u.password}` ? '✓' : '📋'}</span>
+                              </button>
+                            ) : (
+                              <span className="text-gray-400 font-mono">—</span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3 text-right text-gray-500 text-[11px]">
+                            {u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1029,6 +1216,266 @@ export default function LicenseManager() {
               <button
                 type="button"
                 onClick={() => setIsUsersModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-gray-900 text-white text-xs font-bold"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Modal: Per-User Specific Tab Permissions */}
+      {isUserTabsModalOpen && editingUserForTabs && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-6 space-y-4 border border-gray-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">
+                  📑 Custom Tabs for: {editingUserForTabs.name || editingUserForTabs.email}
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Role: <span className="font-semibold text-gray-700">{editingUserForTabs.user_type}</span> • Only checked tabs will appear in their sidebar.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsUserTabsModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between bg-indigo-50 p-2.5 rounded-xl border border-indigo-200 text-xs">
+              <span className="font-semibold text-indigo-900">
+                Enabled for User: <strong className="text-indigo-700">{userSpecificTabs.length} / {ALL_SIDEBAR_TABS.length}</strong>
+              </span>
+              <div className="space-x-2">
+                <button
+                  type="button"
+                  onClick={selectAllUserTabs}
+                  className="px-2.5 py-1 bg-white border rounded-lg font-bold text-gray-700 hover:bg-gray-100"
+                >
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  onClick={clearAllUserTabs}
+                  className="px-2.5 py-1 bg-white border rounded-lg font-bold text-red-600 hover:bg-red-50"
+                >
+                  Clear All
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              {ALL_SIDEBAR_TABS.map((tab) => {
+                const checked = userSpecificTabs.includes(tab.id)
+                return (
+                  <label
+                    key={tab.id}
+                    className={`flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition-colors ${
+                      checked
+                        ? 'border-indigo-500 bg-indigo-50/60 font-bold text-gray-900'
+                        : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleUserTab(tab.id)}
+                      className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-base">{tab.icon}</span>
+                    <span className="flex-1">{tab.label}</span>
+                    <span className="text-[10px] text-gray-400 font-normal">
+                      {tab.category}
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t">
+              <button
+                type="button"
+                onClick={() => setIsUserTabsModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-gray-700 hover:bg-gray-100 text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveUserTabs}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow"
+              >
+                Save User Permissions
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Modal: Connected Devices & Counter PCs */}
+      {isDevicesModalOpen && selectedLicense && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl p-6 space-y-4 border border-gray-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <span>💻</span>
+                  <span>Connected Devices & Counter PCs</span>
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Client: <strong className="text-gray-800">{selectedLicense.company_name || selectedLicense.customer_name || selectedLicense.hostname}</strong> ({selectedLicense.city || 'Local LAN'})
+                </p>
+              </div>
+              <button
+                onClick={() => setIsDevicesModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Quick Limit Setter Header */}
+            <div className="flex flex-col sm:flex-row items-center justify-between bg-sky-50 border border-sky-200 p-3 rounded-xl text-xs gap-3">
+              <div>
+                <span className="font-bold text-sky-950 block">
+                  Connected Computers: <strong className="text-sky-700">{viewingDevices.length}</strong> / Allowed Limit: <strong className="text-sky-700">{selectedLicense.max_devices || 3}</strong>
+                </span>
+                <span className="text-[11px] text-sky-700">
+                  Offline multi-PC architecture: Only authorized computers up to this limit can connect.
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="font-bold text-gray-700 text-xs whitespace-nowrap">
+                  Allowed Limit:
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={deviceLimitInput}
+                  onChange={(e) => setDeviceLimitInput(e.target.value)}
+                  className="w-16 px-2 py-1 rounded-lg border border-sky-300 font-bold text-center text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveDeviceLimit}
+                  className="px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg text-xs transition-colors shrink-0"
+                >
+                  Update Limit
+                </button>
+              </div>
+            </div>
+
+            {viewingDevices.length === 0 ? (
+              <div className="py-8 text-center text-gray-400 text-xs">
+                No computers reported yet. Counter and Server PCs will appear automatically when connected on the local LAN.
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-gray-200">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-gray-100 text-gray-700 font-bold">
+                    <tr>
+                      <th className="py-2.5 px-3">Computer Name</th>
+                      <th className="py-2.5 px-3">Role / Desk</th>
+                      <th className="py-2.5 px-3">IP & MAC Address</th>
+                      <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3">Last Active</th>
+                      <th className="py-2.5 px-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {viewingDevices.map((dev, idx) => {
+                      const isServer = dev.device_role === 'Server'
+                      const isBlocked = dev.status === 'blocked'
+
+                      return (
+                        <tr key={idx} className={`hover:bg-gray-50 ${isBlocked ? 'bg-rose-50/40' : ''}`}>
+                          <td className="py-2.5 px-3 font-bold text-gray-900">
+                            <div className="flex items-center gap-1.5">
+                              <span>{isServer ? '🖧' : '💻'}</span>
+                              <span>{dev.device_name || `Computer ${idx + 1}`}</span>
+                            </div>
+                            <div className="text-[10px] text-gray-400 font-mono mt-0.5 truncate max-w-[140px]" title={dev.device_id}>
+                              ID: {dev.device_id?.slice(0, 14)}...
+                            </div>
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            <select
+                              value={dev.device_role || 'Counter'}
+                              onChange={(e) => handleChangeDeviceRole(dev, e.target.value)}
+                              className="px-2 py-1 rounded-lg border border-gray-300 font-semibold text-[11px] bg-white focus:ring-1 focus:ring-sky-500"
+                            >
+                              <option value="Server">Server PC</option>
+                              <option value="Counter">Counter PC</option>
+                              <option value="Gate">Gate Pass</option>
+                              <option value="Cashier">Cashier Desk</option>
+                              <option value="Manager">Manager PC</option>
+                            </select>
+                          </td>
+
+                          <td className="py-2.5 px-3 font-mono text-[11px] text-gray-600">
+                            <div>{dev.ip_address || '127.0.0.1'}</div>
+                            <div className="text-[10px] text-gray-400">{dev.mac_address || '—'}</div>
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            {isBlocked ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
+                                Blocked
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                                Active
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-2.5 px-3 text-gray-500 text-[11px]">
+                            {dev.last_seen_at ? new Date(dev.last_seen_at).toLocaleDateString() : '—'}
+                          </td>
+
+                          <td className="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleDeviceStatus(dev)}
+                              className={`px-2 py-1 rounded-lg font-bold text-[11px] transition-colors ${
+                                isBlocked
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                  : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+                              }`}
+                              title={isBlocked ? 'Click to unblock computer' : 'Click to block computer'}
+                            >
+                              {isBlocked ? '🔓 Unblock' : '🔒 Block'}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteDevice(dev)}
+                              className="px-2 py-1 rounded-lg text-gray-400 hover:text-red-600 font-bold text-[11px] transition-colors"
+                              title="Disconnect / Remove computer to free up a slot"
+                            >
+                              🗑️
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end pt-3 border-t">
+              <button
+                type="button"
+                onClick={() => setIsDevicesModalOpen(false)}
                 className="px-4 py-2 rounded-xl bg-gray-900 text-white text-xs font-bold"
               >
                 Close

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 export default function NetworkSetupPage() {
@@ -8,6 +8,8 @@ export default function NetworkSetupPage() {
   const [mode, setMode] = useState('server') // 'server' | 'counter'
   const [serverIp, setServerIp] = useState('')
   const [localIp, setLocalIp] = useState('127.0.0.1')
+  const [deviceName, setDeviceName] = useState('')
+  const [deviceRole, setDeviceRole] = useState('Counter')
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -21,6 +23,12 @@ export default function NetworkSetupPage() {
           if (cfg?.mode) setMode(cfg.mode)
           if (cfg?.serverIp) setServerIp(cfg.serverIp)
           if (cfg?.localIp) setLocalIp(cfg.localIp)
+        }
+        if (typeof window !== 'undefined' && window.electronAPI?.getMachineInfo) {
+          const info = await window.electronAPI.getMachineInfo()
+          if (info?.hostname) {
+            setDeviceName(info.hostname)
+          }
         }
       } catch (err) {
         console.warn('Network config load error:', err)
@@ -48,22 +56,56 @@ export default function NetworkSetupPage() {
         target = `${target}:3002`
       }
 
-      const res = await fetch(`${target}/api/ping`, {
+      // 1. First test ping
+      const pingRes = await fetch(`${target}/api/ping`, {
         method: 'GET',
         headers: { Accept: 'application/json' },
         signal: AbortSignal.timeout(5000),
       })
 
-      const data = await res.json()
-      if (res.ok && data.ok) {
-        setTestResult({
-          success: true,
-          company: data.companyName || 'Zebra IMS Server',
-          url: target,
-        })
-      } else {
+      const pingData = await pingRes.json()
+      if (!pingRes.ok || !pingData.ok) {
         throw new Error('Server returned an unexpected response.')
       }
+
+      // 2. Perform handshake with device registration check
+      let machineInfo = {}
+      if (typeof window !== 'undefined' && window.electronAPI?.getMachineInfo) {
+        machineInfo = await window.electronAPI.getMachineInfo()
+      }
+
+      const regRes = await fetch(`${target}/api/devices/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          device_id: machineInfo?.machineId || (typeof window !== 'undefined' ? window.localStorage.getItem('zebra_device_id') : null) || 'dev_' + Math.random().toString(36).substring(2, 9),
+          mac_address: machineInfo?.macAddress || 'UNKNOWN-MAC',
+          device_name: deviceName || machineInfo?.hostname || 'Counter PC',
+          device_role: deviceRole || 'Counter',
+        }),
+        signal: AbortSignal.timeout(6000),
+      })
+
+      const regData = await regRes.json()
+
+      if (!regRes.ok || !regData.ok) {
+        setTestResult({
+          success: false,
+          blocked: true,
+          error: regData.message || 'Access blocked. Computer limit reached or not authorized.',
+          code: regData.code,
+        })
+        return
+      }
+
+      setTestResult({
+        success: true,
+        company: pingData.companyName || 'Zebra IMS Server',
+        url: target,
+        device: regData.device,
+        currentCount: regData.current_count,
+        maxDevices: regData.max_devices,
+      })
     } catch (err) {
       setTestResult({
         success: false,
@@ -82,7 +124,7 @@ export default function NetworkSetupPage() {
     try {
       if (mode === 'counter') {
         if (!testResult?.success) {
-          setError('Please test the connection first to verify the Main Server is reachable.')
+          setError('Please test and verify the connection first.')
           setSaving(false)
           return
         }
@@ -92,6 +134,8 @@ export default function NetworkSetupPage() {
             mode: 'counter',
             serverUrl: testResult.url,
             serverIp: serverIp.trim(),
+            deviceRole,
+            deviceName,
           })
         }
 
@@ -144,9 +188,8 @@ export default function NetworkSetupPage() {
         {/* Content */}
         <div className="p-6 sm:p-8 space-y-6">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-bold flex items-center gap-2">
-              <span>⚠️</span>
-              <span>{error}</span>
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 rounded-xl font-medium">
+              ⚠️ {error}
             </div>
           )}
 
@@ -157,7 +200,6 @@ export default function NetworkSetupPage() {
               onClick={() => {
                 setMode('server')
                 setTestResult(null)
-                setError('')
               }}
               className={`p-5 rounded-2xl border-2 cursor-pointer transition-all ${
                 mode === 'server'
@@ -166,7 +208,7 @@ export default function NetworkSetupPage() {
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-3xl">🖥️</span>
+                <span className="text-3xl">🖧</span>
                 <input
                   type="radio"
                   name="mode"
@@ -177,7 +219,7 @@ export default function NetworkSetupPage() {
               </div>
               <h3 className="text-sm font-bold text-gray-900">Main Server PC</h3>
               <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
-                Stores database & invoices. Recommended for your first or primary cashier/manager PC.
+                Holds the database and runs the local server. Other Counter PCs on your Wi-Fi will connect to this PC.
               </p>
             </div>
 
@@ -185,7 +227,7 @@ export default function NetworkSetupPage() {
             <div
               onClick={() => {
                 setMode('counter')
-                setError('')
+                setTestResult(null)
               }}
               className={`p-5 rounded-2xl border-2 cursor-pointer transition-all ${
                 mode === 'counter'
@@ -247,8 +289,39 @@ export default function NetworkSetupPage() {
                     disabled={testing}
                     className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs transition-all disabled:bg-gray-400 shrink-0"
                   >
-                    {testing ? 'Testing...' : 'Test Connection'}
+                    {testing ? 'Testing...' : 'Test LAN Connection'}
                   </button>
+                </div>
+              </div>
+
+              {/* Computer Name & Role */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Computer Name / Identifier:
+                  </label>
+                  <input
+                    type="text"
+                    value={deviceName}
+                    onChange={(e) => setDeviceName(e.target.value)}
+                    placeholder="e.g. Counter-1 or Gate PC"
+                    className="w-full px-3 py-1.5 rounded-xl border border-gray-300 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    PC Role / Desk Type:
+                  </label>
+                  <select
+                    value={deviceRole}
+                    onChange={(e) => setDeviceRole(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-xl border border-gray-300 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="Counter">Counter Desk (Billing & Sales)</option>
+                    <option value="Gate">Gate Pass Desk</option>
+                    <option value="Cashier">Cashier Desk</option>
+                    <option value="Manager">Manager / Office PC</option>
+                  </select>
                 </div>
               </div>
 
@@ -264,19 +337,24 @@ export default function NetworkSetupPage() {
                     <div>
                       <p className="font-bold flex items-center gap-1.5">
                         <span>✅</span>
-                        <span>Connected to Server!</span>
+                        <span>Connected & Authorized!</span>
                       </p>
                       <p className="text-[11px] text-emerald-700 mt-0.5">
-                        Business: <strong>{testResult.company}</strong> ({testResult.url})
+                        Server: <strong>{testResult.company}</strong> ({testResult.url})
                       </p>
+                      {testResult.maxDevices && (
+                        <p className="text-[10px] text-emerald-600 mt-0.5">
+                          💻 Device slot approved ({testResult.currentCount || 1} / {testResult.maxDevices} allowed PCs).
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <div>
                       <p className="font-bold flex items-center gap-1.5">
                         <span>❌</span>
-                        <span>Connection Failed</span>
+                        <span>{testResult.blocked ? 'Device Authorization Failed' : 'Connection Failed'}</span>
                       </p>
-                      <p className="text-[11px] text-red-700 mt-0.5">{testResult.error}</p>
+                      <p className="text-[11px] text-red-700 mt-0.5 leading-relaxed">{testResult.error}</p>
                     </div>
                   )}
                 </div>
@@ -284,21 +362,19 @@ export default function NetworkSetupPage() {
             </div>
           )}
 
-          {/* Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t">
+          {/* Action Buttons */}
+          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+            <span className="text-[11px] text-gray-400">
+              {mode === 'server' ? 'Server will run on port 3002' : 'Connects instantly over LAN'}
+            </span>
             <button
               type="button"
               onClick={handleSave}
               disabled={saving || (mode === 'counter' && !testResult?.success)}
-              className="w-full py-3 bg-[#07502f] hover:bg-[#0b5d38] text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-950/20 transition-all flex items-center justify-center gap-2 disabled:bg-gray-400 disabled:shadow-none"
+              className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-[#07502f] hover:from-emerald-500 hover:to-emerald-700 text-white font-bold text-xs rounded-xl shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              <span>
-                {saving
-                  ? 'Saving Settings...'
-                  : mode === 'server'
-                  ? 'Set as Main Server & Continue ➡️'
-                  : 'Connect as Counter PC 🚀'}
-              </span>
+              <span>{saving ? 'Launching...' : 'Save & Launch Zebra IMS'}</span>
+              <span>🚀</span>
             </button>
           </div>
         </div>

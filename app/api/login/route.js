@@ -67,6 +67,7 @@ export async function POST(req) {
                 email: user.email,
                 user_type: user.user_type || 'Employee',
                 status: String(user.status || 'active').toLowerCase(),
+                allowed_tabs: user.allowed_tabs || 'ALL',
             },
         })
     } catch (error) {
