@@ -106,7 +106,7 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
     'Purchase Invoice',
     { label: 'Suppliers', children: ['Supplier Ledger'] },
     'Categories',
-    ...(userType === 'Employee' ? [] : ['Employees']),
+    'Employees',
     'Billing History',
     'Daily Ledger',
     'Cash Information',

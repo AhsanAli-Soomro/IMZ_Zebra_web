@@ -16,10 +16,7 @@ function formatDateOnly(value) {
 
 export async function GET() {
   try {
-    const data = await db.query(
-      'SELECT * FROM users WHERE user_type IN (?, ?)',
-      ['Admin', 'Employee']
-    )
+    const data = await db.query('SELECT * FROM users ORDER BY id ASC')
     return NextResponse.json({ success: true, data })
   } catch (err) {
     console.error('Employees GET error:', err)
@@ -41,7 +38,8 @@ export async function POST(req) {
       salary,
       dob,
       date_of_joining,
-      phone
+      phone,
+      allowed_tabs,
     } = body
 
     // 1. Enforce max user limit
@@ -68,18 +66,23 @@ export async function POST(req) {
       )
     }
 
+    const tabsVal = allowed_tabs
+      ? (typeof allowed_tabs === 'string' ? allowed_tabs : JSON.stringify(allowed_tabs))
+      : (user_type === 'Admin' ? 'ALL' : 'ALL')
+
     await db.query(
-      `INSERT INTO users (name, email, password, user_type, salary, dob, date_of_joining, phone)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (name, email, password, user_type, salary, dob, date_of_joining, phone, allowed_tabs)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         name,
         email,
         password,
-        user_type,
-        salary,
+        user_type || 'Employee',
+        salary ? Number(salary) : 0,
         formatDateOnly(dob),
         formatDateOnly(date_of_joining),
-        phone
+        phone,
+        tabsVal,
       ]
     )
 

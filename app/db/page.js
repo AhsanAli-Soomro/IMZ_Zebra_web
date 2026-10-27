@@ -29,7 +29,7 @@ export default function Page() {
 
   if (loading) return <div className="p-6">Loading...</div>
   if (!isAuth) return null
-  if (userType === 'Employee') return <NotFound />
+  if (userType !== 'Admin') return <NotFound />
 
   return (
     <div className="min-h-screen bg-white">

@@ -81,12 +81,10 @@ export default function LoginPage() {
         window.localStorage.setItem('authToken', response.token || '')
         window.localStorage.setItem('user', JSON.stringify(user))
 
-        if (user.user_type === 'Admin') {
-          router.push('/dashboard')
-        } else if (user.user_type === 'Employee') {
+        if (user.user_type === 'Cashier') {
           router.push('/billing')
         } else {
-          setErrorMessage('Unknown user type')
+          router.push('/dashboard')
         }
       } else {
         setErrorMessage(response.message || 'Invalid credentials')
