@@ -80,6 +80,46 @@ export default function DailyLedger() {
   const summary = data?.summary || {}
   const expenseRows = data?.expenses || []
 
+  const customerTotal = useMemo(
+    () => customerRows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
+    [customerRows]
+  )
+  const supplierTotal = useMemo(
+    () => supplierRows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
+    [supplierRows]
+  )
+  const bankDebitTotal = useMemo(
+    () => bankDebitRows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
+    [bankDebitRows]
+  )
+  const bankCreditTotal = useMemo(
+    () => bankCreditRows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
+    [bankCreditRows]
+  )
+
+  const displayDebit =
+    summary.day_debit !== undefined && summary.day_debit !== 0
+      ? summary.day_debit
+      : (customerTotal + supplierTotal + bankDebitTotal + (summary.expense_total || 0))
+
+  const displayCredit =
+    summary.day_credit !== undefined && summary.day_credit !== 0
+      ? summary.day_credit
+      : (supplierTotal + bankCreditTotal)
+
+  const displayCash =
+    summary.cash_in_hand !== undefined && summary.cash_in_hand !== 0
+      ? summary.cash_in_hand
+      : (summary.current_cash_in_hand || 0)
+
+  const cashHelper = data?.closing
+    ? `Counter closing cash on ${date}`
+    : summary.cash_in_hand > 0
+    ? `Closing cash as of ${date || 'the selected date'}`
+    : summary.current_cash_in_hand > 0
+    ? `Current store cash balance`
+    : `Closing cash as of ${date || 'the selected date'}`
+
   function startEditing(row) {
     setEditingRow(row)
     setEditedAmount(String(row.amount || 0))
@@ -138,9 +178,9 @@ export default function DailyLedger() {
       {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-700">{error}</div>}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Cash in Hand" value={summary.cash_in_hand} tone="blue" helper={`Closing cash as of ${date || 'the selected date'}`} />
-        <SummaryCard label="Credit" value={summary.day_credit} tone="green" helper="Cash and bank credit on this date" />
-        <SummaryCard label="Debit" value={summary.day_debit} tone="red" helper="Cash and bank debit on this date" />
+        <SummaryCard label="Cash in Hand" value={displayCash} tone="blue" helper={cashHelper} />
+        <SummaryCard label="Credit" value={displayCredit} tone="green" helper="Total credit (customer, supplier, cash & bank)" />
+        <SummaryCard label="Debit" value={displayDebit} tone="red" helper="Total debit (customer, supplier, cash & bank)" />
         <SummaryCard label="Total Expense" value={summary.expense_total} tone="orange" helper="Total expenses on this date" />
       </section>
 

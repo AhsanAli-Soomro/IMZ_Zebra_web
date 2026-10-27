@@ -27,6 +27,10 @@ export async function GET(request) {
       cashBalanceRows,
       expenses,
       closingRows,
+      priorClosingRows,
+      currentCashRows,
+      billCashRows,
+      expenseCashRows,
       sales,
       purchases,
       partyEntries,
@@ -52,6 +56,7 @@ export async function GET(request) {
         `SELECT id, expense_date, amount, notes
          FROM expenses
          WHERE date(expense_date) = date(?)
+           AND (deleted_at IS NULL OR deleted_at = '')
          ORDER BY id DESC`,
         [date]
       ),
@@ -60,6 +65,43 @@ export async function GET(request) {
          FROM counter_closings
          WHERE date(closing_date) = date(?)
          LIMIT 1`,
+        [date]
+      ),
+      db.query(
+        `SELECT *
+         FROM counter_closings
+         WHERE date(closing_date) <= date(?)
+         ORDER BY date(closing_date) DESC, id DESC
+         LIMIT 1`,
+        [date]
+      ),
+      db.query(
+        `SELECT
+           COALESCE(SUM(CASE WHEN tx_type = 'in' THEN amount ELSE -amount END), 0) AS current_cash
+         FROM cash_transactions
+         WHERE deleted_at IS NULL OR deleted_at = ''`,
+        []
+      ),
+      db.query(
+        `SELECT COALESCE(SUM(paid_amount), 0) AS bill_cash
+         FROM bills
+         WHERE date(invoice_date) <= date(?)
+           AND (deleted_at IS NULL OR deleted_at = '')
+           AND id NOT IN (
+             SELECT reference_id FROM cash_transactions
+             WHERE reference_type = 'bill' AND (deleted_at IS NULL OR deleted_at = '')
+           )`,
+        [date]
+      ),
+      db.query(
+        `SELECT COALESCE(SUM(amount), 0) AS expense_cash
+         FROM expenses
+         WHERE date(expense_date) <= date(?)
+           AND (deleted_at IS NULL OR deleted_at = '')
+           AND id NOT IN (
+             SELECT reference_id FROM cash_transactions
+             WHERE reference_type = 'expense' AND (deleted_at IS NULL OR deleted_at = '')
+           )`,
         [date]
       ),
       db.query(
@@ -103,14 +145,70 @@ export async function GET(request) {
       ),
     ])
 
-    const dayCredit = cashRows
+    // 1. Party Ledger Activity (Customers & Suppliers)
+    const customerDebits = partyEntries
+      .filter((row) => row.owner_type === 'customer')
+      .reduce((sum, row) => sum + number(row.debit), 0)
+    const customerCredits = partyEntries
+      .filter((row) => row.owner_type === 'customer')
+      .reduce((sum, row) => sum + number(row.credit), 0)
+
+    const supplierDebits = partyEntries
+      .filter((row) => row.owner_type === 'supplier')
+      .reduce((sum, row) => sum + number(row.debit), 0)
+    const supplierCredits = partyEntries
+      .filter((row) => row.owner_type === 'supplier')
+      .reduce((sum, row) => sum + number(row.credit), 0)
+
+    // 2. Cash & Bank Activity
+    const cashIn = cashRows
       .filter((row) => row.tx_type === 'in')
       .reduce((sum, row) => sum + number(row.amount), 0)
-    const dayDebit = cashRows
+    const cashOut = cashRows
       .filter((row) => row.tx_type === 'out')
       .reduce((sum, row) => sum + number(row.amount), 0)
+
+    // 3. Invoices Activity (Sales & Purchases)
+    const cashRefIds = new Set(
+      cashRows.map((r) => `${r.reference_type}_${r.reference_id}`)
+    )
+    const extraBillCashIn = sales
+      .filter((s) => number(s.paid_amount) > 0 && !cashRefIds.has(`bill_${s.id}`))
+      .reduce((sum, s) => sum + number(s.paid_amount), 0)
+    const extraPurchaseCashOut = purchases
+      .filter((p) => number(p.paid_amount) > 0 && !cashRefIds.has(`purchase_${p.id}`))
+      .reduce((sum, p) => sum + number(p.paid_amount), 0)
+
+    // 4. Expenses Activity
+    const expenseTotal = expenses.reduce((sum, row) => sum + number(row.amount), 0)
+
+    // Total Day Debit: All debit activity on this date
+    // Customers Debit + Supplier Debits + Cash/Bank Out + Extra Purchase Cash + Expenses
+    const totalDayDebit = customerDebits + supplierDebits + cashOut + extraPurchaseCashOut + expenseTotal
+
+    // Total Day Credit: All credit activity on this date
+    // Customers Credit + Supplier Credits + Cash/Bank In + Extra Bill Cash
+    const totalDayCredit = customerCredits + supplierCredits + cashIn + extraBillCashIn
+
+    // Cash in Hand as of date:
+    // A) If counter closing exists on this exact date:
+    // B) Else if counter closing exists on or prior: baseline physical + net cash
+    // C) Else cumulative cash in - cash out
     const cumulativeIn = number(cashBalanceRows[0]?.cash_in)
     const cumulativeOut = number(cashBalanceRows[0]?.cash_out)
+    const unrecordedBillCash = number(billCashRows[0]?.bill_cash)
+    const unrecordedExpenseCash = number(expenseCashRows[0]?.expense_cash)
+
+    let calculatedCashInHand = 0
+    if (closingRows[0] && closingRows[0].physical_amount !== null && closingRows[0].physical_amount !== undefined) {
+      calculatedCashInHand = number(closingRows[0].physical_amount)
+    } else if (priorClosingRows[0] && priorClosingRows[0].physical_amount !== null && priorClosingRows[0].physical_amount !== undefined) {
+      calculatedCashInHand = number(priorClosingRows[0].physical_amount) + (cumulativeIn - cumulativeOut)
+    } else {
+      calculatedCashInHand = (cumulativeIn - cumulativeOut) + unrecordedBillCash - unrecordedExpenseCash
+    }
+
+    const currentStoreCash = number(currentCashRows[0]?.current_cash)
 
     const normalizeInvoices = (rows) => rows.map((row) => ({
       ...row,
@@ -124,13 +222,18 @@ export async function GET(request) {
       data: {
         date,
         summary: {
-          cash_in_hand: cumulativeIn - cumulativeOut,
-          day_credit: dayCredit,
-          day_debit: dayDebit,
-          day_net_cash: dayCredit - dayDebit,
-          sales_total: sales.reduce((sum, row) => sum + number(row.total), 0),
-          purchase_total: purchases.reduce((sum, row) => sum + number(row.total), 0),
-          expense_total: expenses.reduce((sum, row) => sum + number(row.amount), 0),
+          cash_in_hand: calculatedCashInHand,
+          current_cash_in_hand: currentStoreCash,
+          day_credit: totalDayCredit,
+          day_debit: totalDayDebit,
+          day_net_cash: totalDayCredit - totalDayDebit,
+          sales_total: salesTotal,
+          purchase_total: purchaseTotal,
+          expense_total: expenseTotal,
+          customer_debit: customerDebits,
+          customer_credit: customerCredits,
+          supplier_debit: supplierDebits,
+          supplier_credit: supplierCredits,
         },
         closing: closingRows[0] || null,
         cashTransactions: cashRows.map((row) => ({ ...row, amount: number(row.amount) })),
