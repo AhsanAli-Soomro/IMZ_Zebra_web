@@ -95,6 +95,26 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
     }
 
     syncLicense()
+
+    // 1. Auto-sync the moment computer reconnects to the internet
+    const handleOnline = () => {
+      syncLicense()
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', handleOnline)
+    }
+
+    // 2. Periodic heartbeat telemetry sync (every 15 minutes)
+    const syncInterval = setInterval(() => {
+      syncLicense()
+    }, 15 * 60 * 1000)
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', handleOnline)
+      }
+      clearInterval(syncInterval)
+    }
   }, [router])
 
   const handleLogout = () => {
