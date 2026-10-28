@@ -291,7 +291,9 @@ export default function AIAdvisor() {
           <span className="text-gray-400 font-bold shrink-0">Quick Queries:</span>
           {[
             'Aaj ki sale aur rokar kitni hai?',
+            'Is mahine ka profit / munafa kitna hua?',
             'Sub se zyada udhar kis customer ka hai?',
+            'Cash aur bank me kitna balance hai?',
             'Konsa maal khatam hone wala hai?',
             'Is mahine ka total kharcha kitna hai?',
             'Sab se zyada biknay wala item konsa hai?',
