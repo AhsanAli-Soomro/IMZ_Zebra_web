@@ -24,13 +24,8 @@ export async function GET(request) {
 
     const [
       cashRows,
-      cashBalanceRows,
       expenses,
       closingRows,
-      priorClosingRows,
-      currentCashRows,
-      billCashRows,
-      expenseCashRows,
       sales,
       purchases,
       partyEntries,
@@ -41,15 +36,6 @@ export async function GET(request) {
          WHERE date(tx_date) = date(?)
            AND (deleted_at IS NULL OR deleted_at = '')
          ORDER BY id DESC`,
-        [date]
-      ),
-      db.query(
-        `SELECT
-           COALESCE(SUM(CASE WHEN tx_type = 'in' THEN amount ELSE 0 END), 0) AS cash_in,
-           COALESCE(SUM(CASE WHEN tx_type = 'out' THEN amount ELSE 0 END), 0) AS cash_out
-         FROM cash_transactions
-         WHERE date(tx_date) <= date(?)
-           AND (deleted_at IS NULL OR deleted_at = '')`,
         [date]
       ),
       db.query(
@@ -64,42 +50,6 @@ export async function GET(request) {
          FROM counter_closings
          WHERE date(closing_date) = date(?)
          LIMIT 1`,
-        [date]
-      ),
-      db.query(
-        `SELECT *
-         FROM counter_closings
-         WHERE date(closing_date) <= date(?)
-         ORDER BY date(closing_date) DESC, id DESC
-         LIMIT 1`,
-        [date]
-      ),
-      db.query(
-        `SELECT
-           COALESCE(SUM(CASE WHEN tx_type = 'in' THEN amount ELSE -amount END), 0) AS current_cash
-         FROM cash_transactions
-         WHERE deleted_at IS NULL OR deleted_at = ''`,
-        []
-      ),
-      db.query(
-        `SELECT COALESCE(SUM(paid_amount), 0) AS bill_cash
-         FROM bills
-         WHERE date(invoice_date) <= date(?)
-           AND (deleted_at IS NULL OR deleted_at = '')
-           AND id NOT IN (
-             SELECT reference_id FROM cash_transactions
-             WHERE reference_type = 'bill' AND (deleted_at IS NULL OR deleted_at = '')
-           )`,
-        [date]
-      ),
-      db.query(
-        `SELECT COALESCE(SUM(amount), 0) AS expense_cash
-         FROM expenses
-         WHERE date(expense_date) <= date(?)
-           AND id NOT IN (
-             SELECT reference_id FROM cash_transactions
-             WHERE reference_type = 'expense' AND (deleted_at IS NULL OR deleted_at = '')
-           )`,
         [date]
       ),
       db.query(
@@ -190,25 +140,13 @@ export async function GET(request) {
     // Customers Credit + Supplier Credits + Cash/Bank In + Extra Bill Cash
     const totalDayCredit = customerCredits + supplierCredits + cashIn + extraBillCashIn
 
-    // Cash in Hand as of date:
-    // A) If counter closing exists on this exact date:
-    // B) Else if counter closing exists on or prior: baseline physical + net cash
-    // C) Else cumulative cash in - cash out
-    const cumulativeIn = number(cashBalanceRows[0]?.cash_in)
-    const cumulativeOut = number(cashBalanceRows[0]?.cash_out)
-    const unrecordedBillCash = number(billCashRows[0]?.bill_cash)
-    const unrecordedExpenseCash = number(expenseCashRows[0]?.expense_cash)
-
-    let calculatedCashInHand = 0
-    if (closingRows[0] && closingRows[0].physical_amount !== null && closingRows[0].physical_amount !== undefined) {
-      calculatedCashInHand = number(closingRows[0].physical_amount)
-    } else if (priorClosingRows[0] && priorClosingRows[0].physical_amount !== null && priorClosingRows[0].physical_amount !== undefined) {
-      calculatedCashInHand = number(priorClosingRows[0].physical_amount) + (cumulativeIn - cumulativeOut)
-    } else {
-      calculatedCashInHand = (cumulativeIn - cumulativeOut) + unrecordedBillCash - unrecordedExpenseCash
-    }
-
-    const currentStoreCash = number(currentCashRows[0]?.current_cash)
+    // Cash in Hand for this date:
+    // Strictly corresponds to the recorded counter closing on this date.
+    // If no closing has been saved for this date, cash in hand is 0.
+    const closing = closingRows[0] || null
+    const cashInHand = closing && closing.physical_amount !== null && closing.physical_amount !== undefined
+      ? number(closing.physical_amount)
+      : 0
 
     const normalizeInvoices = (rows) => rows.map((row) => ({
       ...row,
@@ -222,8 +160,9 @@ export async function GET(request) {
       data: {
         date,
         summary: {
-          cash_in_hand: calculatedCashInHand,
-          current_cash_in_hand: currentStoreCash,
+          cash_in_hand: cashInHand,
+          has_closing: Boolean(closing),
+          closing_amount: closing ? number(closing.physical_amount) : null,
           day_credit: totalDayCredit,
           day_debit: totalDayDebit,
           day_net_cash: totalDayCredit - totalDayDebit,
@@ -235,7 +174,7 @@ export async function GET(request) {
           supplier_debit: supplierDebits,
           supplier_credit: supplierCredits,
         },
-        closing: closingRows[0] || null,
+        closing: closing,
         cashTransactions: cashRows.map((row) => ({ ...row, amount: number(row.amount) })),
         sales: normalizeInvoices(sales),
         purchases: normalizeInvoices(purchases),

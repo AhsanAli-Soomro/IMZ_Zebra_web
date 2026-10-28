@@ -98,27 +98,22 @@ export default function DailyLedger() {
   )
 
   const displayDebit =
-    summary.day_debit !== undefined && summary.day_debit !== 0
-      ? summary.day_debit
+    summary.day_debit !== undefined
+      ? Number(summary.day_debit || 0)
       : (customerTotal + supplierTotal + bankDebitTotal + (summary.expense_total || 0))
 
   const displayCredit =
-    summary.day_credit !== undefined && summary.day_credit !== 0
-      ? summary.day_credit
-      : (supplierTotal + bankCreditTotal)
+    summary.day_credit !== undefined
+      ? Number(summary.day_credit || 0)
+      : (customerTotal + supplierTotal + bankCreditTotal)
 
-  const displayCash =
-    summary.cash_in_hand !== undefined && summary.cash_in_hand !== 0
-      ? summary.cash_in_hand
-      : (summary.current_cash_in_hand || 0)
+  const displayCash = data?.closing
+    ? Number(data.closing.physical_amount || 0)
+    : Number(summary.cash_in_hand || 0)
 
   const cashHelper = data?.closing
     ? `Counter closing cash on ${date}`
-    : summary.cash_in_hand > 0
-    ? `Closing cash as of ${date || 'the selected date'}`
-    : summary.current_cash_in_hand > 0
-    ? `Current store cash balance`
-    : `Closing cash as of ${date || 'the selected date'}`
+    : `No Cash in Hand record for this date`
 
   function startEditing(row) {
     setEditingRow(row)
