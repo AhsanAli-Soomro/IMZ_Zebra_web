@@ -91,6 +91,19 @@ export default function LicenseManager() {
   const [geminiTestStatus, setGeminiTestStatus] = useState(null)
   const [geminiSaving, setGeminiSaving] = useState(false)
 
+  // View mode: 'cards' (rich detailed view) | 'table' (compact spreadsheet view)
+  const [viewMode, setViewMode] = useState('cards')
+  const [copiedKeyId, setCopiedKeyId] = useState('')
+
+  const handleCopyText = (text, id) => {
+    if (!text) return
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text)
+      setCopiedKeyId(id)
+      setTimeout(() => setCopiedKeyId(''), 2500)
+    }
+  }
+
   const [copiedKey, setCopiedKey] = useState('')
 
   const fetchLicenses = async () => {
@@ -179,7 +192,26 @@ export default function LicenseManager() {
     const suspended = licenses.filter((l) => l.status === 'suspended').length
     const expired = licenses.filter((l) => l.status === 'expired').length
     const rejected = licenses.filter((l) => l.status === 'rejected').length
-    return { total, pending, active, suspended, expired, rejected }
+
+    let totalPCs = 0
+    let totalUsers = 0
+    let customAiCount = 0
+
+    licenses.forEach((l) => {
+      try {
+        const d = typeof l.devices_data === 'string' ? JSON.parse(l.devices_data) : l.devices_data || []
+        totalPCs += Array.isArray(d) ? d.length : 0
+      } catch {}
+      try {
+        const u = typeof l.users_data === 'string' ? JSON.parse(l.users_data) : l.users_data || []
+        totalUsers += Array.isArray(u) ? u.length : 0
+      } catch {}
+      if (l.gemini_api_key && l.gemini_api_key.trim()) {
+        customAiCount += 1
+      }
+    })
+
+    return { total, pending, active, suspended, expired, rejected, totalPCs, totalUsers, customAiCount }
   }, [licenses])
 
   const filteredLicenses = useMemo(() => {
@@ -683,129 +715,616 @@ export default function LicenseManager() {
 
   return (
     <div className="space-y-6">
-      {/* Top Banner / Header */}
-      <div className="bg-gradient-to-r from-[#07502f] to-[#04331e] rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-2xl">🦓</span>
-            <h2 className="text-xl font-black tracking-tight">
-              Zebra IMS • Client Licenses & Multi-PC Nodes
-            </h2>
+      {/* Top Banner / Executive Header */}
+      <div className="bg-gradient-to-r from-[#042014] via-[#073d27] to-[#042014] rounded-3xl p-6 sm:p-7 text-white shadow-xl border border-emerald-500/20 flex flex-col md:flex-row md:items-center justify-between gap-5 relative overflow-hidden">
+        <div className="relative z-10">
+          <div className="flex items-center gap-2.5 mb-2">
+            <span className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-lg">
+              🛡️
+            </span>
+            <span className="text-[11px] font-black uppercase tracking-widest text-emerald-300 bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+              Fleet Commander
+            </span>
           </div>
-          <p className="text-xs text-emerald-200/90 font-medium">
-            Control activation approvals, device & counter PC limits, credentials, and per-user module tabs.
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+            Client Licenses & Multi-PC Nodes
+          </h2>
+          <p className="text-xs text-emerald-200/80 font-medium max-w-2xl mt-1 leading-relaxed">
+            Centralized remote control for instant activation approvals, hardware device locking (MAC + UUID), counter seat quotas, employee credentials, and per-client Google Gemini AI keys.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 relative z-10 shrink-0">
           <button
             type="button"
             onClick={fetchLicenses}
             disabled={loading}
-            className="px-4 py-2 bg-emerald-600/80 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs backdrop-blur-sm transition-all flex items-center gap-1.5 shadow"
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 shadow-lg shadow-emerald-950/40 disabled:opacity-50"
           >
-            <span>{loading ? 'Refreshing...' : '🔄 Refresh Data'}</span>
+            <span className={loading ? 'animate-spin' : ''}>🔄</span>
+            <span>{loading ? 'Refreshing...' : 'Refresh Fleet Data'}</span>
           </button>
         </div>
+
+        {/* Subtle decorative glow */}
+        <div className="absolute right-0 top-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
       </div>
 
-      {/* Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {[
-          { label: 'Total Clients', count: stats.total, color: 'border-gray-200 text-gray-800' },
-          { label: 'Pending Approvals', count: stats.pending, color: 'border-amber-300 bg-amber-50/50 text-amber-900', badge: stats.pending > 0 },
-          { label: 'Active Licenses', count: stats.active, color: 'border-emerald-300 bg-emerald-50/50 text-emerald-900' },
-          { label: 'Suspended (Locked)', count: stats.suspended, color: 'border-rose-300 bg-rose-50/50 text-rose-900' },
-          { label: 'Expired', count: stats.expired, color: 'border-gray-300 bg-gray-50 text-gray-600' },
-          { label: 'Rejected', count: stats.rejected, color: 'border-red-300 bg-red-50 text-red-700' },
-        ].map((item, idx) => (
-          <div
-            key={idx}
-            className={`p-3.5 rounded-2xl border bg-white shadow-sm flex flex-col justify-between ${item.color}`}
-          >
-            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center justify-between">
-              {item.label}
-              {item.badge && (
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-              )}
-            </span>
-            <span className="text-2xl font-black mt-2">{item.count}</span>
+      {/* 5 High-Impact Metric Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
+        {/* Total Organizations */}
+        <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-sm flex flex-col justify-between hover:border-emerald-300 transition-all">
+          <div className="flex items-center justify-between text-gray-500">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider">Organizations</span>
+            <span className="text-lg">🏢</span>
           </div>
-        ))}
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-black text-gray-900">{stats.total}</div>
+            <div className="text-[11px] font-semibold text-emerald-700 mt-1 flex items-center gap-1.5">
+              <span>● {stats.active} Active</span>
+              <span className="text-gray-300">•</span>
+              <span className="text-amber-600">● {stats.pending} Pending</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Pending Approvals */}
+        <div
+          className={`p-4 rounded-2xl border shadow-sm flex flex-col justify-between transition-all ${
+            stats.pending > 0
+              ? 'bg-amber-50/70 border-amber-300 text-amber-950'
+              : 'bg-white border-gray-200 text-gray-800'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-800">
+              Pending Approvals
+            </span>
+            <span className="text-lg">⏳</span>
+          </div>
+          <div className="mt-3">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl sm:text-3xl font-black text-amber-900">{stats.pending}</span>
+              {stats.pending > 0 && (
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
+              )}
+            </div>
+            <div className="text-[11px] font-semibold text-amber-700 mt-1">
+              {stats.pending > 0 ? 'Requires Owner Action' : 'All Requests Approved ✓'}
+            </div>
+          </div>
+        </div>
+
+        {/* Multi-PC Nodes */}
+        <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-sm flex flex-col justify-between hover:border-sky-300 transition-all">
+          <div className="flex items-center justify-between text-gray-500">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider">Multi-PC Nodes</span>
+            <span className="text-lg">💻</span>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-black text-gray-900">{stats.totalPCs}</div>
+            <div className="text-[11px] font-semibold text-sky-700 mt-1">
+              Server & Counter PCs Active
+            </div>
+          </div>
+        </div>
+
+        {/* Staff & Users */}
+        <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-sm flex flex-col justify-between hover:border-purple-300 transition-all">
+          <div className="flex items-center justify-between text-gray-500">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider">Staff Accounts</span>
+            <span className="text-lg">👥</span>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-black text-gray-900">{stats.totalUsers}</div>
+            <div className="text-[11px] font-semibold text-purple-700 mt-1">
+              Admins, Cashiers & Operators
+            </div>
+          </div>
+        </div>
+
+        {/* Gemini AI Deployments */}
+        <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-sm flex flex-col justify-between hover:border-indigo-300 transition-all col-span-2 sm:col-span-1">
+          <div className="flex items-center justify-between text-gray-500">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider">Gemini AI Keys</span>
+            <span className="text-lg">🤖</span>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-black text-gray-900">{stats.customAiCount}</div>
+            <div className="text-[11px] font-semibold text-indigo-700 mt-1">
+              Custom Isolated Keys Active
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Filter / Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm text-xs">
-        <div className="flex items-center gap-1 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+      {/* Control Bar: Filter Pills, Search Bar & View Mode Toggle */}
+      <div className="bg-white p-3.5 rounded-2xl border border-gray-200 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-3 text-xs">
+        {/* Status Filter Pills */}
+        <div className="flex items-center gap-1.5 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0">
           {[
-            { id: 'all', label: 'All Clients' },
-            { id: 'pending', label: `Pending (${stats.pending})` },
-            { id: 'active', label: `Active (${stats.active})` },
-            { id: 'suspended', label: `Suspended (${stats.suspended})` },
-            { id: 'other', label: 'Expired / Other' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
-                filter === tab.id
-                  ? 'bg-emerald-800 text-white shadow-sm'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+            { id: 'all', label: 'All Organizations', count: stats.total },
+            { id: 'pending', label: 'Pending Review', count: stats.pending, isAlert: stats.pending > 0 },
+            { id: 'active', label: 'Active Licensed', count: stats.active },
+            { id: 'suspended', label: 'Suspended (Locked)', count: stats.suspended },
+            { id: 'other', label: 'Expired / Other', count: stats.expired + stats.rejected },
+          ].map((tab) => {
+            const isSelected = filter === tab.id
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setFilter(tab.id)}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                  isSelected
+                    ? 'bg-[#042014] text-white shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    isSelected
+                      ? 'bg-emerald-600 text-white font-extrabold'
+                      : tab.isAlert
+                      ? 'bg-amber-100 text-amber-800 font-extrabold'
+                      : 'bg-gray-200 text-gray-700'
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              </button>
+            )
+          })}
         </div>
 
-        <div className="w-full sm:w-72">
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search company, MAC, key, city..."
-            className="w-full px-3 py-1.5 rounded-xl border border-gray-200 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-          />
+        {/* Search Input & View Mode Switcher */}
+        <div className="flex items-center gap-2.5 w-full lg:w-auto justify-between lg:justify-end">
+          <div className="relative flex-1 lg:w-72">
+            <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search business, MAC, key, city..."
+              className="w-full pl-9 pr-8 py-2 rounded-xl border border-gray-200 text-xs text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-gray-50/50"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-2 text-xs text-gray-400 hover:text-gray-600 font-bold"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* View Mode Toggle: Cards vs Table */}
+          <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 shrink-0">
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                viewMode === 'cards'
+                  ? 'bg-white text-emerald-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+              title="Expanded detailed cards view — each feature clearly visible"
+            >
+              <span>📋</span>
+              <span className="hidden sm:inline">Cards View</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                viewMode === 'table'
+                  ? 'bg-white text-emerald-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+              title="Spreadsheet table view"
+            >
+              <span>📊</span>
+              <span className="hidden sm:inline">Table View</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Main Table */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-[#07502f] text-white uppercase text-[11px] tracking-wider">
-              <tr>
-                <th className="py-3 px-4 font-semibold">Client / Company</th>
-                <th className="py-3 px-4 font-semibold">Contact & Location</th>
-                <th className="py-3 px-4 font-semibold">Activation Key & MAC</th>
-                <th className="py-3 px-4 font-semibold">Status</th>
-                <th className="py-3 px-4 font-semibold">Connected PCs</th>
-                <th className="py-3 px-4 font-semibold">Users</th>
-                <th className="py-3 px-4 font-semibold">Modules</th>
-                <th className="py-3 px-4 font-semibold">Expiration</th>
-                <th className="py-3 px-4 font-semibold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {loading ? (
+      {/* Main View: Cards View or Table View */}
+      {filteredLicenses.length === 0 ? (
+        <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-12 text-center space-y-3">
+          <div className="w-16 h-16 bg-gray-100 rounded-2xl mx-auto flex items-center justify-center text-3xl">
+            🔍
+          </div>
+          <h3 className="text-base font-bold text-gray-800">No client organizations found</h3>
+          <p className="text-xs text-gray-500 max-w-sm mx-auto">
+            {searchTerm
+              ? `No client matches search term "${searchTerm}". Try searching by machine ID or clear filters.`
+              : 'There are no client records matching this filter.'}
+          </p>
+        </div>
+      ) : viewMode === 'cards' ? (
+        /* ===============================================================
+           DETAILED CARDS VIEW: Every single feature prominent & clear
+           =============================================================== */
+        <div className="space-y-5">
+          {filteredLicenses.map((item) => {
+            const isPending = item.status === 'pending'
+            const isActive = item.status === 'active'
+            const isSuspended = item.status === 'suspended'
+
+            let parsedUsers = []
+            try {
+              parsedUsers = typeof item.users_data === 'string' ? JSON.parse(item.users_data) : item.users_data || []
+            } catch {}
+
+            let parsedDevices = []
+            try {
+              parsedDevices = typeof item.devices_data === 'string' ? JSON.parse(item.devices_data) : item.devices_data || []
+            } catch {}
+
+            let parsedTabs = []
+            try {
+              if (item.allowed_tabs === 'ALL' || !item.allowed_tabs) {
+                parsedTabs = ALL_SIDEBAR_TABS.map((t) => t.id)
+              } else if (typeof item.allowed_tabs === 'string') {
+                parsedTabs = JSON.parse(item.allowed_tabs)
+              }
+            } catch {
+              parsedTabs = ALL_SIDEBAR_TABS.map((t) => t.id)
+            }
+
+            const isMac = (item.os_info || '').toLowerCase().includes('darwin') || (item.os_info || '').toLowerCase().includes('mac')
+            const isWindows = (item.os_info || '').toLowerCase().includes('win')
+
+            return (
+              <div
+                key={item.id}
+                className="bg-white rounded-3xl border border-gray-200/90 shadow-md hover:shadow-lg transition-all overflow-hidden"
+              >
+                {/* 1. Card Header: Company, Location, Status, and Main Actions */}
+                <div className="bg-gradient-to-r from-gray-50 via-white to-gray-50 px-6 py-4 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-start sm:items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#07502f] to-[#032314] text-white flex items-center justify-center text-xl font-bold shadow-md shrink-0">
+                      🏢
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-base sm:text-lg font-black text-gray-950 tracking-tight">
+                          {item.company_name || item.customer_name || 'Unregistered Client'}
+                        </h3>
+                        {item.customer_name && item.company_name && (
+                          <span className="text-xs text-gray-500 font-semibold">
+                            ({item.customer_name})
+                          </span>
+                        )}
+
+                        {/* Status Badge */}
+                        <span
+                          className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wide border shadow-sm ${
+                            isActive
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                              : isPending
+                              ? 'bg-amber-50 text-amber-900 border-amber-300 animate-pulse'
+                              : 'bg-rose-50 text-rose-800 border-rose-300'
+                          }`}
+                        >
+                          <span
+                            className={`w-2 h-2 rounded-full ${
+                              isActive ? 'bg-emerald-500' : isPending ? 'bg-amber-500' : 'bg-rose-500'
+                            }`}
+                          />
+                          <span>{isActive ? 'Active Licensed' : isPending ? 'Pending Approval' : 'Suspended (Locked)'}</span>
+                        </span>
+                      </div>
+
+                      {/* Subtitle / Host info */}
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-gray-600 mt-1">
+                        <span className="font-semibold flex items-center gap-1">
+                          <span>{isMac ? '🍏' : isWindows ? '🪟' : '💻'}</span>
+                          <span>{item.hostname || 'Unknown Host'}</span>
+                        </span>
+                        {item.contact && (
+                          <>
+                            <span className="text-gray-300">•</span>
+                            <span className="flex items-center gap-1 text-gray-700 font-semibold">
+                              <span>📞</span>
+                              <span>{item.contact}</span>
+                            </span>
+                          </>
+                        )}
+                        {item.city && (
+                          <>
+                            <span className="text-gray-300">•</span>
+                            <span className="flex items-center gap-1 text-gray-700">
+                              <span>📍</span>
+                              <span>{item.city}</span>
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Header Actions */}
+                  <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => openActivateModal(item)}
+                      disabled={actionLoading === item.id}
+                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-sm transition-all flex items-center gap-1.5"
+                    >
+                      <span>⚙️</span>
+                      <span>{isPending ? 'Activate Client' : 'Manage Plan & Limits'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSuspend(item)}
+                      disabled={actionLoading === item.id}
+                      className={`px-3 py-1.5 rounded-xl font-extrabold text-xs transition-all border flex items-center gap-1.5 ${
+                        isSuspended
+                          ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                      }`}
+                      title={isSuspended ? 'Resume client access' : 'Lock client screen with suspension notice'}
+                    >
+                      <span>{isSuspended ? '🔓' : '🔒'}</span>
+                      <span>{isSuspended ? 'Resume Access' : 'Lockout Client'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(item)}
+                      disabled={actionLoading === item.id}
+                      className="p-1.5 rounded-xl text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                      title="Permanently delete client record"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Card Body: 4 High-Visibility Quadrants */}
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 text-xs">
+                  {/* Quadrant 1: Hardware & Activation Security */}
+                  <div className="bg-gray-50/70 p-4 rounded-2xl border border-gray-200/80 space-y-2.5">
+                    <div className="flex items-center justify-between text-gray-500 font-bold uppercase tracking-wider text-[10px]">
+                      <span>Hardware Security</span>
+                      <span>🔐</span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] text-gray-500 block font-semibold">Activation Key:</span>
+                      <div className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-xl border border-gray-200 mt-0.5">
+                        <span className="font-mono font-bold text-gray-900 tracking-wider">
+                          {item.activation_key || 'UNASSIGNED'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(item.activation_key, `act_${item.id}`)}
+                          className="text-[10px] font-extrabold text-emerald-700 hover:text-emerald-900 ml-1"
+                        >
+                          {copiedKeyId === `act_${item.id}` ? '✓ Copied' : '📋 Copy'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div>
+                        <span className="text-[10px] text-gray-500 block font-semibold">MAC Address:</span>
+                        <span className="font-mono font-bold text-gray-800 bg-white px-2 py-0.5 rounded-lg border border-gray-200 block truncate">
+                          {item.mac_address || 'UNKNOWN'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-gray-500 block font-semibold">Expiry Date:</span>
+                        <span className="font-semibold text-gray-800 bg-white px-2 py-0.5 rounded-lg border border-gray-200 block">
+                          {formatDate(item.expires_at)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-1">
+                      <span className="text-[10px] text-gray-400 block truncate font-mono" title={item.machine_id}>
+                        UUID: {item.machine_id || 'SYS-DEFAULT'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Quadrant 2: Multi-PC Seats & Counter Network */}
+                  <div className="bg-sky-50/50 p-4 rounded-2xl border border-sky-200/80 space-y-2.5">
+                    <div className="flex items-center justify-between text-sky-900 font-bold uppercase tracking-wider text-[10px]">
+                      <span>Multi-PC Network</span>
+                      <span>💻</span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-sm text-sky-950">
+                        {parsedDevices.length} / {item.max_devices || 3} Computers Active
+                      </span>
+                      <span className="text-[10px] font-semibold text-sky-700">
+                        {Math.round((parsedDevices.length / (item.max_devices || 3)) * 100)}% Capacity
+                      </span>
+                    </div>
+
+                    {/* Progress Capacity Bar */}
+                    <div className="w-full h-2 bg-sky-200/70 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-sky-600 rounded-full transition-all"
+                        style={{
+                          width: `${Math.min(100, Math.round((parsedDevices.length / (item.max_devices || 3)) * 100))}%`,
+                        }}
+                      />
+                    </div>
+
+                    {/* Mini device pills */}
+                    <div className="space-y-1">
+                      {parsedDevices.slice(0, 2).map((dev, dIdx) => (
+                        <div
+                          key={dIdx}
+                          className="flex items-center justify-between bg-white px-2 py-1 rounded-lg border border-sky-100 text-[11px]"
+                        >
+                          <span className="font-semibold text-gray-800 truncate max-w-[130px]">
+                            {dev.device_role === 'Server' ? '🖥️' : '💻'} {dev.device_name || 'Desk PC'}
+                          </span>
+                          <span className="font-mono text-[10px] text-gray-500">
+                            {dev.device_role || 'Counter'}
+                          </span>
+                        </div>
+                      ))}
+                      {parsedDevices.length > 2 && (
+                        <div className="text-[10px] text-sky-700 font-bold text-center">
+                          +{parsedDevices.length - 2} more connected PCs
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => openDevicesModal(item)}
+                      className="w-full py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-[11px] transition-all shadow-sm flex items-center justify-center gap-1.5"
+                    >
+                      <span>🖥️</span>
+                      <span>Manage PCs & Limits ({parsedDevices.length}) →</span>
+                    </button>
+                  </div>
+
+                  {/* Quadrant 3: Registered Staff & Cashiers */}
+                  <div className="bg-purple-50/50 p-4 rounded-2xl border border-purple-200/80 space-y-2.5">
+                    <div className="flex items-center justify-between text-purple-900 font-bold uppercase tracking-wider text-[10px]">
+                      <span>Staff & User Accounts</span>
+                      <span>👥</span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-sm text-purple-950">
+                        {parsedUsers.length} / {item.max_users || 5} User Accounts
+                      </span>
+                      <span className="text-[10px] font-semibold text-purple-700">
+                        {parsedUsers.filter(u => (u.user_type || '').toLowerCase() === 'admin').length} Admin
+                      </span>
+                    </div>
+
+                    {/* Mini users list with roles */}
+                    <div className="space-y-1">
+                      {parsedUsers.slice(0, 2).map((u, uIdx) => {
+                        const meta = getRoleMeta(u.user_type)
+                        return (
+                          <div
+                            key={uIdx}
+                            className="flex items-center justify-between bg-white px-2 py-1 rounded-lg border border-purple-100 text-[11px]"
+                          >
+                            <span className="font-bold text-gray-800 truncate max-w-[120px]">
+                              {u.name}
+                            </span>
+                            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold border ${meta.badge}`}>
+                              <span>{meta.icon}</span>
+                              <span>{meta.shortLabel}</span>
+                            </span>
+                          </div>
+                        )
+                      })}
+                      {parsedUsers.length > 2 && (
+                        <div className="text-[10px] text-purple-700 font-bold text-center">
+                          +{parsedUsers.length - 2} more staff operators
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => openUsersModal(item)}
+                      className="w-full py-1.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-extrabold text-[11px] transition-all shadow-sm flex items-center justify-center gap-1.5"
+                    >
+                      <span>👥</span>
+                      <span>View Users & Passwords Vault →</span>
+                    </button>
+                  </div>
+
+                  {/* Quadrant 4: Modules & Dedicated Gemini AI */}
+                  <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-200/80 space-y-2.5">
+                    <div className="flex items-center justify-between text-emerald-900 font-bold uppercase tracking-wider text-[10px]">
+                      <span>ERP Tabs & Gemini AI</span>
+                      <span>⚡</span>
+                    </div>
+
+                    {/* Modules Tab info */}
+                    <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-emerald-100">
+                      <div>
+                        <span className="font-extrabold text-gray-900 block text-xs">
+                          {parsedTabs.length} / 20 Modules Active
+                        </span>
+                        <span className="text-[10px] text-gray-500 font-medium">
+                          {item.allow_updates !== false ? '✓ Updates Allowed' : '⛔ Updates Blocked'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openTabsModal(item)}
+                        className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-bold text-[10px] rounded-lg transition-colors"
+                      >
+                        📑 Edit Tabs
+                      </button>
+                    </div>
+
+                    {/* Gemini AI Status Badge */}
+                    <div className="bg-white p-2 rounded-xl border border-emerald-100 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase">AI Advisor Key:</span>
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[9px] font-extrabold ${
+                            item.gemini_api_key
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-indigo-100 text-indigo-800'
+                          }`}
+                        >
+                          <span>{item.gemini_api_key ? '● Custom AI Key' : '● Shared Master'}</span>
+                        </span>
+                      </div>
+                      <div className="font-semibold text-gray-800 text-[11px] truncate">
+                        {item.gemini_key_name || (item.gemini_api_key ? 'Configured Client Key' : 'Default Global Key')}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => openGeminiModal(item)}
+                      className="w-full py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] transition-all shadow-sm flex items-center justify-center gap-1.5"
+                    >
+                      <span>🤖</span>
+                      <span>Configure Gemini AI Key →</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        /* ===============================================================
+           TABLE VIEW: Spacious, high-contrast, perfectly organized
+           =============================================================== */
+        <div className="bg-white rounded-3xl border border-gray-200 shadow-md overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#042014] text-white uppercase text-[11px] tracking-wider">
                 <tr>
-                  <td colSpan="9" className="py-8 text-center text-gray-500">
-                    Loading clients...
-                  </td>
+                  <th className="py-4 px-4 font-extrabold">Client / Organization</th>
+                  <th className="py-4 px-4 font-extrabold">Activation Key & MAC</th>
+                  <th className="py-4 px-4 font-extrabold">Status & Expiry</th>
+                  <th className="py-4 px-4 font-extrabold">Multi-PC Nodes</th>
+                  <th className="py-4 px-4 font-extrabold">Staff Users</th>
+                  <th className="py-4 px-4 font-extrabold">Modules & AI Key</th>
+                  <th className="py-4 px-4 font-extrabold text-right">Actions</th>
                 </tr>
-              ) : filteredLicenses.length === 0 ? (
-                <tr>
-                  <td colSpan="9" className="py-8 text-center text-gray-400">
-                    No clients match this filter.
-                  </td>
-                </tr>
-              ) : (
-                filteredLicenses.map((item) => {
+              </thead>
+              <tbody className="divide-y divide-gray-100 font-sans">
+                {filteredLicenses.map((item) => {
                   const isPending = item.status === 'pending'
                   const isActive = item.status === 'active'
                   const isSuspended = item.status === 'suspended'
-                  const isRejected = item.status === 'rejected'
-                  const isExpired = item.status === 'expired'
 
                   let parsedUsers = []
                   try {
@@ -828,153 +1347,101 @@ export default function LicenseManager() {
                     parsedTabs = ALL_SIDEBAR_TABS.map((t) => t.id)
                   }
 
+                  const isMac = (item.os_info || '').toLowerCase().includes('darwin') || (item.os_info || '').toLowerCase().includes('mac')
+                  const isWindows = (item.os_info || '').toLowerCase().includes('win')
+
                   return (
                     <tr
                       key={item.id}
                       className={`hover:bg-gray-50/80 transition-colors ${
-                        isPending
-                          ? 'bg-amber-50/40'
-                          : isSuspended
-                          ? 'bg-rose-50/30'
-                          : ''
+                        isPending ? 'bg-amber-50/40' : isSuspended ? 'bg-rose-50/30' : ''
                       }`}
                     >
-                      {/* Client / Company */}
-                      <td className="py-3 px-4 align-middle">
-                        <div className="font-extrabold text-gray-900 text-sm">
+                      {/* Organization & Location */}
+                      <td className="py-4 px-4 align-middle">
+                        <div className="font-black text-gray-950 text-sm">
                           {item.company_name || item.customer_name || 'Unregistered Client'}
                         </div>
                         <div className="text-gray-500 text-[11px] flex items-center gap-1.5 mt-0.5">
-                          <span>💻 {item.hostname || 'Unknown Host'}</span>
-                          <span className="text-gray-300">•</span>
-                          <span className="truncate max-w-[120px]" title={item.os_info}>
-                            {item.os_info || 'Windows'}
-                          </span>
+                          <span>{isMac ? '🍏' : isWindows ? '🪟' : '💻'}</span>
+                          <span className="font-semibold text-gray-700">{item.hostname || 'Unknown Host'}</span>
                         </div>
-                      </td>
-
-                      {/* Contact & Location */}
-                      <td className="py-3 px-4 align-middle text-gray-600">
-                        {item.contact ? (
-                          <div className="font-medium text-gray-800">📞 {item.contact}</div>
-                        ) : null}
-                        {item.city ? (
-                          <div className="text-[11px] text-gray-500">📍 {item.city}</div>
-                        ) : (
-                          <span className="text-gray-400">—</span>
-                        )}
-                      </td>
-
-                      {/* Key & MAC */}
-                      <td className="py-3 px-4 align-middle space-y-1">
-                        <button
-                          type="button"
-                          onClick={() => copyToClipboard(item.activation_key, 'key')}
-                          className="font-mono text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded text-[11px] font-bold flex items-center gap-1 transition-colors"
-                          title="Click to copy Key"
-                        >
-                          <span>{item.activation_key}</span>
-                          <span>{copiedKey === `key_${item.activation_key}` ? '✓' : '📋'}</span>
-                        </button>
-                        <div className="text-[10px] font-mono text-gray-400">
-                          {item.mac_address}
-                        </div>
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3 px-4 align-middle">
-                        {isPending && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                            Pending
-                          </span>
-                        )}
-                        {isActive && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                            Active
-                          </span>
-                        )}
-                        {isSuspended && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
-                            Suspended
-                          </span>
-                        )}
-                        {isRejected && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-800">
-                            Rejected
-                          </span>
-                        )}
-                        {isExpired && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-gray-200 text-gray-700">
-                            Expired
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Connected PCs / Devices Limit */}
-                      <td className="py-3 px-4 align-middle">
-                        <button
-                          type="button"
-                          onClick={() => openDevicesModal(item)}
-                          className="hover:underline font-semibold text-gray-800 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-200 hover:bg-sky-100 transition-colors"
-                          title="Click to view & manage connected Counter/Server PCs"
-                        >
-                          <span>💻</span>
-                          <span className="font-extrabold text-sky-900">{parsedDevices.length}</span>
-                          <span className="text-gray-400">/</span>
-                          <span className="font-bold text-sky-700">{item.max_devices || 3}</span>
-                          <span className="text-[10px] text-sky-600 font-bold ml-1">PCs</span>
-                        </button>
-                      </td>
-
-                      {/* User Limits */}
-                      <td className="py-3 px-4 align-middle">
-                        <button
-                          type="button"
-                          onClick={() => openUsersModal(item)}
-                          className="hover:underline font-semibold text-gray-800 flex items-center gap-1"
-                          title="Click to view client user accounts and credentials"
-                        >
-                          <span>👥</span>
-                          <span>{parsedUsers.length}</span>
-                          <span className="text-gray-400">/</span>
-                          <span>{item.max_users || 5}</span>
-                          <span className="text-[10px] text-indigo-600 font-bold ml-1">View</span>
-                        </button>
-                        {parsedUsers.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {Array.from(new Set(parsedUsers.map((u) => u.user_type || 'Employee')))
-                              .slice(0, 3)
-                              .map((roleName, rIdx) => {
-                                const meta = getRoleMeta(roleName)
-                                return (
-                                  <span
-                                    key={rIdx}
-                                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold border ${meta.badge}`}
-                                  >
-                                    <span>{meta.icon}</span>
-                                    <span>{meta.shortLabel}</span>
-                                  </span>
-                                )
-                              })}
-                            {new Set(parsedUsers.map((u) => u.user_type || 'Employee')).size > 3 && (
-                              <span className="text-[9px] text-gray-400 font-bold self-center">
-                                +more
-                              </span>
-                            )}
+                        {item.contact && (
+                          <div className="text-[11px] text-gray-600 mt-0.5 font-medium">
+                            📞 {item.contact} {item.city ? `• 📍 ${item.city}` : ''}
                           </div>
                         )}
                       </td>
 
-                      {/* Modules / Tabs & AI Key */}
-                      <td className="py-3 px-4 align-middle">
+                      {/* Activation Key & Hardware MAC */}
+                      <td className="py-4 px-4 align-middle">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-gray-900 bg-gray-100 px-2 py-0.5 rounded-lg border border-gray-200">
+                            {item.activation_key || 'UNASSIGNED'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyText(item.activation_key, `act_tbl_${item.id}`)}
+                            className="text-[10px] font-extrabold text-emerald-700 hover:text-emerald-900"
+                            title="Copy key"
+                          >
+                            {copiedKeyId === `act_tbl_${item.id}` ? '✓' : '📋'}
+                          </button>
+                        </div>
+                        <div className="font-mono text-[11px] text-gray-500 mt-1">
+                          MAC: {item.mac_address || '—'}
+                        </div>
+                      </td>
+
+                      {/* Status & Validity */}
+                      <td className="py-4 px-4 align-middle">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                            isActive
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : isPending
+                              ? 'bg-amber-100 text-amber-800 animate-pulse'
+                              : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
+                          <span>●</span>
+                          <span>{isActive ? 'Active' : isPending ? 'Pending' : 'Suspended'}</span>
+                        </span>
+                        <div className="text-[11px] text-gray-600 font-semibold mt-1">
+                          {formatDate(item.expires_at)}
+                        </div>
+                      </td>
+
+                      {/* Multi-PC Nodes */}
+                      <td className="py-4 px-4 align-middle">
+                        <button
+                          type="button"
+                          onClick={() => openDevicesModal(item)}
+                          className="px-2.5 py-1 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 font-extrabold text-[11px] flex items-center gap-1.5 transition-colors"
+                        >
+                          <span>💻</span>
+                          <span>{parsedDevices.length} / {item.max_devices || 3} PCs</span>
+                        </button>
+                      </td>
+
+                      {/* Users / Staff */}
+                      <td className="py-4 px-4 align-middle">
+                        <button
+                          type="button"
+                          onClick={() => openUsersModal(item)}
+                          className="px-2.5 py-1 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 font-extrabold text-[11px] flex items-center gap-1.5 transition-colors"
+                        >
+                          <span>👥</span>
+                          <span>{parsedUsers.length} / {item.max_users || 5} Users</span>
+                        </button>
+                      </td>
+
+                      {/* Modules & Dedicated AI Key */}
+                      <td className="py-4 px-4 align-middle space-y-1">
                         <button
                           type="button"
                           onClick={() => openTabsModal(item)}
                           className="px-2 py-0.5 rounded-lg bg-gray-100 hover:bg-gray-200 font-semibold text-gray-700 text-[11px] flex items-center gap-1 transition-colors"
-                          title="Click to customize enabled tabs for this client"
                         >
                           <span>📑</span>
                           <span>{parsedTabs.length} / 20 Tabs</span>
@@ -982,30 +1449,24 @@ export default function LicenseManager() {
                         <button
                           type="button"
                           onClick={() => openGeminiModal(item)}
-                          className={`mt-1.5 px-2 py-0.5 rounded-lg font-semibold text-[10px] flex items-center gap-1 transition-colors ${
+                          className={`px-2 py-0.5 rounded-lg font-semibold text-[10px] flex items-center gap-1 transition-colors ${
                             item.gemini_api_key
                               ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
                               : 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100'
                           }`}
-                          title={item.gemini_api_key ? `Custom Gemini Key Active: ${item.gemini_key_name || 'Configured'}` : 'Click to assign a dedicated Google Gemini API Key for this client'}
                         >
                           <span>🤖</span>
                           <span>{item.gemini_api_key ? (item.gemini_key_name || 'Custom AI') : 'AI Key'}</span>
                         </button>
                       </td>
 
-                      {/* Expiration */}
-                      <td className="py-3 px-4 align-middle font-medium text-gray-700">
-                        {formatDate(item.expires_at)}
-                      </td>
-
                       {/* Actions */}
-                      <td className="py-3 px-4 align-middle text-right space-x-1.5 whitespace-nowrap">
+                      <td className="py-4 px-4 align-middle text-right space-x-1.5 whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => openActivateModal(item)}
                           disabled={actionLoading === item.id}
-                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-sm transition-all"
+                          className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] shadow-sm transition-all"
                         >
                           {isPending ? 'Activate' : '⚙️ Manage'}
                         </button>
@@ -1014,12 +1475,11 @@ export default function LicenseManager() {
                           type="button"
                           onClick={() => handleToggleSuspend(item)}
                           disabled={actionLoading === item.id}
-                          className={`px-2 py-1 rounded-lg font-bold text-[11px] transition-all ${
+                          className={`px-2.5 py-1.5 rounded-xl font-extrabold text-[11px] transition-all border ${
                             isSuspended
-                              ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300'
-                              : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                              ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
                           }`}
-                          title={isSuspended ? 'Click to resume access' : 'Click to suspend client'}
                         >
                           {isSuspended ? '🔓 Resume' : '🔒 Lock'}
                         </button>
@@ -1028,20 +1488,20 @@ export default function LicenseManager() {
                           type="button"
                           onClick={() => handleDelete(item)}
                           disabled={actionLoading === item.id}
-                          className="px-2 py-1 rounded-lg text-gray-400 hover:text-red-600 font-bold text-[11px] transition-all"
-                          title="Delete device record"
+                          className="px-2 py-1.5 rounded-xl text-gray-400 hover:text-rose-600 font-bold text-[11px] transition-all"
+                          title="Delete client record"
                         >
                           🗑️
                         </button>
                       </td>
                     </tr>
                   )
-                })
-              )}
-            </tbody>
-          </table>
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 1. Modal: Activate / Manage License & Limits */}
       {isModalOpen && selectedLicense && (
