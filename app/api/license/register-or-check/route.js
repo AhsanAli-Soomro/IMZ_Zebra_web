@@ -24,6 +24,7 @@ export async function POST(req) {
       city,
       address,
       users_data,
+      devices_data,
     } = body || {}
 
     if (!machine_id || !mac_address) {
@@ -44,6 +45,7 @@ export async function POST(req) {
       city: city ? String(city).trim() : null,
       address: address ? String(address).trim() : null,
       users_data: users_data ? (typeof users_data === 'string' ? users_data : JSON.stringify(users_data)) : null,
+      devices_data: devices_data ? (typeof devices_data === 'string' ? devices_data : JSON.stringify(devices_data)) : null,
     })
 
     if (!record) {

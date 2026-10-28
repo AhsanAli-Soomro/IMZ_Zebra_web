@@ -66,12 +66,20 @@ export default function LicenseManager() {
   const [viewingDevices, setViewingDevices] = useState([])
   const [deviceLimitInput, setDeviceLimitInput] = useState(3)
 
+  // 6. Decrypted original passwords state (protected by admin password)
+  const [unlockedPasswords, setUnlockedPasswords] = useState({})
+  const [revealingUserId, setRevealingUserId] = useState(null)
+
   const [copiedKey, setCopiedKey] = useState('')
 
   const fetchLicenses = async () => {
     try {
       setLoading(true)
       setError('')
+      const adminPwd = sessionStorage.getItem('admin_auth_password') || ''
+      if (adminPwd) {
+        axios.defaults.headers.common['x-admin-password'] = adminPwd
+      }
       const res = await axios.get('/api/license/admin/list')
       if (res.data?.ok) {
         setLicenses(res.data.data || [])
@@ -88,6 +96,52 @@ export default function LicenseManager() {
   useEffect(() => {
     fetchLicenses()
   }, [])
+
+  const handleRevealPassword = async (user) => {
+    if (!user) return
+    const userId = user.id || user.email
+
+    if (unlockedPasswords[userId]) {
+      setUnlockedPasswords((prev) => {
+        const copy = { ...prev }
+        delete copy[userId]
+        return copy
+      })
+      return
+    }
+
+    if (!user.user_codeID) {
+      alert('Original password vault token (user_codeID) not available for this account.')
+      return
+    }
+
+    let adminPwd = sessionStorage.getItem('admin_auth_password') || ''
+    if (!adminPwd) {
+      adminPwd = prompt('Enter Owner Admin Password to decrypt user_codeID:')
+      if (!adminPwd) return
+    }
+
+    try {
+      setRevealingUserId(userId)
+      const res = await axios.post('/api/license/admin/reveal-password', {
+        admin_password: adminPwd.trim(),
+        user_codeID: user.user_codeID,
+      })
+
+      if (res.data?.ok && res.data?.original_password) {
+        setUnlockedPasswords((prev) => ({
+          ...prev,
+          [userId]: res.data.original_password,
+        }))
+      } else {
+        alert(res.data?.error || 'Invalid admin password.')
+      }
+    } catch (err) {
+      alert(err?.response?.data?.error || 'Failed to decrypt password: Access Denied.')
+    } finally {
+      setRevealingUserId(null)
+    }
+  }
 
   const copyToClipboard = (text, type) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -1269,18 +1323,47 @@ export default function LicenseManager() {
                             </button>
                           </td>
                           <td className="py-2 px-3">
-                            {u.password ? (
-                              <button
-                                type="button"
-                                onClick={() => copyToClipboard(u.password, `pwd_${i}`)}
-                                className="font-mono bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 px-2 py-0.5 rounded text-[11px] font-semibold flex items-center gap-1"
-                                title="Click to copy password"
-                              >
-                                <span>{u.password}</span>
-                                <span>{copiedKey === `pwd_${i}_${u.password}` ? '✓' : '📋'}</span>
-                              </button>
+                            {unlockedPasswords[u.id || u.email] ? (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => copyToClipboard(unlockedPasswords[u.id || u.email], `pwd_${i}`)}
+                                  className="font-mono bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 px-2 py-0.5 rounded text-[11px] font-bold flex items-center gap-1 shadow-sm"
+                                  title="Decrypted original password (Click to copy)"
+                                >
+                                  <span>🔓 {unlockedPasswords[u.id || u.email]}</span>
+                                  <span>{copiedKey === `pwd_${i}_${unlockedPasswords[u.id || u.email]}` ? '✓' : '📋'}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRevealPassword(u)}
+                                  className="text-[10px] text-gray-500 hover:text-gray-700 underline"
+                                  title="Hide password"
+                                >
+                                  Hide
+                                </button>
+                              </div>
                             ) : (
-                              <span className="text-gray-400 font-mono">—</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono text-gray-400 text-xs tracking-widest select-none">••••••••</span>
+                                {u.user_codeID ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRevealPassword(u)}
+                                    disabled={revealingUserId === (u.id || u.email)}
+                                    className="px-2 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold flex items-center gap-1 transition-all"
+                                    title="Unlock original password using admin password"
+                                  >
+                                    {revealingUserId === (u.id || u.email) ? '...' : '👁️ Unlock'}
+                                  </button>
+                                ) : u.password ? (
+                                  <span className="text-[10px] text-gray-400 font-mono" title="Password Hash / Encoded">
+                                    🔒 Hash
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400 font-mono">—</span>
+                                )}
+                              </div>
                             )}
                           </td>
                           <td className="py-2 px-3 text-right text-gray-500 text-[11px]">

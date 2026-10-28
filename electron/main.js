@@ -780,12 +780,17 @@ async function startApp() {
       console.log('Skipping Electron migration in dev mode')
     }
 
-    // Determine initial route: if first install and no network config, prompt network setup!
-    let initialRoute = '/'
-    if (!netCfg) {
-      initialRoute = '/network-setup'
-    } else if (!activation.ok) {
+    // Determine initial route:
+    // If not activated -> /activate
+    // If brand new installation with no network config -> /network-setup
+    // If activated server or existing client -> /login
+    let initialRoute = '/login'
+    if (!activation.ok) {
       initialRoute = '/activate'
+    } else if (!netCfg) {
+      // Auto-save as Main Server for activated machines
+      saveNetworkConfig({ mode: 'server' })
+      initialRoute = '/login'
     } else {
       initialRoute = '/login'
     }

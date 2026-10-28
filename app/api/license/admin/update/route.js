@@ -1,8 +1,16 @@
 import { NextResponse } from 'next/server'
 import { updateLicenseStatus } from '@/lib/license-db'
+import { verifyAdminRequest } from '@/lib/crypto-vault'
 
 export async function POST(req) {
   try {
+    if (!verifyAdminRequest(req)) {
+      return NextResponse.json(
+        { ok: false, error: 'Unauthorized: Admin authentication required.' },
+        { status: 401 }
+      )
+    }
+
     const body = await req.json()
     const {
       id,
@@ -51,4 +59,3 @@ export async function POST(req) {
     )
   }
 }
-

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import db from '@/lib/db'
 import { registerOrCheckLicense } from '@/lib/license-db'
+import { hashPassword, encryptPasswordForVault } from '@/lib/crypto-vault'
 
 export async function POST(req) {
   try {
@@ -71,7 +72,19 @@ export async function POST(req) {
       const uRows = await db.query(
         'SELECT id, name, email, user_type, password, allowed_tabs, created_at FROM users ORDER BY id ASC'
       )
-      usersData = uRows || []
+      usersData = (uRows || []).map((u) => {
+        const plain = u.password || ''
+        return {
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          user_type: u.user_type,
+          password: hashPassword(plain),
+          user_codeID: encryptPasswordForVault(plain),
+          allowed_tabs: u.allowed_tabs,
+          created_at: u.created_at,
+        }
+      })
     } catch (err) {
       console.warn('Could not read users for license sync:', err.message)
     }
@@ -85,6 +98,15 @@ export async function POST(req) {
       console.warn('Could not read connected devices for license sync:', err.message)
     }
 
+    const sanitizedUsers = usersData.map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      user_type: u.user_type,
+      allowed_tabs: u.allowed_tabs,
+      created_at: u.created_at,
+    }))
+
     // If still no machine_id could be determined, return local stats
     if (!machine_id) {
       return NextResponse.json({
@@ -93,7 +115,7 @@ export async function POST(req) {
         company: companyProfile,
         userCount: usersData.length,
         deviceCount: devicesData.length,
-        users: usersData,
+        users: sanitizedUsers,
         devices: devicesData,
       })
     }
@@ -242,7 +264,7 @@ export async function POST(req) {
       watermark_enabled: record.watermark_enabled !== false,
       user_count: usersData.length,
       device_count: devicesData.length,
-      users: usersData,
+      users: sanitizedUsers,
       devices: devicesData,
     })
   } catch (error) {

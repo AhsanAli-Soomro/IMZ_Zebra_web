@@ -27,6 +27,7 @@ export default function AdminPage() {
     if (validPasswords.includes(password.trim())) {
       setIsAuthenticated(true)
       sessionStorage.setItem('admin_auth_token', 'authenticated')
+      sessionStorage.setItem('admin_auth_password', password.trim())
     } else {
       setError('Invalid admin password')
     }

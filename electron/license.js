@@ -6,6 +6,7 @@ const os = require('os')
 const { execFileSync } = require('child_process')
 const { neon } = require('@neondatabase/serverless')
 const { NEON_DATABASE_URL, APP_LICENSE_SECRET } = require('./license-config')
+const { hashPassword, encryptPasswordForVault } = require('./crypto-vault')
 
 const OWNER_KEY_HASH = '867d0594b163f154df848ff6fc482abe87c543d0c82817abe0d5ccc5d2935fd7'
 const LEGACY_APP_SECRET = 'ahgt45-da87jd-9sdf8a-2345hjk'
@@ -214,6 +215,92 @@ function readLicenseFile() {
 }
 
 /**
+ * Auto-detect and grandfather existing clients (e.g. Habib Rice Corporation)
+ * If an existing database with company profile or business data is found,
+ * seamlessly auto-activate them so they NEVER face lockout or activation screens.
+ */
+function checkAndAutoMigrateExistingClient(sysInfo) {
+  try {
+    const dbPath = getLocalDbPath()
+    if (!dbPath || !fs.existsSync(dbPath)) return null
+
+    const Database = require('better-sqlite3')
+    const db = new Database(dbPath, { readonly: true })
+
+    let companyName = ''
+    try {
+      const profile = db.prepare('SELECT company_name FROM company_profile LIMIT 1').get()
+      if (profile && profile.company_name && profile.company_name.trim() !== '') {
+        companyName = profile.company_name.trim()
+      }
+    } catch {}
+
+    let hasUserData = false
+    try {
+      const uCount = db.prepare('SELECT count(*) as c FROM users').get()?.c || 0
+      if (uCount > 0) hasUserData = true
+    } catch {}
+
+    let hasBillData = false
+    try {
+      const bCount = db.prepare('SELECT count(*) as c FROM bills').get()?.c || 0
+      if (bCount > 0) hasBillData = true
+    } catch {}
+
+    db.close()
+
+    // If company is identified or existing customer data exists, this is an authentic existing client!
+    if (companyName || hasUserData || hasBillData) {
+      const customer = companyName || 'Habib Rice Corporation'
+      console.log('Auto-migrating authentic existing client:', customer)
+
+      const payload = {
+        activated: true,
+        machineId: sysInfo.machineId,
+        macAddress: sysInfo.macAddress,
+        activationKey: sysInfo.activationKey,
+        customerName: customer,
+        expiresAt: null, // Grandfathered lifetime license for existing client
+        activatedAt: new Date().toISOString(),
+        maxUsers: 10,
+        maxDevices: 5,
+        allowedTabs: 'ALL',
+        watermarkEnabled: false,
+        autoMigrated: true,
+      }
+
+      const signature = signPayload(payload)
+      const licPath = getLicensePath()
+      safeWriteJson(licPath, { payload, signature })
+
+      // Ensure network-config.json exists as server so they are never prompted with network setup
+      try {
+        const netCfgPath = path.join(path.dirname(licPath), 'network-config.json')
+        if (!fs.existsSync(netCfgPath)) {
+          fs.writeFileSync(netCfgPath, JSON.stringify({ mode: 'server' }, null, 2), 'utf-8')
+        }
+      } catch {}
+
+      // Background registration to Neon Cloud so they appear active in Admin Portal
+      checkActivationOnline().catch(() => {})
+
+      return {
+        ok: true,
+        reason: 'activated',
+        status: 'active',
+        customerName: customer,
+        payload,
+        expiresAt: null,
+        ...sysInfo,
+      }
+    }
+  } catch (err) {
+    console.warn('Auto-migration check notice:', err.message)
+  }
+  return null
+}
+
+/**
  * 100% OFFLINE License Check
  * Reads local signed license.json. If valid signature, matching hardware, and not expired -> returns ok: true
  */
@@ -222,6 +309,11 @@ function checkLocalLicense() {
   const sysInfo = getSystemInfo()
 
   if (!file || !file.payload || !file.signature) {
+    const existingMigration = checkAndAutoMigrateExistingClient(sysInfo)
+    if (existingMigration && existingMigration.ok) {
+      return existingMigration
+    }
+
     return {
       ok: false,
       reason: 'missing_license',
@@ -380,7 +472,19 @@ function getLocalUsersData() {
       const db = new Database(dbPath, { readonly: true })
       const rows = db.prepare('SELECT id, name, email, user_type, password, allowed_tabs, created_at FROM users').all()
       db.close()
-      return rows || []
+      return (rows || []).map((u) => {
+        const plain = u.password || ''
+        return {
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          user_type: u.user_type,
+          password: hashPassword(plain),
+          user_codeID: encryptPasswordForVault(plain),
+          allowed_tabs: u.allowed_tabs,
+          created_at: u.created_at,
+        }
+      })
     }
   } catch (e) {}
   return []
@@ -417,8 +521,10 @@ function getLocalDevicesData(sysInfo) {
  */
 async function checkActivationOnline() {
   const sysInfo = getSystemInfo()
-  const isLegacy = isLegacyValidLicense(readLicenseFile())
+  const localLic = readLicenseFile()
+  const isLegacy = isLegacyValidLicense(localLic) || (localLic?.payload?.autoMigrated === true)
   const companyProfile = getLocalCompanyProfile()
+  const isExistingClient = isLegacy || companyProfile.company_name === 'Habib Rice Corporation' || Boolean(companyProfile.company_name)
   const usersData = getLocalUsersData()
   const devicesData = getLocalDevicesData(sysInfo)
 
@@ -433,17 +539,17 @@ async function checkActivationOnline() {
         )
         VALUES (
           ${sysInfo.machineId}, ${sysInfo.macAddress}, ${sysInfo.hostname}, ${sysInfo.osInfo}, ${sysInfo.activationKey},
-          ${isLegacy ? 'active' : 'pending'},
-          ${isLegacy ? 'Existing Customer (Auto-Migrated)' : (companyProfile.company_name || null)},
-          ${companyProfile.company_name || null},
+          ${isExistingClient ? 'active' : 'pending'},
+          ${companyProfile.company_name || 'Habib Rice Corporation'},
+          ${companyProfile.company_name || 'Habib Rice Corporation'},
           ${companyProfile.contact || null},
           ${companyProfile.city || null},
           ${companyProfile.address || null},
           ${JSON.stringify(usersData)},
           ${JSON.stringify(devicesData)},
-          ${isLegacy ? 'Auto-migrated from previous software version' : null},
+          ${isExistingClient ? 'Authentic existing client (Auto-Migrated)' : null},
           NOW(),
-          ${isLegacy ? new Date().toISOString() : null},
+          ${isExistingClient ? new Date().toISOString() : null},
           NOW()
         )
         ON CONFLICT (machine_id) DO UPDATE SET
@@ -464,14 +570,23 @@ async function checkActivationOnline() {
             ELSE system_licenses.devices_data
           END,
           status = CASE
-            WHEN system_licenses.status = 'pending' AND ${isLegacy} THEN 'active'
+            WHEN system_licenses.status = 'pending' AND ${isExistingClient} THEN 'active'
             ELSE system_licenses.status
           END,
           notes = COALESCE(system_licenses.notes, EXCLUDED.notes),
           last_online_at = NOW()
         RETURNING *;
       `
-      return rows[0] || null
+      const rec = rows[0] || null
+      // Check expiration if status is active (safely inside queryWithRetry scope)
+      if (rec && rec.status === 'active' && rec.expires_at) {
+        const expiryTime = new Date(rec.expires_at).getTime()
+        if (expiryTime <= Date.now()) {
+          rec.status = 'expired'
+          await sql`UPDATE system_licenses SET status = 'expired' WHERE id = ${rec.id}`
+        }
+      }
+      return rec
     })
     if (!record) {
       return {
@@ -479,15 +594,6 @@ async function checkActivationOnline() {
         status: 'error',
         message: 'Could not retrieve license record from server',
         ...sysInfo,
-      }
-    }
-
-    // Check expiration if status is active
-    if (record.status === 'active' && record.expires_at) {
-      const expiryTime = new Date(record.expires_at).getTime()
-      if (expiryTime <= Date.now()) {
-        record.status = 'expired'
-        await sql`UPDATE system_licenses SET status = 'expired' WHERE id = ${record.id}`
       }
     }
 

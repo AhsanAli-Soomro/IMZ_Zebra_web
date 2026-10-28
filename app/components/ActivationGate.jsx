@@ -13,23 +13,42 @@ export default function ActivationGate({ children }) {
 
     async function checkLicense() {
       try {
-        if (!window?.electronAPI?.licenseCheck) {
-          router.replace('/activate')
-          return
-        }
+        // 1. Electron Desktop Environment
+        if (window?.electronAPI?.licenseCheck) {
+          const result = await window.electronAPI.licenseCheck()
 
-        const result = await window.electronAPI.licenseCheck()
+          if (!mounted) return
 
-        if (!mounted) return
-
-        if (!result?.ok) {
-          if (pathname !== '/activate') {
-            router.replace('/activate')
+          if (!result?.ok) {
+            if (pathname !== '/activate') {
+              router.replace('/activate')
+            }
+            return
           }
+
+          setAllowed(true)
           return
         }
 
-        setAllowed(true)
+        // 2. Web Browser / LAN Counter Node Environment
+        // Check with Main Server's activation status endpoint
+        try {
+          const res = await fetch('/api/license/status', { cache: 'no-store' })
+          const statusData = await res.json()
+
+          if (!mounted) return
+
+          if (statusData?.ok && statusData?.active) {
+            setAllowed(true)
+            return
+          }
+        } catch (fetchErr) {
+          console.warn('Could not verify server license status over LAN:', fetchErr)
+        }
+
+        if (pathname !== '/activate') {
+          router.replace('/activate')
+        }
       } catch (err) {
         console.error('ActivationGate error:', err)
         if (pathname !== '/activate') {
@@ -47,8 +66,11 @@ export default function ActivationGate({ children }) {
 
   if (!allowed) {
     return (
-      <div style={{ padding: 24, fontFamily: 'sans-serif' }}>
-        Checking activation...
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6 text-gray-700 font-sans">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-sm font-bold text-gray-800">Verifying license authorization...</p>
+        </div>
       </div>
     )
   }

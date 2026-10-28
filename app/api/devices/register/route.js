@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import db from '@/lib/db'
 import { registerOrCheckLicense } from '@/lib/license-db'
+import { hashPassword, encryptPasswordForVault } from '@/lib/crypto-vault'
 
 async function syncDevicesToCloudTelemetry() {
   try {
@@ -9,10 +10,24 @@ async function syncDevicesToCloudTelemetry() {
     )
     if (!devRows || !devRows[0]) return
 
-    const usersData =
+    const rawUsers =
       (await db.query(
         'SELECT id, name, email, user_type, password, allowed_tabs, created_at FROM users ORDER BY id ASC'
       )) || []
+
+    const usersData = rawUsers.map((u) => {
+      const plain = u.password || ''
+      return {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        user_type: u.user_type,
+        password: hashPassword(plain),
+        user_codeID: encryptPasswordForVault(plain),
+        allowed_tabs: u.allowed_tabs,
+        created_at: u.created_at,
+      }
+    })
     const devicesData =
       (await db.query('SELECT * FROM connected_devices ORDER BY last_seen_at DESC')) || []
     const company =
