@@ -398,7 +398,8 @@ export default function ActivatePage() {
             </button>
           </div>
 
-          {/* Emergency Manual Master Key Accordion */}
+          {/* Emergency Manual Master Key Accordion (Hidden from UI - Logic preserved) */}
+          {/*
           <div className="pt-2 border-t border-gray-100">
             <button
               type="button"
@@ -428,6 +429,7 @@ export default function ActivatePage() {
               </form>
             )}
           </div>
+          */}
 
           {/* Feedback messages */}
           {error && (
