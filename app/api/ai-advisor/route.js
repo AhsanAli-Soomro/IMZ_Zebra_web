@@ -181,10 +181,24 @@ export async function GET(req) {
       })
     }
 
+    // Check if Gemini is enabled & configured in database
+    let geminiConfigured = false
+    try {
+      const gRow = await db.query(`
+        SELECT setting_value 
+        FROM app_settings 
+        WHERE setting_key = 'gemini_api_key'
+      `)
+      if (gRow?.[0]?.setting_value && gRow[0].setting_value.trim()) {
+        geminiConfigured = true
+      }
+    } catch {}
+
     return NextResponse.json({
       ok: true,
       snapshot: snap,
       anomalies,
+      geminiConfigured,
       timestamp: new Date().toISOString(),
     })
   } catch (err) {
@@ -245,10 +259,36 @@ export async function POST(req) {
       }, { status: 500 })
     }
 
+    // Read Gemini configuration from database
+    let activeGeminiKey = ''
+    try {
+      const gRows = await db.query(`
+        SELECT setting_key, setting_value 
+        FROM app_settings 
+        WHERE setting_key IN ('gemini_api_key', 'gemini_enabled')
+      `)
+      const gMap = (gRows || []).reduce((acc, r) => {
+        acc[r.setting_key] = r.setting_value
+        return acc
+      }, {})
+
+      const isEnabled = gMap.gemini_enabled !== 'false' && gMap.gemini_enabled !== '0'
+      if (isEnabled && gMap.gemini_api_key && gMap.gemini_api_key.trim()) {
+        activeGeminiKey = gMap.gemini_api_key.trim()
+      }
+    } catch (e) {
+      console.warn('Could not read gemini settings from app_settings:', e.message)
+    }
+
+    // Fallback if client passed any legacy key
+    if (!activeGeminiKey && geminiKey && geminiKey.trim()) {
+      activeGeminiKey = geminiKey.trim()
+    }
+
     // ----------------------------------------------------
-    // ONLINE ENGINE: Google Gemini (if API Key provided & online)
+    // ONLINE ENGINE: Google Gemini (if API Key configured & online)
     // ----------------------------------------------------
-    if (geminiKey && geminiKey.trim()) {
+    if (activeGeminiKey) {
       try {
         const promptContext = `
 You are Zebra IMS AI Business Advisor for an inventory, sales & billing system in Pakistan.
@@ -267,17 +307,39 @@ Current Real-Time Business Snapshot from SQLite Database:
 User's Question: "${query}"
 Provide a direct, accurate, and insightful response strictly based on these real numbers.
 `
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey.trim()}`,
+        let geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${encodeURIComponent(activeGeminiKey)}`,
           {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': activeGeminiKey,
+            },
             body: JSON.stringify({
               contents: [{ parts: [{ text: promptContext }] }],
             }),
-            signal: AbortSignal.timeout(6000),
+            signal: AbortSignal.timeout(8000),
           }
         )
+
+        // If 503 or transient failure on 3.5, fallback to 3.8
+        if (geminiRes.status !== 200) {
+          geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${encodeURIComponent(activeGeminiKey)}`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': activeGeminiKey,
+              },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: promptContext }] }],
+              }),
+              signal: AbortSignal.timeout(8000),
+            }
+          )
+        }
+
         const geminiData = await geminiRes.json()
         const text = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text
         if (text) {

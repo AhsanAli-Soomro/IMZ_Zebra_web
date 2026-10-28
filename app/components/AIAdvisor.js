@@ -16,8 +16,7 @@ export default function AIAdvisor() {
   const [loading, setLoading] = useState(false)
   const [insights, setInsights] = useState(null)
   const [isOnline, setIsOnline] = useState(true)
-  const [geminiKey, setGeminiKey] = useState('')
-  const [showSettings, setShowSettings] = useState(false)
+  const [geminiConfigured, setGeminiConfigured] = useState(false)
   const chatEndRef = useRef(null)
 
   useEffect(() => {
@@ -28,9 +27,6 @@ export default function AIAdvisor() {
       const handleOffline = () => setIsOnline(false)
       window.addEventListener('online', handleOnline)
       window.addEventListener('offline', handleOffline)
-
-      const savedKey = window.localStorage.getItem('zebra_gemini_key') || ''
-      setGeminiKey(savedKey)
 
       return () => {
         window.removeEventListener('online', handleOnline)
@@ -55,7 +51,7 @@ export default function AIAdvisor() {
     loadChatHistory()
   }, [])
 
-  // Fetch proactive anomaly insights
+  // Fetch proactive anomaly insights & check server gemini status
   useEffect(() => {
     async function loadInsights() {
       try {
@@ -63,6 +59,9 @@ export default function AIAdvisor() {
         const data = await res.json()
         if (data && data.ok) {
           setInsights(data)
+          if (data.geminiConfigured !== undefined) {
+            setGeminiConfigured(Boolean(data.geminiConfigured))
+          }
         }
       } catch (err) {
         console.warn('Could not load AI insights:', err)
@@ -96,7 +95,6 @@ export default function AIAdvisor() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: textToSend,
-          geminiKey: isOnline ? geminiKey : '',
         }),
       })
 
@@ -106,7 +104,7 @@ export default function AIAdvisor() {
         id: Date.now() + 1,
         sender: 'ai',
         text: data?.response || 'Maaf kijiye ga, is waqt data fetch karne me masla aa raha hai.',
-        mode: data?.mode || (isOnline && geminiKey ? 'online' : 'offline'),
+        mode: data?.mode || (isOnline && geminiConfigured ? 'online' : 'offline'),
         engine: data?.engine || 'Local Database Engine',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }
@@ -126,14 +124,6 @@ export default function AIAdvisor() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleSaveKey = (e) => {
-    e.preventDefault()
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('zebra_gemini_key', geminiKey.trim())
-    }
-    setShowSettings(false)
   }
 
   const handleClearHistory = async () => {
@@ -183,7 +173,13 @@ export default function AIAdvisor() {
                 isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
               }`}
             />
-            <span>{isOnline ? 'Online (Gemini Ready)' : 'Offline (Local Engine Active)'}</span>
+            <span>
+              {isOnline
+                ? geminiConfigured
+                  ? 'Online (Gemini Ready)'
+                  : 'Online (Local Engine Active)'
+                : 'Offline (Local Engine Active)'}
+            </span>
           </div>
 
           <button
@@ -195,51 +191,8 @@ export default function AIAdvisor() {
             <span>🗑️</span>
             <span className="hidden sm:inline">Clear Chat</span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => setShowSettings(!showSettings)}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors"
-            title="AI Configuration & Gemini Key"
-          >
-            ⚙️
-          </button>
         </div>
       </div>
-
-      {/* Settings Modal Accordion */}
-      {showSettings && (
-        <form onSubmit={handleSaveKey} className="bg-white p-4 rounded-2xl border shadow-sm space-y-3 animate-in fade-in">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-gray-800">⚙️ AI Advisor Configuration</h3>
-            <button
-              type="button"
-              onClick={() => setShowSettings(false)}
-              className="text-gray-400 hover:text-gray-600 text-sm font-bold"
-            >
-              ×
-            </button>
-          </div>
-          <div className="text-xs text-gray-500 leading-relaxed">
-            Offline mode operates <strong>100% locally with zero internet</strong> using real-time database queries. To enable advanced online conversational analysis, add your free Google Gemini API key below:
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="password"
-              placeholder="Paste Google Gemini API Key (Optional)"
-              value={geminiKey}
-              onChange={(e) => setGeminiKey(e.target.value)}
-              className="flex-1 px-3 py-2 text-xs rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-            <button
-              type="submit"
-              className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl transition-colors shrink-0"
-            >
-              Save Key
-            </button>
-          </div>
-        </form>
-      )}
 
       {/* Proactive Anomaly Cards */}
       {insights?.anomalies && insights.anomalies.length > 0 && (

@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import LicenseManager from '../components/LicenseManager'
+import GeminiAdminSettings from '../components/GeminiAdminSettings'
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [activeAdminTab, setActiveAdminTab] = useState('licenses') // 'licenses' | 'gemini'
 
   useEffect(() => {
     // Check if admin is already logged in during this session
@@ -52,7 +54,7 @@ export default function AdminPage() {
               Owner Admin Portal
             </h1>
             <p className="text-xs text-gray-500 uppercase tracking-wider font-bold">
-              License & Device Management
+              License, Devices & AI Management
             </p>
           </div>
 
@@ -87,7 +89,7 @@ export default function AdminPage() {
           </form>
 
           <p className="text-center text-[11px] text-gray-400">
-            Protected owner portal for managing customer software licenses.
+            Protected owner portal for managing customer software licenses and system configurations.
           </p>
         </div>
       </div>
@@ -107,25 +109,87 @@ export default function AdminPage() {
               Zebra IMS
             </h2>
             <p className="text-[11px] text-emerald-200">
-              Admin Licensing Portal • ims.com/admin
+              Admin Licensing & Enterprise Portal • ims.com/admin
             </p>
           </div>
         </div>
 
-        <button
-          onClick={handleLogout}
-          className="px-3.5 py-1.5 rounded-lg bg-emerald-900/60 hover:bg-emerald-900 text-emerald-100 text-xs font-bold transition-colors flex items-center gap-1.5"
-        >
-          <span>🚪</span>
-          <span>Logout</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center bg-emerald-950/60 p-1 rounded-xl border border-emerald-500/30">
+            <button
+              type="button"
+              onClick={() => setActiveAdminTab('licenses')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeAdminTab === 'licenses'
+                  ? 'bg-emerald-600 text-white shadow'
+                  : 'text-emerald-200 hover:text-white'
+              }`}
+            >
+              <span>🛡️</span>
+              <span>Licenses & Devices</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveAdminTab('gemini')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeAdminTab === 'gemini'
+                  ? 'bg-emerald-600 text-white shadow'
+                  : 'text-emerald-200 hover:text-white'
+              }`}
+            >
+              <span>🤖</span>
+              <span>Gemini AI Key</span>
+            </button>
+          </div>
+
+          <button
+            onClick={handleLogout}
+            className="px-3.5 py-1.5 rounded-lg bg-emerald-900/60 hover:bg-emerald-900 text-emerald-100 text-xs font-bold transition-colors flex items-center gap-1.5"
+          >
+            <span>🚪</span>
+            <span>Logout</span>
+          </button>
+        </div>
       </header>
 
-      {/* Main Content: License Manager */}
+      {/* Mobile Tab Bar */}
+      <div className="sm:hidden flex items-center border-b border-gray-200 bg-white px-4 py-2 gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveAdminTab('licenses')}
+          className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+            activeAdminTab === 'licenses'
+              ? 'bg-[#07502f] text-white shadow'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <span>🛡️</span>
+          <span>Licenses</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveAdminTab('gemini')}
+          className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+            activeAdminTab === 'gemini'
+              ? 'bg-[#07502f] text-white shadow'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <span>🤖</span>
+          <span>Gemini AI</span>
+        </button>
+      </div>
+
+      {/* Main Content */}
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6">
-        <LicenseManager />
+        {activeAdminTab === 'licenses' ? (
+          <LicenseManager />
+        ) : (
+          <GeminiAdminSettings />
+        )}
       </main>
     </div>
   )
 }
+
 
