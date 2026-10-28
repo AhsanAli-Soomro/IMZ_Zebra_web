@@ -12,8 +12,14 @@ const initialState = {
 
 export default function SoftwareUpdateButton() {
   const [update, setUpdate] = useState(initialState)
+  const [allowUpdates, setAllowUpdates] = useState(true)
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const allowed = window.localStorage.getItem('zebra_allow_updates') !== 'false'
+      setAllowUpdates(allowed)
+    }
+
     const api = window?.electronAPI
     if (!api?.getUpdateState) return undefined
 
@@ -36,7 +42,7 @@ export default function SoftwareUpdateButton() {
     }
   }, [])
 
-  if (typeof window === 'undefined' || !window.electronAPI?.checkForUpdates) return null
+  if (typeof window === 'undefined' || !allowUpdates || !window.electronAPI?.checkForUpdates) return null
 
   const handleClick = async () => {
     if (update.status === 'available') {

@@ -65,6 +65,9 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
         })
         const data = await res.json()
         if (data && data.ok) {
+          if (data.allow_updates !== undefined) {
+            window.localStorage.setItem('zebra_allow_updates', String(data.allow_updates))
+          }
           if (data.allowed_tabs) {
             setAllowedTabs(data.allowed_tabs)
             window.localStorage.setItem('zebra_allowed_tabs', JSON.stringify(data.allowed_tabs))
@@ -125,6 +128,8 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
     router.replace('/login')
   }
 
+  const ADVANCED_MODULE_NAMES = ['AI Advisor', 'Quotations', 'Live Excel', 'Auto Backup']
+
   const baseMenuItems = [
     'Dashboard',
     'Stock',
@@ -146,16 +151,36 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
     'Expenses',
     'Calculator',
     'Import Export Data',
+    // 🌟 Advanced Enterprise Modules (Disabled by default - Admin Toggle Only)
+    'AI Advisor',
+    'Quotations',
+    'Live Excel',
+    'Auto Backup',
   ]
 
   const isTabAllowed = (name) => {
     // 1. Check global license module permissions
-    if (allowedTabs && allowedTabs.length > 0 && !allowedTabs.includes('ALL')) {
-      if (!allowedTabs.includes(name)) return false
+    // Advanced modules are NEVER included by default in 'ALL'.
+    // They must be explicitly granted in allowedTabs array!
+    if (ADVANCED_MODULE_NAMES.includes(name)) {
+      if (!allowedTabs || !allowedTabs.includes(name)) {
+        return false
+      }
+    } else {
+      if (allowedTabs && allowedTabs.length > 0 && !allowedTabs.includes('ALL')) {
+        if (!allowedTabs.includes(name)) return false
+      }
     }
+
     // 2. Check per-user account permissions
-    if (userAllowedTabs && userAllowedTabs.length > 0 && !userAllowedTabs.includes('ALL')) {
-      if (!userAllowedTabs.includes(name)) return false
+    if (ADVANCED_MODULE_NAMES.includes(name)) {
+      if (userAllowedTabs && !userAllowedTabs.includes('ALL') && !userAllowedTabs.includes(name)) {
+        return false
+      }
+    } else {
+      if (userAllowedTabs && userAllowedTabs.length > 0 && !userAllowedTabs.includes('ALL')) {
+        if (!userAllowedTabs.includes(name)) return false
+      }
     }
     return true
   }

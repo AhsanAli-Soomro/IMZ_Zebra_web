@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import { ROLE_DEFINITIONS, getRoleMeta } from '@/lib/roles'
 
-export const ALL_SIDEBAR_TABS = [
+export const CORE_SIDEBAR_TABS = [
   { id: 'Dashboard', label: 'Dashboard', icon: '📊', category: 'Core' },
   { id: 'Stock', label: 'Stock', icon: '📦', category: 'Inventory' },
   { id: 'Stores', label: 'Stores', icon: '🏬', category: 'Inventory' },
@@ -26,6 +26,15 @@ export const ALL_SIDEBAR_TABS = [
   { id: 'Calculator', label: 'Profit / Loss Calculator', icon: '🧮', category: 'Tools' },
   { id: 'Import Export Data', label: 'Import Export Data', icon: '💾', category: 'Tools' },
 ]
+
+export const ADVANCED_SIDEBAR_TABS = [
+  { id: 'AI Advisor', label: 'AI Business Advisor', icon: '🤖', category: 'Enterprise AI', isAdvanced: true },
+  { id: 'Quotations', label: 'Quotations & Sales Orders', icon: '📑', category: 'Advanced Sales', isAdvanced: true },
+  { id: 'Live Excel', label: 'Spreadsheet Excel Sync', icon: '📊', category: 'Integrations', isAdvanced: true },
+  { id: 'Auto Backup', label: 'Automated Cloud Backup', icon: '🔄', category: 'Security & Backup', isAdvanced: true },
+]
+
+export const ALL_SIDEBAR_TABS = [...CORE_SIDEBAR_TABS, ...ADVANCED_SIDEBAR_TABS]
 
 export default function LicenseManager() {
   const [licenses, setLicenses] = useState([])
@@ -51,6 +60,7 @@ export default function LicenseManager() {
   // 2. Tabs Permissions Modal state
   const [isTabsModalOpen, setIsTabsModalOpen] = useState(false)
   const [selectedTabs, setSelectedTabs] = useState([])
+  const [allowUpdatesModal, setAllowUpdatesModal] = useState(true)
 
   // 3. Client Users & Credentials Modal state
   const [isUsersModalOpen, setIsUsersModalOpen] = useState(false)
@@ -255,17 +265,18 @@ export default function LicenseManager() {
     let tabs = []
     try {
       if (license.allowed_tabs === 'ALL' || !license.allowed_tabs) {
-        tabs = ALL_SIDEBAR_TABS.map((t) => t.id)
+        tabs = CORE_SIDEBAR_TABS.map((t) => t.id)
       } else if (typeof license.allowed_tabs === 'string') {
         const parsed = JSON.parse(license.allowed_tabs)
-        tabs = Array.isArray(parsed) ? parsed : ALL_SIDEBAR_TABS.map((t) => t.id)
+        tabs = Array.isArray(parsed) ? parsed : CORE_SIDEBAR_TABS.map((t) => t.id)
       } else if (Array.isArray(license.allowed_tabs)) {
         tabs = license.allowed_tabs
       }
     } catch {
-      tabs = ALL_SIDEBAR_TABS.map((t) => t.id)
+      tabs = CORE_SIDEBAR_TABS.map((t) => t.id)
     }
     setSelectedTabs(tabs)
+    setAllowUpdatesModal(license.allow_updates !== false)
     setIsTabsModalOpen(true)
   }
 
@@ -273,6 +284,10 @@ export default function LicenseManager() {
     setSelectedTabs((prev) =>
       prev.includes(tabId) ? prev.filter((id) => id !== tabId) : [...prev, tabId]
     )
+  }
+
+  const selectAllCoreTabs = () => {
+    setSelectedTabs(CORE_SIDEBAR_TABS.map((t) => t.id))
   }
 
   const selectAllTabs = () => {
@@ -288,12 +303,16 @@ export default function LicenseManager() {
     setActionLoading(selectedLicense.id)
 
     try {
-      const payloadTabs =
-        selectedTabs.length === ALL_SIDEBAR_TABS.length ? 'ALL' : selectedTabs
+      const isExactCoreOnly =
+        selectedTabs.length === CORE_SIDEBAR_TABS.length &&
+        selectedTabs.every((id) => CORE_SIDEBAR_TABS.some((c) => c.id === id))
+
+      const payloadTabs = isExactCoreOnly ? 'ALL' : selectedTabs
 
       await axios.post('/api/license/admin/update', {
         id: selectedLicense.id,
         allowed_tabs: payloadTabs,
+        allow_updates: allowUpdatesModal,
       })
       setIsTabsModalOpen(false)
       fetchLicenses()
@@ -343,6 +362,10 @@ export default function LicenseManager() {
     setUserSpecificTabs((prev) =>
       prev.includes(tabId) ? prev.filter((id) => id !== tabId) : [...prev, tabId]
     )
+  }
+
+  const selectAllUserCoreTabs = () => {
+    setUserSpecificTabs(CORE_SIDEBAR_TABS.map((t) => t.id))
   }
 
   const selectAllUserTabs = () => {
@@ -1146,54 +1169,151 @@ export default function LicenseManager() {
               </button>
             </div>
 
-            <div className="flex items-center justify-between bg-gray-50 p-2.5 rounded-xl border text-xs">
-              <span className="font-semibold text-gray-600">
-                Enabled Tabs: <strong className="text-emerald-700">{selectedTabs.length} / {ALL_SIDEBAR_TABS.length}</strong>
-              </span>
-              <div className="space-x-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-gray-50 p-3 rounded-xl border text-xs gap-2">
+              <div className="flex items-center gap-3">
+                <span className="font-semibold text-gray-600">
+                  Core: <strong className="text-emerald-700">{selectedTabs.filter(id => CORE_SIDEBAR_TABS.some(c => c.id === id)).length} / {CORE_SIDEBAR_TABS.length}</strong>
+                </span>
+                <span className="font-semibold text-gray-600">
+                  Enterprise Add-ons: <strong className="text-purple-700">{selectedTabs.filter(id => ADVANCED_SIDEBAR_TABS.some(a => a.id === id)).length} / {ADVANCED_SIDEBAR_TABS.length}</strong>
+                </span>
+              </div>
+              <div className="space-x-1.5 flex items-center flex-wrap">
+                <button
+                  type="button"
+                  onClick={selectAllCoreTabs}
+                  className="px-2.5 py-1 bg-white border border-emerald-300 rounded-lg font-bold text-emerald-800 hover:bg-emerald-50 text-[11px]"
+                  title="Grant 20 Standard Core Modules only (Default)"
+                >
+                  ⚡ Core Only (20 Default)
+                </button>
                 <button
                   type="button"
                   onClick={selectAllTabs}
-                  className="px-2.5 py-1 bg-white border rounded-lg font-bold text-gray-700 hover:bg-gray-100"
+                  className="px-2.5 py-1 bg-white border border-purple-300 rounded-lg font-bold text-purple-800 hover:bg-purple-50 text-[11px]"
+                  title="Grant All Modules including Enterprise Add-ons"
                 >
-                  Select All
+                  🌟 All (+Enterprise)
                 </button>
                 <button
                   type="button"
                   onClick={clearAllTabs}
-                  className="px-2.5 py-1 bg-white border rounded-lg font-bold text-red-600 hover:bg-red-50"
+                  className="px-2.5 py-1 bg-white border rounded-lg font-bold text-red-600 hover:bg-red-50 text-[11px]"
                 >
                   Clear All
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              {ALL_SIDEBAR_TABS.map((tab) => {
-                const checked = selectedTabs.includes(tab.id)
-                return (
-                  <label
-                    key={tab.id}
-                    className={`flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition-colors ${
-                      checked
-                        ? 'border-emerald-500 bg-emerald-50/60 font-bold text-gray-900'
-                        : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleTab(tab.id)}
-                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
-                    />
-                    <span className="text-base">{tab.icon}</span>
-                    <span className="flex-1">{tab.label}</span>
-                    <span className="text-[10px] text-gray-400 font-normal">
-                      {tab.category}
-                    </span>
-                  </label>
-                )
-              })}
+            {/* Section 1: Standard Core Business Modules (20 Tabs) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+                  <span>🏢</span>
+                  <span>Standard Business Modules (20 Default Tabs)</span>
+                </h4>
+                <span className="text-[10px] text-gray-400 font-semibold">Active in Standard License</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {CORE_SIDEBAR_TABS.map((tab) => {
+                  const checked = selectedTabs.includes(tab.id)
+                  return (
+                    <label
+                      key={tab.id}
+                      className={`flex items-center gap-2.5 p-2 rounded-xl border cursor-pointer transition-colors ${
+                        checked
+                          ? 'border-emerald-500 bg-emerald-50/60 font-bold text-gray-900'
+                          : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleTab(tab.id)}
+                        className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span className="text-base">{tab.icon}</span>
+                      <span className="flex-1 text-[11px] truncate">{tab.label}</span>
+                      <span className="text-[9px] text-gray-400 font-normal">
+                        {tab.category}
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Section 2: 🌟 Advanced Enterprise Add-ons (4 Optional Modules) */}
+            <div className="p-3.5 bg-gradient-to-br from-amber-50/50 via-purple-50/30 to-indigo-50/40 rounded-2xl border-2 border-purple-200 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                    <span>🌟</span>
+                    <span>Advanced Enterprise Add-ons (Disabled By Default)</span>
+                  </h4>
+                  <p className="text-[10px] text-purple-700 mt-0.5">
+                    Only check these for clients who have purchased Enterprise add-on packages.
+                  </p>
+                </div>
+                <span className="px-2 py-0.5 bg-purple-600 text-white font-black text-[9px] uppercase tracking-wider rounded-full shadow-sm">
+                  Add-on
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {ADVANCED_SIDEBAR_TABS.map((tab) => {
+                  const checked = selectedTabs.includes(tab.id)
+                  return (
+                    <label
+                      key={tab.id}
+                      className={`flex items-center gap-2.5 p-2.5 rounded-xl border-2 cursor-pointer transition-all ${
+                        checked
+                          ? 'border-purple-600 bg-purple-100/70 font-extrabold text-purple-950 shadow-sm'
+                          : 'border-purple-200/80 bg-white/90 text-gray-600 hover:bg-purple-50/50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleTab(tab.id)}
+                        className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="text-lg">{tab.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-black truncate">{tab.label}</span>
+                          <span className="px-1.5 py-0.2 text-[8px] font-bold bg-amber-100 text-amber-800 rounded">PRO</span>
+                        </div>
+                        <span className="text-[9px] text-gray-500 block truncate font-normal">
+                          {tab.category}
+                        </span>
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Section 3: 🚀 Software Update Navbar Control */}
+            <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                  <span>🚀</span>
+                  <span>Client Navbar: &quot;Check for Updates&quot; Button</span>
+                </p>
+                <p className="text-[10px] text-gray-500 mt-0.5">
+                  When enabled, client sees the update button in top navbar. Turn OFF to hide updates from this client.
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={allowUpdatesModal}
+                  onChange={(e) => setAllowUpdatesModal(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+              </label>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t">
@@ -1419,11 +1539,11 @@ export default function LicenseManager() {
               <span className="font-semibold text-indigo-900">
                 Enabled for User: <strong className="text-indigo-700">{userSpecificTabs.length} / {ALL_SIDEBAR_TABS.length}</strong>
               </span>
-              <div className="space-x-2 flex items-center">
+              <div className="space-x-1.5 flex items-center flex-wrap">
                 <button
                   type="button"
                   onClick={applyRoleDefaultTabs}
-                  className="px-2.5 py-1 bg-white border border-indigo-200 text-indigo-700 rounded-lg font-bold hover:bg-indigo-100 text-xs shadow-sm flex items-center gap-1"
+                  className="px-2 py-1 bg-white border border-indigo-300 text-indigo-700 rounded-lg font-bold hover:bg-indigo-100 text-[11px] shadow-sm flex items-center gap-1"
                   title={`Apply default tabs for ${getRoleMeta(editingUserForTabs.user_type).shortLabel}`}
                 >
                   <span>⚡</span>
@@ -1431,47 +1551,95 @@ export default function LicenseManager() {
                 </button>
                 <button
                   type="button"
-                  onClick={selectAllUserTabs}
-                  className="px-2.5 py-1 bg-white border rounded-lg font-bold text-gray-700 hover:bg-gray-100"
+                  onClick={selectAllUserCoreTabs}
+                  className="px-2 py-1 bg-white border border-emerald-300 text-emerald-800 rounded-lg font-bold hover:bg-emerald-50 text-[11px]"
                 >
-                  Select All
+                  Core (20)
+                </button>
+                <button
+                  type="button"
+                  onClick={selectAllUserTabs}
+                  className="px-2 py-1 bg-white border border-purple-300 text-purple-800 rounded-lg font-bold hover:bg-purple-50 text-[11px]"
+                >
+                  All (+Enterprise)
                 </button>
                 <button
                   type="button"
                   onClick={clearAllUserTabs}
-                  className="px-2.5 py-1 bg-white border rounded-lg font-bold text-red-600 hover:bg-red-50"
+                  className="px-2 py-1 bg-white border rounded-lg font-bold text-red-600 hover:bg-red-50 text-[11px]"
                 >
                   Clear All
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              {ALL_SIDEBAR_TABS.map((tab) => {
-                const checked = userSpecificTabs.includes(tab.id)
-                return (
-                  <label
-                    key={tab.id}
-                    className={`flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition-colors ${
-                      checked
-                        ? 'border-indigo-500 bg-indigo-50/60 font-bold text-gray-900'
-                        : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleUserTab(tab.id)}
-                      className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className="text-base">{tab.icon}</span>
-                    <span className="flex-1">{tab.label}</span>
-                    <span className="text-[10px] text-gray-400 font-normal">
-                      {tab.category}
-                    </span>
-                  </label>
-                )
-              })}
+            {/* User Core Tabs */}
+            <div className="space-y-1.5">
+              <h4 className="text-[11px] font-black uppercase tracking-wider text-gray-700">
+                🏢 Standard Core Modules (20 Tabs)
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {CORE_SIDEBAR_TABS.map((tab) => {
+                  const checked = userSpecificTabs.includes(tab.id)
+                  return (
+                    <label
+                      key={tab.id}
+                      className={`flex items-center gap-2.5 p-2 rounded-xl border cursor-pointer transition-colors ${
+                        checked
+                          ? 'border-indigo-500 bg-indigo-50/60 font-bold text-gray-900'
+                          : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleUserTab(tab.id)}
+                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-base">{tab.icon}</span>
+                      <span className="flex-1 text-[11px] truncate">{tab.label}</span>
+                      <span className="text-[9px] text-gray-400 font-normal">
+                        {tab.category}
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* User Enterprise Add-on Tabs */}
+            <div className="p-3 bg-purple-50/40 rounded-xl border border-purple-200 space-y-1.5">
+              <h4 className="text-[11px] font-black uppercase tracking-wider text-purple-900 flex items-center gap-1">
+                <span>🌟</span>
+                <span>Enterprise Add-ons</span>
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {ADVANCED_SIDEBAR_TABS.map((tab) => {
+                  const checked = userSpecificTabs.includes(tab.id)
+                  return (
+                    <label
+                      key={tab.id}
+                      className={`flex items-center gap-2.5 p-2 rounded-xl border cursor-pointer transition-colors ${
+                        checked
+                          ? 'border-purple-600 bg-purple-100 font-extrabold text-purple-950'
+                          : 'border-purple-200 bg-white text-gray-500 hover:bg-purple-50/50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleUserTab(tab.id)}
+                        className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="text-base">{tab.icon}</span>
+                      <span className="flex-1 text-[11px] truncate font-bold">{tab.label}</span>
+                      <span className="text-[9px] text-purple-700 font-normal">
+                        Add-on
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t">

@@ -27,6 +27,7 @@ export async function POST(req) {
       broadcast_message,
       monthly_invoice_limit,
       watermark_enabled,
+      allow_updates,
     } = body || {}
 
     if (!id) {
@@ -48,6 +49,7 @@ export async function POST(req) {
       broadcast_message,
       monthly_invoice_limit: monthly_invoice_limit !== undefined ? Number(monthly_invoice_limit) : undefined,
       watermark_enabled,
+      allow_updates: allow_updates !== undefined ? Boolean(allow_updates) : undefined,
     })
 
     return NextResponse.json({ ok: true, data: updated })

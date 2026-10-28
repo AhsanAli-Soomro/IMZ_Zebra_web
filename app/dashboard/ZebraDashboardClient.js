@@ -32,6 +32,10 @@ import DailyLedger from '../components/DailyLedger'
 import CustomerLedger from '../components/CustomerLedger'
 import SupplierLedger from '../components/SupplierLedger'
 import BulkBalanceEntry from '../components/BulkBalanceEntry'
+import AIAdvisor from '../components/AIAdvisor'
+import Quotations from '../components/Quotations'
+import AdvancedExcelSync from '../components/AdvancedExcelSync'
+import AutoBackup from '../components/AutoBackup'
 
 export default function ZebraDashboardClient() {
   const router = useRouter()
@@ -159,6 +163,14 @@ export default function ZebraDashboardClient() {
         return <ProfitLossCalculator />
       case 'expenses':
         return <ExpensesPage />
+      case 'ai advisor':
+        return <AIAdvisor />
+      case 'quotations':
+        return <Quotations />
+      case 'live excel':
+        return <AdvancedExcelSync />
+      case 'auto backup':
+        return <AutoBackup />
       default:
         return <DashboardPage />
     }

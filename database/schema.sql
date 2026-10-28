@@ -447,3 +447,29 @@ CREATE TABLE IF NOT EXISTS salary_transactions (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS quotations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  quotation_number TEXT UNIQUE,
+  customer_id INTEGER,
+  customer_name TEXT,
+  total_amount REAL DEFAULT 0,
+  discount REAL DEFAULT 0,
+  net_amount REAL DEFAULT 0,
+  status TEXT DEFAULT 'draft',
+  converted_invoice_id INTEGER,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS quotation_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  quotation_id INTEGER NOT NULL,
+  product_id INTEGER,
+  product_name TEXT,
+  quantity REAL DEFAULT 1,
+  unit_price REAL DEFAULT 0,
+  total_price REAL DEFAULT 0,
+  FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
+);

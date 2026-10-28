@@ -236,6 +236,16 @@ export async function POST(req) {
           ]
         )
       }
+
+      if (record.allow_updates !== undefined) {
+        await db.query(
+          `
+          INSERT INTO app_settings (setting_key, setting_value) VALUES ('license_allow_updates', ?)
+          ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP
+        `,
+          [record.allow_updates === false ? 'false' : 'true']
+        )
+      }
     } catch (settErr) {
       console.warn('Could not cache license settings in app_settings:', settErr.message)
     }
@@ -259,6 +269,7 @@ export async function POST(req) {
       max_users: record.max_users || 5,
       max_devices: record.max_devices || 3,
       allowed_tabs: allowedTabs,
+      allow_updates: record.allow_updates !== false,
       status_message: record.status_message || '',
       broadcast_message: record.broadcast_message || '',
       watermark_enabled: record.watermark_enabled !== false,
