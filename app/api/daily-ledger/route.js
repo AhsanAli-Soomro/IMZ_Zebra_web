@@ -56,7 +56,6 @@ export async function GET(request) {
         `SELECT id, expense_date, amount, notes
          FROM expenses
          WHERE date(expense_date) = date(?)
-           AND (deleted_at IS NULL OR deleted_at = '')
          ORDER BY id DESC`,
         [date]
       ),
@@ -97,7 +96,6 @@ export async function GET(request) {
         `SELECT COALESCE(SUM(amount), 0) AS expense_cash
          FROM expenses
          WHERE date(expense_date) <= date(?)
-           AND (deleted_at IS NULL OR deleted_at = '')
            AND id NOT IN (
              SELECT reference_id FROM cash_transactions
              WHERE reference_type = 'expense' AND (deleted_at IS NULL OR deleted_at = '')
@@ -179,8 +177,10 @@ export async function GET(request) {
       .filter((p) => number(p.paid_amount) > 0 && !cashRefIds.has(`purchase_${p.id}`))
       .reduce((sum, p) => sum + number(p.paid_amount), 0)
 
-    // 4. Expenses Activity
+    // 4. Expenses & Invoices Activity
     const expenseTotal = expenses.reduce((sum, row) => sum + number(row.amount), 0)
+    const salesTotal = sales.reduce((sum, row) => sum + number(row.total), 0)
+    const purchaseTotal = purchases.reduce((sum, row) => sum + number(row.total), 0)
 
     // Total Day Debit: All debit activity on this date
     // Customers Debit + Supplier Debits + Cash/Bank Out + Extra Purchase Cash + Expenses
