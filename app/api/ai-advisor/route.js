@@ -414,38 +414,6 @@ Provide a direct, accurate, and insightful response strictly based on these real
       })
     }
 
-      // B. Sales on this date
-      dateReply += `\n• **Is Din Ki Kul Sale:** Rs. ${Number(sales.total_sales).toLocaleString()} (${sales.count} bills)\n`
-      if (Number(sales.cash_collected) > 0) {
-        dateReply += `  - Sales Cash Wasool: Rs. ${Number(sales.cash_collected).toLocaleString()}\n`
-      }
-      if (Number(sales.udhar_sales) > 0) {
-        dateReply += `  - Sales Udhar: Rs. ${Number(sales.udhar_sales).toLocaleString()}\n`
-      }
-
-      // C. Expenses on this date
-      if (Number(exp.total) > 0) {
-        dateReply += `• **Dukan Ke Kharchay:** Rs. ${Number(exp.total).toLocaleString()} (${exp.count} entries)\n`
-      }
-
-      // D. Purchases on this date
-      if (Number(purchase.total_purchases) > 0) {
-        dateReply += `• **Purchases / Kharidari:** Rs. ${Number(purchase.total_purchases).toLocaleString()} (Cash Paid: Rs. ${Number(purchase.cash_paid).toLocaleString()})\n`
-      }
-
-      // E. Cash Transactions
-      if (Number(cash.cash_in) > 0 || Number(cash.cash_out) > 0) {
-        dateReply += `• **Cash Ledger Entries:** Inflow Rs. ${Number(cash.cash_in).toLocaleString()} | Outflow Rs. ${Number(cash.cash_out).toLocaleString()}\n`
-      }
-
-      return NextResponse.json({
-        ok: true,
-        mode: 'offline',
-        engine: 'Zebra Local Intelligence Engine',
-        response: dateReply.trim(),
-      })
-    }
-
     // 2. SPECIFIC CUSTOMER SEARCH (e.g. "Ahsan ka balance", "customer Shakir", "Tariq udhar")
     const words = q.split(/\s+/).filter(w => !['ka', 'ki', 'ke', 'ko', 'me', 'se', 'balance', 'udhar', 'customer', 'kitna', 'hai', 'batao', 'check', 'bataen'].includes(w))
     if (words.length > 0 && (q.includes('customer') || q.includes('balance') || q.includes('udhar') || q.includes('hisab'))) {
