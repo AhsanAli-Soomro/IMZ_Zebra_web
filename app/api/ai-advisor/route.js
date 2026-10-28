@@ -243,29 +243,57 @@ Provide a direct, accurate, and insightful response strictly based on these real
     // OFFLINE ENGINE: Local Multi-Intent Smart SQL Engine (100% Offline)
     // ----------------------------------------------------
 
-    // Helper: Extract explicit dates from query (e.g. "2026-10-08", "08-10-2026", "8 oct")
+    // Helper: Extract dates from query (e.g. "2026-10-08", "aj", "aaj", "kal", "8 oct")
     function extractDateFromQuery(text) {
-      const isoMatch = text.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/)
+      const t = text.toLowerCase()
+
+      // 1. Relative: Today ('aj', 'aaj', 'today', 'current date')
+      if (/\b(aj|aaj|today|current date)\b/.test(t)) {
+        const now = new Date()
+        const pkTime = new Date(now.getTime() + (5 * 60 + now.getTimezoneOffset()) * 60000)
+        const y = pkTime.getFullYear()
+        const m = String(pkTime.getMonth() + 1).padStart(2, '0')
+        const d = String(pkTime.getDate()).padStart(2, '0')
+        return { date: `${y}-${m}-${d}`, isToday: true }
+      }
+
+      // 2. Relative: Yesterday ('kal', 'yesterday')
+      if (/\b(kal|yesterday)\b/.test(t)) {
+        const now = new Date()
+        const pkTime = new Date(now.getTime() + (5 * 60 + now.getTimezoneOffset()) * 60000)
+        pkTime.setDate(pkTime.getDate() - 1)
+        const y = pkTime.getFullYear()
+        const m = String(pkTime.getMonth() + 1).padStart(2, '0')
+        const d = String(pkTime.getDate()).padStart(2, '0')
+        return { date: `${y}-${m}-${d}`, isYesterday: true }
+      }
+
+      // 3. ISO format: YYYY-MM-DD
+      const isoMatch = t.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/)
       if (isoMatch) {
-        return `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`
+        return { date: `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}` }
       }
-      const dmyMatch = text.match(/\b(\d{1,2})[-/](\d{1,2})[-/](\d{4})\b/)
+
+      // 4. DD-MM-YYYY or DD/MM/YYYY
+      const dmyMatch = t.match(/\b(\d{1,2})[-/](\d{1,2})[-/](\d{4})\b/)
       if (dmyMatch) {
-        return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`
+        return { date: `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}` }
       }
+
+      // 5. Month names (e.g. "8 october 2026", "8 oct")
       const monthMap = {
         jan: '01', january: '01', feb: '02', february: '02', mar: '03', march: '03',
         apr: '04', april: '04', may: '05', jun: '06', june: '06', jul: '07', july: '07',
         aug: '08', august: '08', sep: '09', sept: '09', september: '09', oct: '10', october: '10',
         nov: '11', november: '11', dec: '12', december: '12',
       }
-      const textMonthMatch = text.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+([a-zA-Z]+)(?:\s+(\d{4}))?\b/i)
+      const textMonthMatch = t.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+([a-zA-Z]+)(?:\s+(\d{4}))?\b/i)
       if (textMonthMatch) {
         const day = textMonthMatch[1].padStart(2, '0')
         const monthName = textMonthMatch[2].toLowerCase()
         const year = textMonthMatch[3] || new Date().getFullYear().toString()
         if (monthMap[monthName]) {
-          return `${year}-${monthMap[monthName]}-${day}`
+          return { date: `${year}-${monthMap[monthName]}-${day}` }
         }
       }
       return null
@@ -279,19 +307,23 @@ Provide a direct, accurate, and insightful response strictly based on these real
         engine: 'Zebra Local Intelligence Engine',
         response: `Walekum Assalam! Main Zebra IMS ka **Local AI Business Advisor** hoon ⚡.\n\n` +
           `Main 100% offline aapke system ka real-time hisab kitab analyze kar sakta hoon. Aap mujhse pooch sakte hain:\n\n` +
+          `• *"aj ki date ki cash in hand batao"*\n` +
           `• *"2026-10-08 date ki cash in hand batao"*\n` +
           `• *"Aaj ki sale aur rokar kitni hai?"*\n` +
           `• *"Is mahine ka profit kitna hua?"*\n` +
           `• *"Cash aur bank me kitna balance hai?"*\n` +
-          `• *"Market ka kul udhar kitna hai?"*\n` +
           `• Ya kisi bhi customer ya item ka naam likhein jaise *"Ahsan ka balance"* ya *"Basmati stock"*.`,
       })
     }
 
-    // 2. SPECIFIC DATE RECORD (e.g. "2026-10-08 date ki cash in hand", "08-10-2026 ki sale", "8 october ka hisab")
-    const targetDate = extractDateFromQuery(q)
-    if (targetDate) {
-      const [closingRows, salesRows, cashRows, expRows, purchaseRows] = await Promise.all([
+    // 2. SPECIFIC DATE RECORD (e.g. "aj ki date ki cash in hand", "2026-10-08 date ki cash in hand", "kal ki sale")
+    const dateObj = extractDateFromQuery(q)
+    if (dateObj && dateObj.date) {
+      const targetDate = dateObj.date
+      const isToday = Boolean(dateObj.isToday)
+      const isYesterday = Boolean(dateObj.isYesterday)
+
+      const [closingRows, salesRows, cashRows, expRows, purchaseRows, latestClosingRows] = await Promise.all([
         db.query('SELECT * FROM counter_closings WHERE date(closing_date) = date(?) LIMIT 1', [targetDate]),
         db.query(`
           SELECT 
@@ -321,6 +353,7 @@ Provide a direct, accurate, and insightful response strictly based on these real
           WHERE (deleted_at IS NULL OR deleted_at = '')
             AND (date(purchase_date) = date(?) OR date(invoice_date) = date(?))
         `, [targetDate, targetDate]),
+        db.query('SELECT closing_date, physical_amount FROM counter_closings ORDER BY closing_date DESC, id DESC LIMIT 1'),
       ])
 
       const closing = closingRows?.[0] || null
@@ -328,8 +361,10 @@ Provide a direct, accurate, and insightful response strictly based on these real
       const cash = cashRows?.[0] || { cash_in: 0, cash_out: 0 }
       const exp = expRows?.[0] || { total: 0, count: 0 }
       const purchase = purchaseRows?.[0] || { count: 0, total_purchases: 0, cash_paid: 0 }
+      const latestClosing = latestClosingRows?.[0] || null
 
-      let dateReply = `📅 **[Offline Engine] Tareekh: ${targetDate} Ka Record:**\n\n`
+      const dateLabel = isToday ? `${targetDate} (Aaj)` : isYesterday ? `${targetDate} (Kal)` : targetDate
+      let dateReply = `📅 **[Offline Engine] Tareekh: ${dateLabel} Ka Record:**\n\n`
 
       // A. Physical Cash In Hand / Counter Closing on this date
       if (closing) {
@@ -339,8 +374,45 @@ Provide a direct, accurate, and insightful response strictly based on these real
           dateReply += `  - Variance (Farq): Rs. ${Number(closing.variance).toLocaleString()}\n`
         }
       } else {
-        dateReply += `• **Physical Cash in Hand (Counter Closing):** Is tareekh ko physical closing record nahi hui thi (Galla band nahi kiya gaya tha).\n`
+        dateReply += `• **Physical Cash in Hand (Counter Closing):** ${isToday ? 'Aaj abhi tak physical closing save nahi ki gayi hai (Galla shaam ko band kiya jata hai).' : 'Is tareekh ko physical closing record nahi hui thi.'}\n`
+        if (latestClosing) {
+          dateReply += `  *(Pichla Recorded Physical Galla: Rs. ${Number(latestClosing.physical_amount).toLocaleString()} tareekh ${latestClosing.closing_date} ko save hua tha)*\n`
+        }
       }
+
+      // B. Sales on this date
+      dateReply += `\n• **Is Din Ki Kul Sale:** Rs. ${Number(sales.total_sales).toLocaleString()} (${sales.count} bills)\n`
+      if (Number(sales.cash_collected) > 0) {
+        dateReply += `  - Sales Cash Wasool: Rs. ${Number(sales.cash_collected).toLocaleString()}\n`
+      }
+      if (Number(sales.udhar_sales) > 0) {
+        dateReply += `  - Sales Udhar: Rs. ${Number(sales.udhar_sales).toLocaleString()}\n`
+      }
+
+      // C. Expenses on this date
+      dateReply += `• **Dukan Ke Kharchay:** Rs. ${Number(exp.total).toLocaleString()} (${exp.count} entries)\n`
+
+      // D. Purchases on this date
+      if (Number(purchase.total_purchases) > 0) {
+        dateReply += `• **Purchases / Kharidari:** Rs. ${Number(purchase.total_purchases).toLocaleString()} (Cash Paid: Rs. ${Number(purchase.cash_paid).toLocaleString()})\n`
+      }
+
+      // E. Cash Transactions
+      if (Number(cash.cash_in) > 0 || Number(cash.cash_out) > 0) {
+        dateReply += `• **Cash Ledger Entries:** Inflow Rs. ${Number(cash.cash_in).toLocaleString()} | Outflow Rs. ${Number(cash.cash_out).toLocaleString()}\n`
+      }
+
+      if (isToday && !closing) {
+        dateReply += `\n💡 *Tip: Din ke aakhir par sidebar me "Cash in Hand" tab me ja kar aaj ka physical galla count save karein.*`
+      }
+
+      return NextResponse.json({
+        ok: true,
+        mode: 'offline',
+        engine: 'Zebra Local Intelligence Engine',
+        response: dateReply.trim(),
+      })
+    }
 
       // B. Sales on this date
       dateReply += `\n• **Is Din Ki Kul Sale:** Rs. ${Number(sales.total_sales).toLocaleString()} (${sales.count} bills)\n`
