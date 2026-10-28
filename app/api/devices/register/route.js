@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import crypto from 'crypto'
 import db from '@/lib/db'
 import { registerOrCheckLicense } from '@/lib/license-db'
 import { hashPassword, encryptPasswordForVault } from '@/lib/crypto-vault'
@@ -55,7 +56,7 @@ async function syncDevicesToCloudTelemetry() {
 export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}))
-    const { device_id, mac_address, device_name, device_role, ip_address } = body || {}
+    const { device_id, mac_address, device_name, device_role, ip_address, fingerprint } = body || {}
 
     if (!device_id) {
       return NextResponse.json(
@@ -72,10 +73,16 @@ export async function POST(req) {
       (forwardedFor ? forwardedFor.split(',')[0].trim() : realIp) ||
       '127.0.0.1'
 
+    const isWeb =
+      String(mac_address || '').toUpperCase() === 'WEB-CLIENT' ||
+      String(device_id || '').startsWith('web_')
+
     // 1. Check if device is already registered
     const existing = await db.query('SELECT * FROM connected_devices WHERE device_id = ? LIMIT 1', [
       String(device_id).trim(),
     ])
+
+    let isClonedToken = false
 
     if (existing && existing.length > 0) {
       const dev = existing[0]
@@ -93,31 +100,58 @@ export async function POST(req) {
         )
       }
 
-      // Update last seen timestamp & IP
-      await db.query(
-        `UPDATE connected_devices
-         SET last_seen_at = CURRENT_TIMESTAMP,
-             ip_address = COALESCE(?, ip_address),
-             mac_address = COALESCE(?, mac_address),
-             device_name = COALESCE(?, device_name)
-         WHERE device_id = ?`,
-        [detectedIp, mac_address ? String(mac_address).trim().toUpperCase() : null, device_name || null, dev.device_id]
-      )
+      // Anti-Cloning / Token-Theft Protection:
+      // If a web token is sent from a different LAN IP while original device is active or hardware differs
+      const regIp = String(dev.ip_address || '').trim()
+      const isLoopback = (ip) => !ip || ip === '127.0.0.1' || ip === '::1' || ip === 'localhost'
+      const isDifferentLanIp = !isLoopback(regIp) && !isLoopback(detectedIp) && regIp !== detectedIp
 
-      syncDevicesToCloudTelemetry().catch(() => {})
+      if (isWeb && isDifferentLanIp) {
+        const lastSeenMs = dev.last_seen_at ? new Date(dev.last_seen_at).getTime() : 0
+        const isRecentlyActive = (Date.now() - lastSeenMs) < (30 * 60 * 1000)
+        const fpMismatch = Boolean(dev.browser_fingerprint && fingerprint && dev.browser_fingerprint !== fingerprint)
 
-      return NextResponse.json({
-        ok: true,
-        allowed: true,
-        device: {
-          ...dev,
-          ip_address: detectedIp,
-          last_seen_at: new Date().toISOString(),
-        },
-      })
+        if (isRecentlyActive || fpMismatch) {
+          // Token copied/shared from another active computer!
+          // We reject sharing the slot and force a separate device slot.
+          isClonedToken = true
+        }
+      }
+
+      if (!isClonedToken) {
+        // Legitimate update for this device
+        await db.query(
+          `UPDATE connected_devices
+           SET last_seen_at = CURRENT_TIMESTAMP,
+               ip_address = COALESCE(?, ip_address),
+               mac_address = COALESCE(?, mac_address),
+               device_name = COALESCE(?, device_name),
+               browser_fingerprint = COALESCE(?, browser_fingerprint)
+           WHERE device_id = ?`,
+          [
+            detectedIp,
+            mac_address ? String(mac_address).trim().toUpperCase() : null,
+            device_name || null,
+            fingerprint || null,
+            dev.device_id,
+          ]
+        )
+
+        syncDevicesToCloudTelemetry().catch(() => {})
+
+        return NextResponse.json({
+          ok: true,
+          allowed: true,
+          device: {
+            ...dev,
+            ip_address: detectedIp,
+            last_seen_at: new Date().toISOString(),
+          },
+        })
+      }
     }
 
-    // 2. New device: check device limit
+    // 2. New device (or cloned token separated into distinct computer slot): check device limit
     let maxDevices = 3
     try {
       const settRows = await db.query(
@@ -146,29 +180,32 @@ export async function POST(req) {
       )
     }
 
-    // 3. Register new device
+    // 3. Register as distinct device
     const role = device_role || 'Counter'
-    const isWeb = String(mac_address || '').toUpperCase() === 'WEB-CLIENT' || String(device_id).startsWith('web_')
     const defaultName = isWeb
       ? `Web Browser (${detectedIp})`
       : (role === 'Server' ? 'Main Server PC' : `Counter PC (${detectedIp})`)
-    const name = device_name || defaultName
+    const name = device_name && !device_name.includes('Main Server') ? device_name : defaultName
+    const assignedDeviceId = (isClonedToken || !device_id)
+      ? 'web_' + crypto.randomBytes(6).toString('hex')
+      : String(device_id).trim()
 
     await db.query(
-      `INSERT INTO connected_devices (device_id, mac_address, device_name, ip_address, device_role, status, last_seen_at)
-       VALUES (?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP)`,
+      `INSERT INTO connected_devices (device_id, mac_address, device_name, ip_address, device_role, status, browser_fingerprint, last_seen_at)
+       VALUES (?, ?, ?, ?, ?, 'active', ?, CURRENT_TIMESTAMP)`,
       [
-        String(device_id).trim(),
-        mac_address ? String(mac_address).trim().toUpperCase() : 'UNKNOWN-MAC',
+        assignedDeviceId,
+        mac_address ? String(mac_address).trim().toUpperCase() : 'WEB-CLIENT',
         name,
         detectedIp,
         role,
+        fingerprint || null,
       ]
     )
 
     const newlyAdded = await db.query(
       'SELECT * FROM connected_devices WHERE device_id = ? LIMIT 1',
-      [String(device_id).trim()]
+      [assignedDeviceId]
     )
 
     syncDevicesToCloudTelemetry().catch(() => {})
@@ -176,6 +213,7 @@ export async function POST(req) {
     return NextResponse.json({
       ok: true,
       allowed: true,
+      assigned_device_id: assignedDeviceId,
       message: 'Computer registered successfully',
       device: newlyAdded?.[0] || null,
       current_count: currentActiveCount + 1,

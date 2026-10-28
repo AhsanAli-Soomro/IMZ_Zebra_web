@@ -8,7 +8,7 @@ const JWT_SECRET = process.env.JWT_SECRET || '12345'
 
 export async function POST(req) {
     try {
-        const { email, password } = await req.json()
+        const { email, password, device_id } = await req.json()
 
         if (!email || !password) {
             return NextResponse.json(
@@ -18,6 +18,23 @@ export async function POST(req) {
                 },
                 { status: 400 }
             )
+        }
+
+        // Validate device authorization if device_id provided
+        if (device_id) {
+            const devRows = await db.query(
+                'SELECT status FROM connected_devices WHERE device_id = ? LIMIT 1',
+                [String(device_id).trim()]
+            )
+            if (devRows && devRows[0]?.status === 'blocked') {
+                return NextResponse.json(
+                    {
+                        success: false,
+                        message: 'This computer has been blocked by the Administrator. Please contact Ahsan Ali Soomro.',
+                    },
+                    { status: 403 }
+                )
+            }
         }
 
         const query = `

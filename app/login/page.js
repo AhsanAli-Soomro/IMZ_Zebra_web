@@ -29,6 +29,32 @@ export default function LoginPage() {
     }
   }
 
+  function getBrowserFingerprint() {
+    if (typeof window === 'undefined') return ''
+    try {
+      const nav = window.navigator || {}
+      const scr = window.screen || {}
+      const raw = [
+        nav.userAgent || '',
+        nav.platform || '',
+        nav.hardwareConcurrency || '',
+        nav.deviceMemory || '',
+        (scr.width || 0) + 'x' + (scr.height || 0),
+        scr.colorDepth || '',
+        Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+        nav.language || '',
+      ].join('###')
+      let hash = 0
+      for (let i = 0; i < raw.length; i++) {
+        hash = (hash << 5) - hash + raw.charCodeAt(i)
+        hash |= 0
+      }
+      return 'fp_' + Math.abs(hash).toString(36)
+    } catch {
+      return 'fp_unknown'
+    }
+  }
+
   useEffect(() => {
     getCompanyData()
 
@@ -57,11 +83,17 @@ export default function LoginPage() {
               mac_address: machineInfo?.macAddress || 'WEB-CLIENT',
               device_name: machineInfo?.hostname || 'Web Counter Browser',
               device_role: 'Counter',
+              fingerprint: getBrowserFingerprint(),
             }),
           })
           const data = await res.json()
           if (!res.ok || !data.ok) {
             setDeviceError(data.message || 'This computer is not authorized to access Zebra IMS.')
+          } else {
+            setDeviceError('')
+            if (data.assigned_device_id) {
+              window.localStorage.setItem('zebra_device_id', data.assigned_device_id)
+            }
           }
         }
       } catch (err) {
@@ -73,11 +105,19 @@ export default function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (deviceError) return
     setErrorMessage('')
     setLoading(true)
 
     try {
-      const response = await post('/api/login', formData)
+      const currentDeviceId =
+        typeof window !== 'undefined'
+          ? window.localStorage.getItem('zebra_device_id')
+          : ''
+      const response = await post('/api/login', {
+        ...formData,
+        device_id: currentDeviceId,
+      })
 
       if (response.success) {
         const user = response.user
