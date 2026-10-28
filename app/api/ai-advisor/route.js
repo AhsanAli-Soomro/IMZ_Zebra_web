@@ -101,12 +101,36 @@ async function getFinancialSnapshot() {
       WHERE (deleted_at IS NULL OR deleted_at = '')
     `)
 
-    // 8. Total Bank balances
-    const bankRow = await db.query(`
-      SELECT COALESCE(SUM(current_balance), 0) as total_bank
+    // 8. Total Bank balances & accounts list
+    const bankAccounts = await db.query(`
+      SELECT account_name, bank_name, account_number, COALESCE(current_balance, 0) as current_balance
       FROM bank_accounts
       WHERE (deleted_at IS NULL OR deleted_at = '')
     `)
+    const totalBankBalance = (bankAccounts || []).reduce((acc, b) => acc + Number(b.current_balance || 0), 0)
+
+    // 9. Staff Users (Cashiers, Admins, Salesmen, Operators)
+    const staffUsers = await db.query(`
+      SELECT id, name, email, COALESCE(user_type, role) as role, status
+      FROM users
+      WHERE (deleted_at IS NULL OR deleted_at = '')
+      ORDER BY id ASC
+    `)
+
+    // 10. HRM Registered Employees
+    const hrmEmployees = await db.query(`
+      SELECT id, name, designation, salary, phone, status
+      FROM employees
+      ORDER BY id ASC
+    `)
+
+    // 11. Database entity counts
+    const [custCountRow, suppCountRow, stockCountRow, storesRow] = await Promise.all([
+      db.query(`SELECT COUNT(*) as count FROM customers WHERE (deleted_at IS NULL OR deleted_at = '')`),
+      db.query(`SELECT COUNT(*) as count FROM suppliers WHERE (deleted_at IS NULL OR deleted_at = '')`),
+      db.query(`SELECT COUNT(*) as total_items, COALESCE(SUM(quantity), 0) as total_qty FROM stocks WHERE (deleted_at IS NULL OR deleted_at = '')`),
+      db.query(`SELECT id, name as store_name, address FROM stores WHERE (deleted_at IS NULL OR deleted_at = '')`),
+    ])
 
     return {
       todaySales: todaySales?.[0] || { total_sales: 0, total_cash_collected: 0, total_invoices: 0 },
@@ -116,7 +140,14 @@ async function getFinancialSnapshot() {
       monthExpenses: monthExpenses || [],
       topSelling: topSelling || [],
       cashInHand: cashRow?.[0]?.net_cash || 0,
-      bankBalance: bankRow?.[0]?.total_bank || 0,
+      bankBalance: totalBankBalance,
+      bankAccounts: bankAccounts || [],
+      staffUsers: staffUsers || [],
+      hrmEmployees: hrmEmployees || [],
+      totalCustomers: custCountRow?.[0]?.count || 0,
+      totalSuppliers: suppCountRow?.[0]?.count || 0,
+      inventorySummary: stockCountRow?.[0] || { total_items: 0, total_qty: 0 },
+      storesList: storesRow || [],
     }
   } catch (err) {
     console.error('Error getting financial snapshot:', err)
@@ -294,21 +325,32 @@ export async function POST(req) {
 You are Zebra IMS AI Business Advisor for an inventory, sales & billing system in Pakistan.
 Always respond in polite, clear Roman Urdu with professional business tone and exact numbers formatted in Pakistani Rupees (Rs.).
 
-Current Real-Time Business Snapshot from SQLite Database:
+Formatting rules:
+- Strictly do NOT use Markdown heading hashes (e.g. '###' or '##').
+- Strictly do NOT output lines like "### **Business Summary Snapshot:**" or similar title wrappers.
+- Format key points as clean bullets (•) and short readable paragraphs.
+- Highlight key figures with bold **text**.
+- Keep output tidy, respectful, concise, and direct in polite Roman Urdu.
+
+Current Real-Time Business Database Snapshot:
+- Staff & Employees:
+  * System Users / Staff: ${snap.staffUsers.length > 0 ? snap.staffUsers.map(u => `${u.name} (${u.role || 'Staff'})`).join(', ') : 'None'}
+  * HRM Employees Table: ${snap.hrmEmployees.length > 0 ? snap.hrmEmployees.map(e => `${e.name} (${e.designation || 'Employee'})`).join(', ') : 'None registered in HRM'}
 - Today Sales: Rs. ${Number(snap.todaySales.total_sales).toLocaleString()} (${snap.todaySales.total_invoices} bills, Cash Collected: Rs. ${Number(snap.todaySales.total_cash_collected).toLocaleString()})
 - Cash in Hand (Rokar): Rs. ${Number(snap.cashInHand).toLocaleString()}
-- Total Bank Balances: Rs. ${Number(snap.bankBalance).toLocaleString()}
-- Top Customers with Udhar (Baqaya): ${snap.topDebtors.map(d => `${d.name}: Rs. ${Math.round(Number(d.balance)).toLocaleString()}`).join(', ') || 'No pending debts'}
-- Top Suppliers Payable (Dena hai): ${snap.topSuppliersPayable.map(s => `${s.name}: Rs. ${Math.round(Number(s.balance)).toLocaleString()}`).join(', ') || 'No payables'}
+- Total Bank Balances: Rs. ${Number(snap.bankBalance).toLocaleString()} (${snap.bankAccounts.map(b => `${b.account_name || b.bank_name || 'Bank'}: Rs. ${Number(b.current_balance).toLocaleString()}`).join(', ') || 'No bank accounts'})
+- Registered Customers: ${snap.totalCustomers} customers. Top Udhar (Baqaya): ${snap.topDebtors.map(d => `${d.name}: Rs. ${Math.round(Number(d.balance)).toLocaleString()}`).join(', ') || 'No pending debts'}
+- Registered Suppliers: ${snap.totalSuppliers} suppliers. Top Payable (Dena hai): ${snap.topSuppliersPayable.map(s => `${s.name}: Rs. ${Math.round(Number(s.balance)).toLocaleString()}`).join(', ') || 'No payables'}
+- Total Inventory Items: ${snap.inventorySummary.total_items} items (${snap.inventorySummary.total_qty} units in stock)
 - Low Stock Items: ${snap.lowStock.map(l => `${l.name} (${l.quantity} ${l.unit})`).join(', ') || 'Stock adequate'}
 - Top Selling Items: ${snap.topSelling.map(t => `${t.product_name} (${t.total_qty} units sold, Rs. ${Number(t.total_revenue).toLocaleString()})`).join(', ') || 'None'}
 - Monthly Expenses Total: Rs. ${snap.monthExpenses.reduce((a, b) => a + Number(b.total), 0).toLocaleString()}
 
 User's Question: "${query}"
-Provide a direct, accurate, and insightful response strictly based on these real numbers.
+Answer the user directly and accurately based on these real database records.
 `
         let geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${encodeURIComponent(activeGeminiKey)}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${encodeURIComponent(activeGeminiKey)}`,
           {
             method: 'POST',
             headers: {
@@ -327,11 +369,11 @@ Provide a direct, accurate, and insightful response strictly based on these real
           }
         )
 
-        // If 503 or transient failure on 3.5, fallback to 3.8
+        // If 503 or transient failure on flash-lite, fallback to 3.5-flash
         if (geminiRes.status !== 200) {
-          console.warn('Gemini 3.5 returned status:', geminiRes.status, 'trying 3.8 fallback...')
+          console.warn('Gemini 3.5 flash-lite returned status:', geminiRes.status, 'trying 3.5-flash fallback...')
           geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${encodeURIComponent(activeGeminiKey)}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${encodeURIComponent(activeGeminiKey)}`,
             {
               method: 'POST',
               headers: {
@@ -443,7 +485,33 @@ Provide a direct, accurate, and insightful response strictly based on these real
       })
     }
 
-    // 2. SPECIFIC DATE RECORD (e.g. "aj ki date ki cash in hand", "2026-10-08 date ki cash in hand", "kal ki sale")
+    // 2. STAFF & EMPLOYEES RECORD (Users & HRM)
+    if (q.includes('employee') || q.includes('employees') || q.includes('staff') || q.includes('cashier') || q.includes('mulazim') || q.includes('mulazmeen') || q.includes('worker') || (q.includes('user') && !q.includes('udhar'))) {
+      let staffReply = `👥 **[Offline Engine] Staff & Employees Record:**\n\n`
+      if (snap.staffUsers.length > 0) {
+        staffReply += `• **Registered System Users / Staff (${snap.staffUsers.length}):**\n`
+        snap.staffUsers.forEach((u, idx) => {
+          staffReply += `  ${idx + 1}. **${u.name}** — ${u.role || 'Staff'} (${u.status})\n`
+        })
+      }
+      if (snap.hrmEmployees.length > 0) {
+        staffReply += `\n• **HRM Module Employees (${snap.hrmEmployees.length}):**\n`
+        snap.hrmEmployees.forEach((e, idx) => {
+          staffReply += `  ${idx + 1}. **${e.name}** — ${e.designation || 'Staff'} (Salary: Rs. ${Number(e.salary || 0).toLocaleString()})\n`
+        })
+      } else if (snap.staffUsers.length === 0) {
+        staffReply += `System me abhi tak koi employee ya user register nahi hai.`
+      }
+
+      return await saveAndRespond({
+        ok: true,
+        mode: 'offline',
+        engine: 'Zebra Local Intelligence Engine',
+        response: staffReply.trim(),
+      })
+    }
+
+    // 3. SPECIFIC DATE RECORD (e.g. "aj ki date ki cash in hand", "2026-10-08 date ki cash in hand", "kal ki sale")
     const dateObj = extractDateFromQuery(q)
     if (dateObj && dateObj.date) {
       const targetDate = dateObj.date

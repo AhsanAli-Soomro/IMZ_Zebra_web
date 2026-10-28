@@ -246,6 +246,30 @@ export async function POST(req) {
           [record.allow_updates === false ? 'false' : 'true']
         )
       }
+
+      if (record.gemini_api_key !== undefined) {
+        if (record.gemini_api_key && record.gemini_api_key.trim()) {
+          await db.query(
+            `
+            INSERT INTO app_settings (setting_key, setting_value) VALUES ('gemini_api_key', ?)
+            ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP
+          `,
+            [record.gemini_api_key.trim()]
+          )
+        }
+      }
+
+      if (record.gemini_key_name !== undefined) {
+        if (record.gemini_key_name && record.gemini_key_name.trim()) {
+          await db.query(
+            `
+            INSERT INTO app_settings (setting_key, setting_value) VALUES ('gemini_key_name', ?)
+            ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP
+          `,
+            [record.gemini_key_name.trim()]
+          )
+        }
+      }
     } catch (settErr) {
       console.warn('Could not cache license settings in app_settings:', settErr.message)
     }

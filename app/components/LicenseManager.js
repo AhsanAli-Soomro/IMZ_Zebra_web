@@ -55,6 +55,8 @@ export default function LicenseManager() {
   const [statusMessage, setStatusMessage] = useState('')
   const [broadcastMessage, setBroadcastMessage] = useState('')
   const [notes, setNotes] = useState('')
+  const [licenseGeminiKey, setLicenseGeminiKey] = useState('')
+  const [licenseGeminiKeyName, setLicenseGeminiKeyName] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   // 2. Tabs Permissions Modal state
@@ -79,6 +81,15 @@ export default function LicenseManager() {
   // 6. Decrypted original passwords state (protected by admin password)
   const [unlockedPasswords, setUnlockedPasswords] = useState({})
   const [revealingUserId, setRevealingUserId] = useState(null)
+
+  // 7. Per-Client Google Gemini Key Modal state
+  const [isGeminiModalOpen, setIsGeminiModalOpen] = useState(false)
+  const [geminiLicense, setGeminiLicense] = useState(null)
+  const [geminiApiKeyInput, setGeminiApiKeyInput] = useState('')
+  const [geminiKeyNameInput, setGeminiKeyNameInput] = useState('')
+  const [geminiTesting, setGeminiTesting] = useState(false)
+  const [geminiTestStatus, setGeminiTestStatus] = useState(null)
+  const [geminiSaving, setGeminiSaving] = useState(false)
 
   const [copiedKey, setCopiedKey] = useState('')
 
@@ -203,6 +214,8 @@ export default function LicenseManager() {
     setStatusMessage(license.status_message || '')
     setBroadcastMessage(license.broadcast_message || '')
     setNotes(license.notes || '')
+    setLicenseGeminiKey(license.gemini_api_key || '')
+    setLicenseGeminiKeyName(license.gemini_key_name || '')
     setExpiryOption(license.expires_at ? 'custom' : '1_year')
     setCustomDate(license.expires_at ? new Date(license.expires_at).toISOString().split('T')[0] : '')
     setIsModalOpen(true)
@@ -249,6 +262,8 @@ export default function LicenseManager() {
         status_message: statusMessage.trim(),
         broadcast_message: broadcastMessage.trim(),
         notes: notes.trim(),
+        gemini_api_key: licenseGeminiKey.trim(),
+        gemini_key_name: licenseGeminiKeyName.trim(),
       })
       setIsModalOpen(false)
       fetchLicenses()
@@ -256,6 +271,70 @@ export default function LicenseManager() {
       alert(err?.response?.data?.error || err.message || 'Failed to update device license')
     } finally {
       setActionLoading(null)
+    }
+  }
+
+  // --- Handlers: Dedicated Per-Client Gemini Key Modal ---
+  const openGeminiModal = (license) => {
+    setGeminiLicense(license)
+    setGeminiApiKeyInput(license.gemini_api_key || '')
+    setGeminiKeyNameInput(license.gemini_key_name || '')
+    setGeminiTestStatus(null)
+    setIsGeminiModalOpen(true)
+  }
+
+  const handleTestGeminiKey = async () => {
+    const keyToTest = geminiApiKeyInput.trim()
+    if (!keyToTest) {
+      setGeminiTestStatus({ success: false, message: 'Please enter a Gemini API Key first.' })
+      return
+    }
+    setGeminiTesting(true)
+    setGeminiTestStatus(null)
+    try {
+      const res = await axios.post('/api/license/admin/test-gemini', {
+        api_key: keyToTest,
+      })
+      if (res.data?.ok) {
+        setGeminiTestStatus({
+          success: true,
+          message: `Key is valid! Model: ${res.data.model || 'Gemini 3.5 Flash'}`,
+        })
+      } else {
+        setGeminiTestStatus({
+          success: false,
+          message: res.data?.error || 'Gemini API Key rejected by Google.',
+        })
+      }
+    } catch (err) {
+      setGeminiTestStatus({
+        success: false,
+        message: err?.response?.data?.error || err.message || 'Key verification failed.',
+      })
+    } finally {
+      setGeminiTesting(false)
+    }
+  }
+
+  const handleSaveGeminiKey = async () => {
+    if (!geminiLicense) return
+    setGeminiSaving(true)
+    try {
+      const res = await axios.post('/api/license/admin/update', {
+        id: geminiLicense.id,
+        gemini_api_key: geminiApiKeyInput.trim(),
+        gemini_key_name: geminiKeyNameInput.trim(),
+      })
+      if (res.data?.ok) {
+        setIsGeminiModalOpen(false)
+        fetchLicenses()
+      } else {
+        alert(res.data?.error || 'Failed to save Gemini API Key.')
+      }
+    } catch (err) {
+      alert(err?.response?.data?.error || err.message || 'Error saving Gemini API key.')
+    } finally {
+      setGeminiSaving(false)
     }
   }
 
@@ -889,7 +968,7 @@ export default function LicenseManager() {
                         )}
                       </td>
 
-                      {/* Modules / Tabs */}
+                      {/* Modules / Tabs & AI Key */}
                       <td className="py-3 px-4 align-middle">
                         <button
                           type="button"
@@ -899,6 +978,19 @@ export default function LicenseManager() {
                         >
                           <span>📑</span>
                           <span>{parsedTabs.length} / 20 Tabs</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openGeminiModal(item)}
+                          className={`mt-1.5 px-2 py-0.5 rounded-lg font-semibold text-[10px] flex items-center gap-1 transition-colors ${
+                            item.gemini_api_key
+                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
+                              : 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100'
+                          }`}
+                          title={item.gemini_api_key ? `Custom Gemini Key Active: ${item.gemini_key_name || 'Configured'}` : 'Click to assign a dedicated Google Gemini API Key for this client'}
+                        >
+                          <span>🤖</span>
+                          <span>{item.gemini_api_key ? (item.gemini_key_name || 'Custom AI') : 'AI Key'}</span>
                         </button>
                       </td>
 
@@ -1108,6 +1200,33 @@ export default function LicenseManager() {
                   onChange={(e) => setBroadcastMessage(e.target.value)}
                   placeholder="e.g. Notice: Sunday evening 9 PM system maintenance."
                   className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Client Dedicated Google Gemini AI Key */}
+              <div className="bg-indigo-50/60 p-3.5 rounded-2xl border border-indigo-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-indigo-950 flex items-center gap-1.5 text-xs">
+                    <span>🤖</span>
+                    <span>Client Dedicated Google Gemini AI Key</span>
+                  </label>
+                  <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+                    Isolated Key
+                  </span>
+                </div>
+                <input
+                  type="password"
+                  value={licenseGeminiKey}
+                  onChange={(e) => setLicenseGeminiKey(e.target.value)}
+                  placeholder="AIzaSy... (Khali chhorne par master key use hogi)"
+                  className="w-full px-3 py-2 rounded-xl border border-indigo-200 bg-white font-mono text-xs focus:ring-2 focus:ring-indigo-500"
+                />
+                <input
+                  type="text"
+                  value={licenseGeminiKeyName}
+                  onChange={(e) => setLicenseGeminiKeyName(e.target.value)}
+                  placeholder="Key Note / Project Name (e.g. Gemini Key For IMS)"
+                  className="w-full px-3 py-1.5 rounded-xl border border-indigo-200 bg-white text-xs focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
@@ -1826,6 +1945,128 @@ export default function LicenseManager() {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Modal: Dedicated Google Gemini Key Management */}
+      {isGeminiModalOpen && geminiLicense && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6 space-y-4 border border-gray-100">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-lg shadow-sm">
+                  🤖
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">
+                    Client Google Gemini AI Key
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    {geminiLicense.customer_name || geminiLicense.company_name || geminiLicense.hostname} ({geminiLicense.mac_address || 'Server'})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsGeminiModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 font-bold text-lg p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Har client ke liye aap alag Google Gemini API Key assign kar sakte hain. Agar khali chhorain ge tou default Master Key istemal hogi.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Google Gemini API Key
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={geminiApiKeyInput}
+                    onChange={(e) => {
+                      setGeminiApiKeyInput(e.target.value)
+                      setGeminiTestStatus(null)
+                    }}
+                    placeholder="AQ.Ab8RN6... ya AIzaSy..."
+                    className="w-full px-3 py-2 pr-10 rounded-xl border border-gray-300 font-mono text-xs focus:ring-2 focus:ring-indigo-500"
+                  />
+                  {geminiApiKeyInput && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGeminiApiKeyInput('')
+                        setGeminiTestStatus(null)
+                      }}
+                      className="absolute right-2.5 top-2.5 text-xs text-gray-400 hover:text-rose-600 font-bold"
+                      title="Clear key"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Key Description / Project Label
+                </label>
+                <input
+                  type="text"
+                  value={geminiKeyNameInput}
+                  onChange={(e) => setGeminiKeyNameInput(e.target.value)}
+                  placeholder="e.g. Gemini API Key For IMS (projects/90016021959)"
+                  className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              {geminiTestStatus && (
+                <div
+                  className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                    geminiTestStatus.success
+                      ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                      : 'bg-rose-50 border border-rose-200 text-rose-800'
+                  }`}
+                >
+                  <span>{geminiTestStatus.success ? '✅' : '⚠️'}</span>
+                  <span className="font-medium">{geminiTestStatus.message}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t">
+              <button
+                type="button"
+                onClick={handleTestGeminiKey}
+                disabled={geminiTesting || !geminiApiKeyInput.trim()}
+                className="px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <span>{geminiTesting ? '⏳' : '⚡'}</span>
+                <span>{geminiTesting ? 'Verifying Key...' : 'Test Key With Google'}</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsGeminiModalOpen(false)}
+                  className="px-3.5 py-2 rounded-xl border border-gray-300 text-gray-700 text-xs font-bold hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveGeminiKey}
+                  disabled={geminiSaving}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <span>{geminiSaving ? 'Saving...' : 'Save Gemini Key'}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

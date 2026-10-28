@@ -28,6 +28,8 @@ export async function POST(req) {
       monthly_invoice_limit,
       watermark_enabled,
       allow_updates,
+      gemini_api_key,
+      gemini_key_name,
     } = body || {}
 
     if (!id) {
@@ -50,6 +52,8 @@ export async function POST(req) {
       monthly_invoice_limit: monthly_invoice_limit !== undefined ? Number(monthly_invoice_limit) : undefined,
       watermark_enabled,
       allow_updates: allow_updates !== undefined ? Boolean(allow_updates) : undefined,
+      gemini_api_key: gemini_api_key !== undefined ? (gemini_api_key ? String(gemini_api_key).trim() : null) : undefined,
+      gemini_key_name: gemini_key_name !== undefined ? (gemini_key_name ? String(gemini_key_name).trim() : null) : undefined,
     })
 
     return NextResponse.json({ ok: true, data: updated })

@@ -10,6 +10,121 @@ const DEFAULT_WELCOME_MESSAGE = {
   mode: 'ready',
 }
 
+function FormattedChatMessage({ text, isUser }) {
+  if (isUser) {
+    return <div className="whitespace-pre-wrap leading-relaxed">{text}</div>
+  }
+
+  // Parse inline bold **text** and *italic*
+  const renderInlineFormatted = (str) => {
+    if (!str) return null
+    const parts = str.split(/(\*\*.*?\*\*|\*[^\*]+\*)/g)
+    return parts.map((part, pIdx) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        const inner = part.slice(2, -2)
+        return <strong key={pIdx} className="font-extrabold text-gray-950">{inner}</strong>
+      }
+      if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+        const inner = part.slice(1, -1)
+        return <span key={pIdx} className="italic text-gray-700">{inner}</span>
+      }
+      return part
+    })
+  }
+
+  const lines = (text || '').split('\n')
+  const blocks = []
+  let currentBullets = []
+
+  const flushBullets = () => {
+    if (currentBullets.length > 0) {
+      blocks.push({
+        type: 'bulletList',
+        items: [...currentBullets],
+      })
+      currentBullets = []
+    }
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i]
+    const trimmed = rawLine.trim()
+
+    if (!trimmed) {
+      flushBullets()
+      blocks.push({ type: 'empty' })
+      continue
+    }
+
+    // Dividers (--- or ━━━━ or ***)
+    if (/^[-━_]{3,}$/.test(trimmed)) {
+      flushBullets()
+      blocks.push({ type: 'divider' })
+      continue
+    }
+
+    // Headings: ###, ##, #
+    if (trimmed.startsWith('#')) {
+      flushBullets()
+      const cleanHeader = trimmed.replace(/^#+\s*/, '').replace(/\*\*/g, '').trim()
+      blocks.push({ type: 'heading', text: cleanHeader })
+      continue
+    }
+
+    // Bullet points: *, -, •, or numbered like 1. or 1)
+    if (/^([\*\-•]|\d+[\.\)])\s+/.test(trimmed)) {
+      const cleanBullet = trimmed.replace(/^([\*\-•]|\d+[\.\)])\s+/, '').trim()
+      currentBullets.push(cleanBullet)
+      continue
+    }
+
+    // Regular text line
+    flushBullets()
+    blocks.push({ type: 'paragraph', text: trimmed })
+  }
+  flushBullets()
+
+  return (
+    <div className="space-y-1.5 text-xs text-gray-800 leading-relaxed">
+      {blocks.map((block, idx) => {
+        if (block.type === 'empty') {
+          return <div key={idx} className="h-0.5" />
+        }
+        if (block.type === 'divider') {
+          return <hr key={idx} className="my-1.5 border-gray-200" />
+        }
+        if (block.type === 'heading') {
+          return (
+            <div key={idx} className="font-extrabold text-xs text-emerald-950 pt-1 pb-0.5 flex items-center gap-1.5 border-b border-emerald-100">
+              <span className="text-emerald-700 font-bold">📌</span>
+              <span>{block.text}</span>
+            </div>
+          )
+        }
+        if (block.type === 'bulletList') {
+          return (
+            <div key={idx} className="space-y-1 pl-0.5 my-1">
+              {block.items.map((item, bIdx) => (
+                <div key={bIdx} className="flex items-start gap-2 text-xs">
+                  <span className="text-emerald-600 font-black text-sm leading-none mt-0.5">•</span>
+                  <div className="flex-1 leading-relaxed text-gray-800">
+                    {renderInlineFormatted(item)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        }
+        return (
+          <div key={idx} className="leading-relaxed">
+            {renderInlineFormatted(block.text)}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function AIAdvisor() {
   const [messages, setMessages] = useState([DEFAULT_WELCOME_MESSAGE])
   const [inputQuery, setInputQuery] = useState('')
@@ -242,13 +357,13 @@ export default function AIAdvisor() {
                 </div>
 
                 <div
-                  className={`max-w-[82%] sm:max-w-[70%] p-3.5 rounded-2xl text-xs leading-relaxed space-y-1.5 shadow-sm ${
+                  className={`max-w-[85%] sm:max-w-[75%] p-3.5 rounded-2xl text-xs leading-relaxed space-y-2 shadow-sm ${
                     isUser
                       ? 'bg-indigo-600 text-white rounded-tr-none'
-                      : 'bg-gray-50 border border-gray-200 text-gray-800 rounded-tl-none whitespace-pre-wrap'
+                      : 'bg-white border border-gray-200/80 text-gray-800 rounded-tl-none shadow-sm'
                   }`}
                 >
-                  <div>{msg.text}</div>
+                  <FormattedChatMessage text={msg.text} isUser={isUser} />
                   <div className="flex items-center justify-between gap-4 text-[10px] opacity-70 border-t border-black/5 pt-1">
                     <span>{msg.timestamp}</span>
                     {!isUser && msg.mode && (
