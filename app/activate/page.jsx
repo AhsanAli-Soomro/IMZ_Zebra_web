@@ -28,20 +28,52 @@ export default function ActivatePage() {
     setMessage('')
 
     try {
-      if (!window?.electronAPI?.licenseCheckOnline) {
-        // Fallback for web dev or if electronAPI is not yet loaded
-        if (window?.electronAPI?.licenseCheck) {
-          const res = await window.electronAPI.licenseCheck()
-          handleResult(res)
-          return
-        }
-        setStatus('offline')
-        setError('Desktop application environment not detected.')
+      if (window?.electronAPI?.licenseCheckOnline) {
+        const res = await window.electronAPI.licenseCheckOnline()
+        handleResult(res)
         return
       }
 
-      const res = await window.electronAPI.licenseCheckOnline()
-      handleResult(res)
+      if (window?.electronAPI?.licenseCheck) {
+        const res = await window.electronAPI.licenseCheck()
+        handleResult(res)
+        return
+      }
+
+      // Web Browser Fallback: fetch machine info and status from server API
+      const statusRes = await fetch('/api/license/status', { cache: 'no-store' })
+      const statusData = await statusRes.json()
+
+      if (statusData?.machineInfo) {
+        setMachineInfo({
+          macAddress: statusData.machineInfo.macAddress || '',
+          hostname: statusData.machineInfo.hostname || '',
+          activationKey: statusData.machineInfo.activationKey || '',
+          osInfo: statusData.machineInfo.osInfo || '',
+        })
+      }
+
+      if (statusData?.ok && statusData?.active) {
+        setStatus('active')
+        setMessage('Software activated successfully!')
+        setTimeout(async () => {
+          try {
+            const profileRes = await fetch('/api/company-profile')
+            const profile = await profileRes.json()
+            if (!profile?.company_name || profile.company_name.trim() === '') {
+              router.replace('/setup')
+              return
+            }
+          } catch {}
+          router.replace('/login')
+        }, 1000)
+        return
+      }
+
+      setStatus(statusData?.reason === 'expired' ? 'expired' : 'pending')
+      if (statusData?.message) {
+        setMessage(statusData.message)
+      }
     } catch (err) {
       console.error('Activation check failed:', err)
       setStatus('offline')
@@ -105,13 +137,37 @@ export default function ActivatePage() {
     setMessage('')
 
     try {
-      if (!window?.electronAPI?.licenseActivate) {
-        setError('License activation API not available')
-        return
+      if (window?.electronAPI?.licenseActivate) {
+        const res = await window.electronAPI.licenseActivate(manualKey.trim())
+        if (res?.ok) {
+          setMessage('Software activated with Master Key!')
+          setStatus('active')
+          setTimeout(async () => {
+            try {
+              const profileRes = await fetch('/api/company-profile')
+              const profile = await profileRes.json()
+              if (!profile?.company_name || profile.company_name.trim() === '') {
+                router.replace('/setup')
+                return
+              }
+            } catch {}
+            router.replace('/login')
+          }, 1200)
+          return
+        } else {
+          setError(res?.message || 'Invalid Master Key')
+          return
+        }
       }
 
-      const res = await window.electronAPI.licenseActivate(manualKey.trim())
-      if (res?.ok) {
+      // Web Browser fallback: POST to /api/license/status
+      const res = await fetch('/api/license/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: manualKey.trim() }),
+      })
+      const data = await res.json()
+      if (data?.ok) {
         setMessage('Software activated with Master Key!')
         setStatus('active')
         setTimeout(async () => {
@@ -126,7 +182,7 @@ export default function ActivatePage() {
           router.replace('/login')
         }, 1200)
       } else {
-        setError(res?.message || 'Invalid Master Key')
+        setError(data?.message || 'Invalid Master Key')
       }
     } catch (err) {
       setError(err?.message || 'Failed to activate')
@@ -327,6 +383,19 @@ export default function ActivatePage() {
             <p className="text-center text-[11px] text-gray-400 leading-relaxed">
               Once activated, the application operates <strong className="text-gray-600">100% OFFLINE</strong> without requiring internet.
             </p>
+          </div>
+
+          {/* LAN Counter PC / Client Mode */}
+          <div className="pt-2 border-t border-gray-100 text-center">
+            <p className="text-[11px] text-gray-500 mb-2 font-medium">Setting up a Counter PC or Client Terminal?</p>
+            <button
+              type="button"
+              onClick={() => router.push('/network-setup')}
+              className="w-full py-2.5 px-4 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 font-bold text-xs transition-colors flex items-center justify-center gap-2"
+            >
+              <span>🌐</span>
+              <span>Connect as Counter PC (Join Main Server)</span>
+            </button>
           </div>
 
           {/* Emergency Manual Master Key Accordion */}

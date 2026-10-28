@@ -26,17 +26,36 @@ export default function HomePage() {
           return
         }
 
-        // 2. If company profile exists, check License Activation
-        const result = await window.electronAPI.licenseCheck()
-        if (!mounted) return
+        // 2. Check License Activation
+        if (typeof window !== 'undefined' && window.electronAPI?.licenseCheck) {
+          const result = await window.electronAPI.licenseCheck()
+          if (!mounted) return
 
-        if (result?.ok) {
-          router.replace('/login')
-        } else {
-          router.replace('/activate')
+          if (result?.ok) {
+            router.replace('/login')
+          } else {
+            router.replace('/activate')
+          }
+          return
         }
-      } catch {
-        router.replace('/activate')
+
+        // Web Browser / LAN Node fallback: Check server license status over API
+        try {
+          const res = await fetch('/api/license/status', { cache: 'no-store' })
+          const statusData = await res.json()
+          if (!mounted) return
+
+          if (statusData?.ok && statusData?.active) {
+            router.replace('/login')
+          } else {
+            router.replace('/activate')
+          }
+        } catch {
+          if (mounted) router.replace('/activate')
+        }
+      } catch (err) {
+        console.warn('Home check error:', err)
+        if (mounted) router.replace('/activate')
       }
     }
 
