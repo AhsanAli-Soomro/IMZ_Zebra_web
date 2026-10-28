@@ -124,9 +124,27 @@ async function getFinancialSnapshot() {
   }
 }
 
-// GET /api/ai-advisor: Financial health check and anomaly detection
-export async function GET() {
+// GET /api/ai-advisor: Financial health check and anomaly detection OR chat history
+export async function GET(req) {
   try {
+    const { searchParams } = new URL(req.url)
+    if (searchParams.get('history') === 'true') {
+      const history = await db.query(`
+        SELECT 
+          id, 
+          sender, 
+          message as text, 
+          mode, 
+          engine, 
+          created_at, 
+          strftime('%H:%M', created_at, 'localtime') as timestamp 
+        FROM ai_advisor_chats 
+        ORDER BY id ASC 
+        LIMIT 100
+      `)
+      return NextResponse.json({ ok: true, history: history || [] })
+    }
+
     const snap = await getFinancialSnapshot()
     if (!snap) {
       return NextResponse.json({ ok: false, error: 'Database snapshot unavailable' }, { status: 500 })
@@ -174,12 +192,48 @@ export async function GET() {
   }
 }
 
+// DELETE /api/ai-advisor: Clear chat history
+export async function DELETE() {
+  try {
+    await db.query(`DELETE FROM ai_advisor_chats`)
+    return NextResponse.json({ ok: true, message: 'Chat history cleared' })
+  } catch (err) {
+    console.error('Failed to clear chat history:', err)
+    return NextResponse.json({ ok: false, error: err.message }, { status: 500 })
+  }
+}
+
 // POST /api/ai-advisor: Dual Engine (Google Gemini Online + Multi-Intent Smart Local SQL Engine)
 export async function POST(req) {
   try {
     const { query, geminiKey } = await req.json()
     if (!query || !query.trim()) {
       return NextResponse.json({ ok: false, message: 'Query is required' }, { status: 400 })
+    }
+
+    // Save user query to SQLite database
+    try {
+      await db.query(
+        `INSERT INTO ai_advisor_chats (session_id, sender, message, mode, engine) VALUES ('default', 'user', ?, 'user', 'User')`,
+        [query.trim()]
+      )
+    } catch (saveErr) {
+      console.warn('Failed to persist user chat:', saveErr.message)
+    }
+
+    // Helper to persist AI reply and return response
+    const saveAndRespond = async (payload) => {
+      if (payload && payload.response) {
+        try {
+          await db.query(
+            `INSERT INTO ai_advisor_chats (session_id, sender, message, mode, engine) VALUES ('default', 'ai', ?, ?, ?)`,
+            [payload.response, payload.mode || 'offline', payload.engine || 'Zebra Local Intelligence Engine']
+          )
+        } catch (saveErr) {
+          console.warn('Failed to persist AI chat response:', saveErr.message)
+        }
+      }
+      return NextResponse.json(payload)
     }
 
     const q = query.toLowerCase().trim()
@@ -227,7 +281,7 @@ Provide a direct, accurate, and insightful response strictly based on these real
         const geminiData = await geminiRes.json()
         const text = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text
         if (text) {
-          return NextResponse.json({
+          return await saveAndRespond({
             ok: true,
             mode: 'online',
             engine: 'Google Gemini Pro',
@@ -301,7 +355,7 @@ Provide a direct, accurate, and insightful response strictly based on these real
 
     // 1. GREETINGS & INTRODUCTIONS
     if (/^(hi|hello|salam|assalam|hey|kya hal|kaise ho|aoa)\b/i.test(q)) {
-      return NextResponse.json({
+      return await saveAndRespond({
         ok: true,
         mode: 'offline',
         engine: 'Zebra Local Intelligence Engine',
@@ -406,7 +460,7 @@ Provide a direct, accurate, and insightful response strictly based on these real
         dateReply += `\n💡 *Tip: Din ke aakhir par sidebar me "Cash in Hand" tab me ja kar aaj ka physical galla count save karein.*`
       }
 
-      return NextResponse.json({
+      return await saveAndRespond({
         ok: true,
         mode: 'offline',
         engine: 'Zebra Local Intelligence Engine',
@@ -445,7 +499,7 @@ Provide a direct, accurate, and insightful response strictly based on these real
             custReply += `• **Phone:** ${c.phone || 'N/A'}\n`
             custReply += `• **Current Balance (Udhar):** ${bal > 0 ? `Rs. ${bal.toLocaleString()} (Lena Hai)` : bal < 0 ? `Rs. ${Math.abs(bal).toLocaleString()} (Advance)` : 'Rs. 0 (Nil / Clear)'}\n\n`
           }
-          return NextResponse.json({
+          return await saveAndRespond({
             ok: true,
             mode: 'offline',
             engine: 'Zebra Local Intelligence Engine',
@@ -485,7 +539,7 @@ Provide a direct, accurate, and insightful response strictly based on these real
             if (it.store_name) stockReply += `• **Godam / Store:** ${it.store_name}\n`
             stockReply += `\n`
           }
-          return NextResponse.json({
+          return await saveAndRespond({
             ok: true,
             mode: 'offline',
             engine: 'Zebra Local Intelligence Engine',
@@ -507,7 +561,7 @@ Provide a direct, accurate, and insightful response strictly based on these real
           AND (invoice_date = date('now', '-1 day') OR date(created_at) = date('now', '-1 day'))
       `)
       const yData = yesterdaySales?.[0] || { total_sales: 0, cash_collected: 0, total_invoices: 0 }
-      return NextResponse.json({
+      return await saveAndRespond({
         ok: true,
         mode: 'offline',
         engine: 'Zebra Local Intelligence Engine',
@@ -535,7 +589,7 @@ Provide a direct, accurate, and insightful response strictly based on these real
       const mData = monthSales?.[0] || { total_sales: 0, cash_collected: 0, total_invoices: 0 }
       const expTotal = isLastMonth ? 0 : snap.monthExpenses.reduce((a, b) => a + Number(b.total), 0)
 
-      return NextResponse.json({
+      return await saveAndRespond({
         ok: true,
         mode: 'offline',
         engine: 'Zebra Local Intelligence Engine',
@@ -549,7 +603,7 @@ Provide a direct, accurate, and insightful response strictly based on these real
     }
 
     if (q.includes('aaj') || (q.includes('sale') && !q.includes('total') && !q.includes('kul'))) {
-      return NextResponse.json({
+      return await saveAndRespond({
         ok: true,
         mode: 'offline',
         engine: 'Zebra Local Intelligence Engine',
@@ -580,7 +634,7 @@ Provide a direct, accurate, and insightful response strictly based on these real
       const netProfit = grossProfit - expTotal
       const margin = pData.revenue > 0 ? ((grossProfit / pData.revenue) * 100).toFixed(1) : '0'
 
-      return NextResponse.json({
+      return await saveAndRespond({
         ok: true,
         mode: 'offline',
         engine: 'Zebra Local Intelligence Engine',
@@ -616,10 +670,12 @@ Provide a direct, accurate, and insightful response strictly based on these real
       cashReply += `━━━━━━━━━━━━━━━━━━━━━━\n`
       cashReply += `• **Kul Liquid Funds:** Rs. ${(Number(snap.cashInHand) + Number(snap.bankBalance)).toLocaleString()}\n\n`
       cashReply += `💡 *Wazahat:* \n`
-      cashReply += `1. **Rs. 10,000** counter closing par physical galla count karke save kiya gaya tha (Tareekh: ${latestClosing?.closing_date || 'N/A'}).\n`
-      cashReply += `2. **Rs. 28,100** sales bills (INV-00001, INV-00002) ke zariye record hua cash hai.`
+      if (latestClosing) {
+        cashReply += `1. **Rs. ${Number(latestClosing.physical_amount).toLocaleString()}** counter closing par physical galla count karke save kiya gaya tha (Tareekh: ${latestClosing.closing_date}).\n`
+      }
+      cashReply += `2. **Rs. ${Number(snap.cashInHand).toLocaleString()}** sales bills aur cash transactions se wasool hone wala total record hai.`
 
-      return NextResponse.json({
+      return await saveAndRespond({
         ok: true,
         mode: 'offline',
         engine: 'Zebra Local Intelligence Engine',
@@ -640,7 +696,7 @@ Provide a direct, accurate, and insightful response strictly based on these real
           expReply += `• **${exp.category}:** Rs. ${Number(exp.total).toLocaleString()}\n`
         })
       }
-      return NextResponse.json({
+      return await saveAndRespond({
         ok: true,
         mode: 'offline',
         engine: 'Zebra Local Intelligence Engine',
@@ -662,7 +718,7 @@ Provide a direct, accurate, and insightful response strictly based on these real
         })
         udharReply += `\n*Mashwara: In customers se wasooli ke liye reminder call karein.*`
       }
-      return NextResponse.json({
+      return await saveAndRespond({
         ok: true,
         mode: 'offline',
         engine: 'Zebra Local Intelligence Engine',
@@ -683,7 +739,7 @@ Provide a direct, accurate, and insightful response strictly based on these real
           suppReply += `${idx + 1}. **${s.name}:** Rs. ${Math.round(Number(s.balance)).toLocaleString()} ${s.phone ? `(${s.phone})` : ''}\n`
         })
       }
-      return NextResponse.json({
+      return await saveAndRespond({
         ok: true,
         mode: 'offline',
         engine: 'Zebra Local Intelligence Engine',
@@ -702,7 +758,7 @@ Provide a direct, accurate, and insightful response strictly based on these real
         })
         lowReply += `\n*In items ka foran supplier se naya order mangwa lein.*`
       }
-      return NextResponse.json({
+      return await saveAndRespond({
         ok: true,
         mode: 'offline',
         engine: 'Zebra Local Intelligence Engine',
@@ -720,7 +776,7 @@ Provide a direct, accurate, and insightful response strictly based on these real
           topReply += `${idx + 1}. **${item.product_name}:** ${item.total_qty} units farokht hue (Kul Revenue: Rs. ${Number(item.total_revenue).toLocaleString()})\n`
         })
       }
-      return NextResponse.json({
+      return await saveAndRespond({
         ok: true,
         mode: 'offline',
         engine: 'Zebra Local Intelligence Engine',
@@ -738,7 +794,7 @@ Provide a direct, accurate, and insightful response strictly based on these real
       `• **Low Stock Items:** ${snap.lowStock.length} items short hain\n\n` +
       `💡 *Aap kisi bhi item ka naam (e.g. "Basmati stock") ya customer ka naam (e.g. "Ahsan udhar") likh kar seedha pooch sakte hain.*`
 
-    return NextResponse.json({
+    return await saveAndRespond({
       ok: true,
       mode: 'offline',
       engine: 'Zebra Local Intelligence Engine',

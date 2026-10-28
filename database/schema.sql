@@ -473,3 +473,17 @@ CREATE TABLE IF NOT EXISTS quotation_items (
   total_price REAL DEFAULT 0,
   FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS ai_advisor_chats (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id TEXT NOT NULL DEFAULT 'default',
+  sender TEXT NOT NULL,
+  message TEXT NOT NULL,
+  mode TEXT,
+  engine TEXT,
+  user_id INTEGER,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_advisor_chats_session ON ai_advisor_chats(session_id, created_at);
+

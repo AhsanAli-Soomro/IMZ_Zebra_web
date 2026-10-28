@@ -2,16 +2,16 @@
 
 import { useEffect, useState, useRef } from 'react'
 
+const DEFAULT_WELCOME_MESSAGE = {
+  id: 'welcome',
+  sender: 'ai',
+  text: 'Assalam-o-Alaikum! Main aapka Zebra AI Business Advisor hoon. Aap mujhse dukan ki sale, munafa, udhar, stock, aur kharchay ke baare me kuch bhi pooch sakte hain.',
+  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+  mode: 'ready',
+}
+
 export default function AIAdvisor() {
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      sender: 'ai',
-      text: 'Assalam-o-Alaikum! Main aapka Zebra AI Business Advisor hoon. Aap mujhse dukan ki sale, munafa, udhar, stock, aur kharchay ke baare me kuch bhi pooch sakte hain.',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      mode: 'ready',
-    },
-  ])
+  const [messages, setMessages] = useState([DEFAULT_WELCOME_MESSAGE])
   const [inputQuery, setInputQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [insights, setInsights] = useState(null)
@@ -37,6 +37,22 @@ export default function AIAdvisor() {
         window.removeEventListener('offline', handleOffline)
       }
     }
+  }, [])
+
+  // Load persistent chat history from SQLite
+  useEffect(() => {
+    async function loadChatHistory() {
+      try {
+        const res = await fetch('/api/ai-advisor?history=true')
+        const data = await res.json()
+        if (data && data.ok && Array.isArray(data.history) && data.history.length > 0) {
+          setMessages(data.history)
+        }
+      } catch (err) {
+        console.warn('Could not load AI chat history:', err)
+      }
+    }
+    loadChatHistory()
   }, [])
 
   // Fetch proactive anomaly insights
@@ -120,6 +136,18 @@ export default function AIAdvisor() {
     setShowSettings(false)
   }
 
+  const handleClearHistory = async () => {
+    if (typeof window !== 'undefined' && !window.confirm('Kya aap waqai tamaam chat history delete karna chahte hain?')) {
+      return
+    }
+    try {
+      await fetch('/api/ai-advisor', { method: 'DELETE' })
+      setMessages([DEFAULT_WELCOME_MESSAGE])
+    } catch (err) {
+      console.error('Failed to clear chat history:', err)
+    }
+  }
+
   return (
     <div className="space-y-4 max-w-6xl mx-auto pb-10">
       {/* Header Banner */}
@@ -157,6 +185,16 @@ export default function AIAdvisor() {
             />
             <span>{isOnline ? 'Online (Gemini Ready)' : 'Offline (Local Engine Active)'}</span>
           </div>
+
+          <button
+            type="button"
+            onClick={handleClearHistory}
+            className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-rose-500/30 text-white text-xs font-bold transition-colors flex items-center gap-1.5 border border-white/10"
+            title="Clear Chat History from Database"
+          >
+            <span>🗑️</span>
+            <span className="hidden sm:inline">Clear Chat</span>
+          </button>
 
           <button
             type="button"
