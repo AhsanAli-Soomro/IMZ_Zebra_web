@@ -771,7 +771,6 @@ async function startApp() {
       return
     }
 
-    const activation = await isActivated()
     const dbPath = ensureDatabaseExists()
 
     if (!isDev) {
@@ -779,6 +778,8 @@ async function startApp() {
     } else {
       console.log('Skipping Electron migration in dev mode')
     }
+
+    const activation = await isActivated()
 
     // Determine initial route:
     // If not activated -> /activate

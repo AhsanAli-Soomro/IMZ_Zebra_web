@@ -38,14 +38,24 @@ export default function LoginPage() {
         if (typeof window !== 'undefined' && window.electronAPI?.getMachineInfo) {
           machineInfo = await window.electronAPI.getMachineInfo()
         }
-        if (machineInfo?.machineId) {
+
+        let deviceId = machineInfo?.machineId
+        if (!deviceId && typeof window !== 'undefined') {
+          deviceId = window.localStorage.getItem('zebra_device_id')
+          if (!deviceId) {
+            deviceId = 'web_' + Math.random().toString(36).substring(2, 11)
+            window.localStorage.setItem('zebra_device_id', deviceId)
+          }
+        }
+
+        if (deviceId) {
           const res = await fetch('/api/devices/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              device_id: machineInfo.machineId,
-              mac_address: machineInfo.macAddress,
-              device_name: machineInfo.hostname,
+              device_id: deviceId,
+              mac_address: machineInfo?.macAddress || 'WEB-CLIENT',
+              device_name: machineInfo?.hostname || 'Web Counter Browser',
               device_role: 'Counter',
             }),
           })

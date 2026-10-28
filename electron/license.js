@@ -438,10 +438,11 @@ async function queryWithRetry(fn, retries = 3) {
 
 function getLocalDbPath() {
   const candidates = [
+    app && typeof app.getPath === 'function' ? path.join(app.getPath('userData'), 'ims.sqlite') : null,
+    process.env.APP_USER_DATA_PATH ? path.join(process.env.APP_USER_DATA_PATH, 'ims.sqlite') : null,
     process.env.SQLITE_DB_PATH,
     path.join(process.cwd(), 'database', 'ims.sqlite'),
     path.join(__dirname, '..', 'database', 'ims.sqlite'),
-    app ? path.join(app.getPath('userData'), 'ims.sqlite') : null,
   ].filter(Boolean)
 
   for (const p of candidates) {
