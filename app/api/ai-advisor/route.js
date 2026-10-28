@@ -317,13 +317,19 @@ Provide a direct, accurate, and insightful response strictly based on these real
             },
             body: JSON.stringify({
               contents: [{ parts: [{ text: promptContext }] }],
+              generationConfig: {
+                thinkingConfig: {
+                  thinkingBudget: 0,
+                },
+              },
             }),
-            signal: AbortSignal.timeout(8000),
+            signal: AbortSignal.timeout(15000),
           }
         )
 
         // If 503 or transient failure on 3.5, fallback to 3.8
         if (geminiRes.status !== 200) {
+          console.warn('Gemini 3.5 returned status:', geminiRes.status, 'trying 3.8 fallback...')
           geminiRes = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${encodeURIComponent(activeGeminiKey)}`,
             {
@@ -334,8 +340,13 @@ Provide a direct, accurate, and insightful response strictly based on these real
               },
               body: JSON.stringify({
                 contents: [{ parts: [{ text: promptContext }] }],
+                generationConfig: {
+                  thinkingConfig: {
+                    thinkingBudget: 0,
+                  },
+                },
               }),
-              signal: AbortSignal.timeout(8000),
+              signal: AbortSignal.timeout(15000),
             }
           )
         }

@@ -79,8 +79,13 @@ export async function POST(req) {
             },
             body: JSON.stringify({
               contents: [{ parts: [{ text: 'Respond with the word OK if connected.' }] }],
+              generationConfig: {
+                thinkingConfig: {
+                  thinkingBudget: 0,
+                },
+              },
             }),
-            signal: AbortSignal.timeout(10000),
+            signal: AbortSignal.timeout(12000),
           }
         )
 
@@ -96,8 +101,13 @@ export async function POST(req) {
               },
               body: JSON.stringify({
                 contents: [{ parts: [{ text: 'Respond with the word OK if connected.' }] }],
+                generationConfig: {
+                  thinkingConfig: {
+                    thinkingBudget: 0,
+                  },
+                },
               }),
-              signal: AbortSignal.timeout(10000),
+              signal: AbortSignal.timeout(12000),
             }
           )
         }
