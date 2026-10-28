@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import crypto from 'crypto'
+import db from '@/lib/db.js'
 import { APP_LICENSE_SECRET } from '@/lib/license-config.js'
 
 function timingSafeEqual(a, b) {
@@ -28,8 +29,25 @@ function verifyPayload(payload, signature) {
   }
 }
 
-export async function GET() {
+export async function GET(req) {
   try {
+    const { searchParams } = new URL(req.url)
+    const deviceId = searchParams.get('device_id')
+    if (deviceId) {
+      try {
+        const devRows = await db.query('SELECT status FROM connected_devices WHERE device_id = ? LIMIT 1', [deviceId])
+        if (devRows && devRows[0]?.status === 'blocked') {
+          return NextResponse.json({
+            ok: false,
+            active: false,
+            blocked: true,
+            reason: 'device_blocked',
+            message: 'This computer has been blocked by the Administrator.'
+          })
+        }
+      } catch {}
+    }
+
     const candidateDirs = [
       process.env.APP_USER_DATA_PATH,
       path.join(os.homedir(), '.zebra-ims'),

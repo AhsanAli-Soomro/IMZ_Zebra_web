@@ -33,10 +33,23 @@ export default function ActivationGate({ children }) {
         // 2. Web Browser / LAN Counter Node Environment
         // Check with Main Server's activation status endpoint
         try {
-          const res = await fetch('/api/license/status', { cache: 'no-store' })
+          const storedDeviceId =
+            typeof window !== 'undefined'
+              ? window.localStorage.getItem('zebra_device_id')
+              : ''
+          const url = storedDeviceId
+            ? `/api/license/status?device_id=${encodeURIComponent(storedDeviceId)}`
+            : '/api/license/status'
+
+          const res = await fetch(url, { cache: 'no-store' })
           const statusData = await res.json()
 
           if (!mounted) return
+
+          if (statusData?.blocked) {
+            router.replace('/login')
+            return
+          }
 
           if (statusData?.ok && statusData?.active) {
             setAllowed(true)

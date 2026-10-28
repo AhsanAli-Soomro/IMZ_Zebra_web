@@ -148,7 +148,11 @@ export async function POST(req) {
 
     // 3. Register new device
     const role = device_role || 'Counter'
-    const name = device_name || (role === 'Server' ? 'Main Server PC' : 'Counter PC')
+    const isWeb = String(mac_address || '').toUpperCase() === 'WEB-CLIENT' || String(device_id).startsWith('web_')
+    const defaultName = isWeb
+      ? `Web Browser (${detectedIp})`
+      : (role === 'Server' ? 'Main Server PC' : `Counter PC (${detectedIp})`)
+    const name = device_name || defaultName
 
     await db.query(
       `INSERT INTO connected_devices (device_id, mac_address, device_name, ip_address, device_role, status, last_seen_at)
