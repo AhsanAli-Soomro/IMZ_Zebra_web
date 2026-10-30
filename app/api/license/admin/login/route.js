@@ -37,3 +37,4 @@ export async function POST(req) {
     return NextResponse.json({ ok: false, error: 'Server error during authentication' }, { status: 500 })
   }
 }
+

@@ -41,8 +41,8 @@ export default function AdminPage() {
         setError(data?.error || 'Invalid admin password. Please try again.')
       }
     } catch {
-      // Fallback for local dev offline fallback
-      const validPasswords = ['123456', 'admin123', 'habib2026', 'hireside']
+      // Fallback for local dev offline fallback only
+      const validPasswords = ['habib2026']
       if (validPasswords.includes(password.trim())) {
         setIsAuthenticated(true)
         sessionStorage.setItem('admin_auth_token', 'authenticated')
