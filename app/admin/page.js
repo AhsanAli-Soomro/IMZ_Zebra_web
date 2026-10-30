@@ -20,21 +20,39 @@ export default function AdminPage() {
     }
   }, [])
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
-    // Standard Owner Admin password (supports 123456, admin123, habib2026, hireside)
-    const validPasswords = ['123456', 'admin123', 'habib2026', 'hireside']
-    if (validPasswords.includes(password.trim())) {
-      setIsAuthenticated(true)
-      sessionStorage.setItem('admin_auth_token', 'authenticated')
-      sessionStorage.setItem('admin_auth_password', password.trim())
-    } else {
-      setError('Invalid admin password. Please try again.')
+    try {
+      const res = await fetch('/api/license/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: password.trim() }),
+      })
+      const data = await res.json()
+
+      if (data && data.ok) {
+        setIsAuthenticated(true)
+        sessionStorage.setItem('admin_auth_token', 'authenticated')
+        sessionStorage.setItem('admin_auth_password', password.trim())
+      } else {
+        setError(data?.error || 'Invalid admin password. Please try again.')
+      }
+    } catch {
+      // Fallback for local dev offline fallback
+      const validPasswords = ['123456', 'admin123', 'habib2026', 'hireside']
+      if (validPasswords.includes(password.trim())) {
+        setIsAuthenticated(true)
+        sessionStorage.setItem('admin_auth_token', 'authenticated')
+        sessionStorage.setItem('admin_auth_password', password.trim())
+      } else {
+        setError('Invalid admin password. Please try again.')
+      }
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const handleLogout = () => {
