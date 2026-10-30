@@ -43,7 +43,7 @@ Yeh guide aapko batayegi ke kis tarah aap apne Zebra POS License Server ko **Ver
 4. **Build Command**: `npm run build:web`
 5. **Output Directory**: `.next` (default)
 6. **Environment Variables** add karein:
-   - `NEON_DATABASE_URL`: `postgresql://neondb_owner:npg_wGX0m6fYKLyO@ep-small-smoke-b5a3it1v-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require`
+   - `NEON_DATABASE_URL`: `postgresql://neondb_owner:YOUR_NEON_PASSWORD@ep-small-smoke-b5a3it1v-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require`
    - `APP_LICENSE_SECRET`: `hrc-ims-zebra-prod-secret-98234-x89f-2026`
    - `ADMIN_PASSWORD`: Apna secret password (e.g. `habib2026` ya koi aur strong password)
    - `VERCEL`: `1` (Vercel automatically sets this)
