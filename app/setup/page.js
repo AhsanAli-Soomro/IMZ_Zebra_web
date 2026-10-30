@@ -25,6 +25,11 @@ export default function SetupPage() {
   const [success, setSuccess] = useState('')
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+      router.replace('/admin')
+      return
+    }
+
     async function loadProfile() {
       try {
         const res = await fetch('/api/company-profile')

@@ -117,6 +117,11 @@ export default function ActivatePage() {
   }
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+      router.replace('/admin')
+      return
+    }
+
     checkLicense()
   }, [])
 

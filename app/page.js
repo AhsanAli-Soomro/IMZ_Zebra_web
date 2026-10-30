@@ -9,6 +9,12 @@ export default function HomePage() {
   useEffect(() => {
     let mounted = true
 
+    // Cloud Vercel deployment: acts strictly as the License Server & Admin Portal
+    if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+      router.replace('/admin')
+      return
+    }
+
     async function check() {
       try {
         // 1. Check if Company Profile has been set up first

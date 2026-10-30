@@ -56,6 +56,11 @@ export default function LoginPage() {
   }
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+      router.replace('/admin')
+      return
+    }
+
     getCompanyData()
 
     async function checkDeviceStatus() {
