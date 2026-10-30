@@ -1,0 +1,13 @@
+{
+  "appId": "com.imz.zebra.admin",
+  "appName": "Zebra Admin",
+  "webDir": "www",
+  "server": {
+    "url": "https://imz-zebra-web.vercel.app/admin",
+    "cleartext": true,
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

@@ -23,7 +23,8 @@
     "lint": "next lint",
     "db:init": "node scripts/init-db.js",
     "migrate:sqlite": "node scripts/mysql-to-sqlite.js",
-    "migrate": "node scripts/run-migrations.js"
+    "migrate": "node scripts/run-migrations.js",
+    "build:apk": "cd admin-mobile/android && export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home && ./gradlew assembleDebug && cp app/build/outputs/apk/debug/app-debug.apk ../../ZebraAdmin.apk && echo 'APK built at ZebraAdmin.apk'"
   },
   "build": {
     "appId": "com.ahsansoomro.zebraims",

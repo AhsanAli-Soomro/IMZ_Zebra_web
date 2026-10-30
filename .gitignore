@@ -72,3 +72,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Android & Capacitor mobile build
+*.apk
+*.aab
+admin-mobile/node_modules/
+admin-mobile/android/.gradle/
+admin-mobile/android/app/build/
+admin-mobile/android/build/
+admin-mobile/android/local.properties
+admin-mobile/android/.idea/

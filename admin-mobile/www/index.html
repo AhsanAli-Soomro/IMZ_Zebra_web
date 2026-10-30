@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Zebra IMS Admin</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .card {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 32px 24px;
+      max-width: 380px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+    .logo-container {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 20px auto;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4);
+    }
+    .logo-text {
+      font-size: 38px;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+      background: linear-gradient(to right, #ffffff, #c7d2fe);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    p {
+      color: #94a3b8;
+      font-size: 14px;
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(99, 102, 241, 0.2);
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px auto;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .retry-btn {
+      display: none;
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+      color: white;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4);
+      transition: all 0.2s;
+    }
+    .retry-btn:active {
+      transform: scale(0.98);
+    }
+    .status-badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      background: rgba(99, 102, 241, 0.15);
+      color: #818cf8;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-container">
+      <span class="logo-text">🦓</span>
+    </div>
+    <h1>Zebra IMS Admin</h1>
+    <div class="status-badge">Executive Cloud Portal</div>
+    <p id="status-text" style="margin-top: 16px;">Connecting to Vercel Cloud Server...</p>
+    
+    <div id="loader" class="spinner"></div>
+    <button id="retry-btn" class="retry-btn" onclick="connectToServer()">Retry Connection</button>
+  </div>
+
+  <script>
+    const TARGET_URL = 'https://imz-zebra-web.vercel.app/admin';
+
+    function connectToServer() {
+      const statusText = document.getElementById('status-text');
+      const loader = document.getElementById('loader');
+      const retryBtn = document.getElementById('retry-btn');
+
+      statusText.innerText = 'Connecting to Vercel Cloud Server...';
+      loader.style.display = 'block';
+      retryBtn.style.display = 'none';
+
+      // Attempt navigation
+      window.location.replace(TARGET_URL);
+
+      // Fallback timeout in case redirect takes long
+      setTimeout(() => {
+        if (!navigator.onLine) {
+          statusText.innerText = 'No internet connection. Please turn on Wi-Fi or mobile data.';
+          loader.style.display = 'none';
+          retryBtn.style.display = 'block';
+        }
+      }, 5000);
+    }
+
+    // Auto connect on startup
+    window.addEventListener('load', () => {
+      setTimeout(connectToServer, 300);
+    });
+  </script>
+</body>
+</html>

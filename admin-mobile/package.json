@@ -1,0 +1,15 @@
+{
+  "name": "zebra-ims-admin-mobile",
+  "version": "1.0.0",
+  "description": "Zebra IMS Cloud Admin Panel Mobile App",
+  "private": true,
+  "scripts": {
+    "cap": "cap"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0"
+  }
+}
