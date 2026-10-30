@@ -163,8 +163,8 @@ async function runMigrationScript(dbPath) {
 
     console.log('Migration script completed')
   } catch (err) {
-    console.error('Migration failed:', err)
-    throw new Error(`Migration failed: ${err.message || String(err)}`)
+    console.error('Migration warning (non-fatal):', err)
+    console.warn('Proceeding with startup:', err?.message || String(err))
   }
 }
 
