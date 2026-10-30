@@ -31,18 +31,28 @@
 *.db-shm
 *.sqlite-journal
 *.db-journal
+*.sqlite3-wal
+*.sqlite3-shm
 
 # Optional local database backups
 database/*backup*.sqlite
 database/*backup*.db
+database/*backup*
+database/*.bak*
 database/*.bak
+*.bak
+*.bak_*
 
 # Keep production seed database and schema
 !database/ims.sqlite
 !database/schema.sql
 
-# misc
+# OS & system junk
 .DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 *.pem
 
 # debug

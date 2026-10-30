@@ -436,7 +436,7 @@ ipcMain.handle('update:install', async () => {
     status: 'installing',
     message: 'Restarting to install update...',
   })
-  setImmediate(() => autoUpdater.quitAndInstall(false, true))
+  setImmediate(() => autoUpdater.quitAndInstall(true, true))
   return installingState
 })
 

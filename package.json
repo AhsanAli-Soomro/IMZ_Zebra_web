@@ -6,7 +6,7 @@
   "author": "Ahsan Ali Soomro",
   "main": "electron/main.js",
   "scripts": {
-    "dev": "cross-env NODE_OPTIONS=--no-webstorage next dev -p 3002",
+    "dev": "node scripts/start-dev.js",
     "electron": "electron .",
     "dev:all": "npm run rebuild:node && concurrently \"npm run dev\" \"wait-on http://127.0.0.1:3002 && npm run electron\"",
     "build:web": "npm run rebuild:node && next build && shx mkdir -p .next/standalone/.next && shx cp -r .next/static .next/standalone/.next/ && shx cp -r public .next/standalone/",
