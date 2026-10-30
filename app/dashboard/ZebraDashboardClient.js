@@ -92,6 +92,18 @@ export default function ZebraDashboardClient() {
     }
   }, [active, router, searchParams])
 
+  const isAdvancedAllowed = (moduleName) => {
+    if (typeof window === 'undefined') return false
+    try {
+      const raw = window.localStorage.getItem('zebra_allowed_tabs')
+      if (!raw) return false
+      const tabs = JSON.parse(raw)
+      return Array.isArray(tabs) && tabs.includes(moduleName)
+    } catch {
+      return false
+    }
+  }
+
   const renderContent = () => {
     switch (active?.toLowerCase()) {
       case 'dashboard':
@@ -164,13 +176,13 @@ export default function ZebraDashboardClient() {
       case 'expenses':
         return <ExpensesPage />
       case 'ai advisor':
-        return <AIAdvisor />
+        return isAdvancedAllowed('AI Advisor') ? <AIAdvisor /> : <NotFound />
       case 'quotations':
-        return <Quotations />
+        return isAdvancedAllowed('Quotations') ? <Quotations /> : <NotFound />
       case 'live excel':
-        return <AdvancedExcelSync />
+        return isAdvancedAllowed('Live Excel') ? <AdvancedExcelSync /> : <NotFound />
       case 'auto backup':
-        return <AutoBackup />
+        return isAdvancedAllowed('Auto Backup') ? <AutoBackup /> : <NotFound />
       default:
         return <DashboardPage />
     }
