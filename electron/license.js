@@ -4,8 +4,11 @@ const path = require('path')
 const crypto = require('crypto')
 const os = require('os')
 const { execFileSync } = require('child_process')
-const { neon } = require('@neondatabase/serverless')
-const { NEON_DATABASE_URL, APP_LICENSE_SECRET } = require('./license-config')
+let neon = null
+try {
+  neon = require('@neondatabase/serverless').neon
+} catch {}
+const { NEON_DATABASE_URL, LICENSE_SERVER_URL, APP_LICENSE_SECRET } = require('./license-config')
 const { hashPassword, encryptPasswordForVault } = require('./crypto-vault')
 
 const OWNER_KEY_HASH = '867d0594b163f154df848ff6fc482abe87c543d0c82817abe0d5ccc5d2935fd7'
@@ -412,6 +415,9 @@ async function isActivated() {
  * Resilient query executor with automatic retry for serverless cold-starts & transient ECONNRESET
  */
 async function queryWithRetry(fn, retries = 3) {
+  if (!NEON_DATABASE_URL || !neon) {
+    return null
+  }
   let lastErr = null
   for (let i = 1; i <= retries; i++) {
     try {
@@ -530,70 +536,137 @@ async function checkActivationOnline() {
   const devicesData = getLocalDevicesData(sysInfo)
 
   try {
-    const record = await queryWithRetry(async (sql) => {
-      const rows = await sql`
-        INSERT INTO system_licenses (
-          machine_id, mac_address, hostname, os_info, activation_key, status,
-          customer_name, company_name, contact, city, address,
-          users_data, devices_data,
-          notes, first_seen_at, activated_at, last_online_at
-        )
-        VALUES (
-          ${sysInfo.machineId}, ${sysInfo.macAddress}, ${sysInfo.hostname}, ${sysInfo.osInfo}, ${sysInfo.activationKey},
-          ${isExistingClient ? 'active' : 'pending'},
-          ${companyProfile.company_name || 'Habib Rice Corporation'},
-          ${companyProfile.company_name || 'Habib Rice Corporation'},
-          ${companyProfile.contact || null},
-          ${companyProfile.city || null},
-          ${companyProfile.address || null},
-          ${JSON.stringify(usersData)},
-          ${JSON.stringify(devicesData)},
-          ${isExistingClient ? 'Authentic existing client (Auto-Migrated)' : null},
-          NOW(),
-          ${isExistingClient ? new Date().toISOString() : null},
-          NOW()
-        )
-        ON CONFLICT (machine_id) DO UPDATE SET
-          mac_address = EXCLUDED.mac_address,
-          hostname = EXCLUDED.hostname,
-          os_info = EXCLUDED.os_info,
-          customer_name = COALESCE(system_licenses.customer_name, EXCLUDED.customer_name),
-          company_name = COALESCE(EXCLUDED.company_name, system_licenses.company_name),
-          contact = COALESCE(EXCLUDED.contact, system_licenses.contact),
-          city = COALESCE(EXCLUDED.city, system_licenses.city),
-          address = COALESCE(EXCLUDED.address, system_licenses.address),
-          users_data = CASE
-            WHEN EXCLUDED.users_data IS NOT NULL AND EXCLUDED.users_data <> '[]' THEN EXCLUDED.users_data
-            ELSE system_licenses.users_data
-          END,
-          devices_data = CASE
-            WHEN EXCLUDED.devices_data IS NOT NULL AND EXCLUDED.devices_data <> '[]' THEN EXCLUDED.devices_data
-            ELSE system_licenses.devices_data
-          END,
-          status = CASE
-            WHEN system_licenses.status = 'pending' AND ${isExistingClient} THEN 'active'
-            ELSE system_licenses.status
-          END,
-          notes = COALESCE(system_licenses.notes, EXCLUDED.notes),
-          last_online_at = NOW()
-        RETURNING *;
-      `
-      const rec = rows[0] || null
-      // Check expiration if status is active (safely inside queryWithRetry scope)
-      if (rec && rec.status === 'active' && rec.expires_at) {
-        const expiryTime = new Date(rec.expires_at).getTime()
-        if (expiryTime <= Date.now()) {
-          rec.status = 'expired'
-          await sql`UPDATE system_licenses SET status = 'expired' WHERE id = ${rec.id}`
+    let record = null
+
+    // 1. Preferred secure method: HTTPS request to License Server API (Vercel / Cloudflare)
+    if (LICENSE_SERVER_URL) {
+      try {
+        const targetUrl = `${LICENSE_SERVER_URL.replace(/\/$/, '')}/api/license/register-or-check`
+        const res = await fetch(targetUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-client-platform': 'electron',
+          },
+          body: JSON.stringify({
+            machine_id: sysInfo.machineId,
+            mac_address: sysInfo.macAddress,
+            hostname: sysInfo.hostname,
+            os_info: sysInfo.osInfo,
+            activation_key: sysInfo.activationKey,
+            company_name: companyProfile.company_name || (isExistingClient ? 'Habib Rice Corporation' : null),
+            contact: companyProfile.contact || null,
+            city: companyProfile.city || null,
+            address: companyProfile.address || null,
+            users_data: usersData,
+            devices_data: devicesData,
+          }),
+        })
+
+        if (res.ok) {
+          const resJson = await res.json()
+          if (resJson && resJson.ok) {
+            record = {
+              id: resJson.id,
+              status: resJson.status,
+              machine_id: resJson.machineId || sysInfo.machineId,
+              mac_address: resJson.macAddress || sysInfo.macAddress,
+              hostname: resJson.hostname || sysInfo.hostname,
+              activation_key: resJson.activationKey || sysInfo.activationKey,
+              customer_name: resJson.customerName || companyProfile.company_name,
+              company_name: resJson.customerName || companyProfile.company_name,
+              expires_at: resJson.expiresAt,
+              activated_at: resJson.activatedAt,
+              max_users: resJson.maxUsers,
+              allowed_tabs: resJson.allowedTabs,
+              watermark_enabled: resJson.watermarkEnabled,
+              status_message: resJson.statusMessage,
+              broadcast_message: resJson.broadcastMessage,
+            }
+          }
         }
+      } catch (apiErr) {
+        console.warn('License Server API unreachable, checking alternatives:', apiErr.message)
       }
-      return rec
-    })
+    }
+
+    // 2. Direct Neon query fallback ONLY if NEON_DATABASE_URL is provided (dev/testing mode only)
+    if (!record && NEON_DATABASE_URL && neon) {
+      try {
+        record = await queryWithRetry(async (sql) => {
+          const rows = await sql`
+            INSERT INTO system_licenses (
+              machine_id, mac_address, hostname, os_info, activation_key, status,
+              customer_name, company_name, contact, city, address,
+              users_data, devices_data,
+              notes, first_seen_at, activated_at, last_online_at
+            )
+            VALUES (
+              ${sysInfo.machineId}, ${sysInfo.macAddress}, ${sysInfo.hostname}, ${sysInfo.osInfo}, ${sysInfo.activationKey},
+              ${isExistingClient ? 'active' : 'pending'},
+              ${companyProfile.company_name || 'Habib Rice Corporation'},
+              ${companyProfile.company_name || 'Habib Rice Corporation'},
+              ${companyProfile.contact || null},
+              ${companyProfile.city || null},
+              ${companyProfile.address || null},
+              ${JSON.stringify(usersData)},
+              ${JSON.stringify(devicesData)},
+              ${isExistingClient ? 'Authentic existing client (Auto-Migrated)' : null},
+              NOW(),
+              ${isExistingClient ? new Date().toISOString() : null},
+              NOW()
+            )
+            ON CONFLICT (machine_id) DO UPDATE SET
+              mac_address = EXCLUDED.mac_address,
+              hostname = EXCLUDED.hostname,
+              os_info = EXCLUDED.os_info,
+              customer_name = COALESCE(system_licenses.customer_name, EXCLUDED.customer_name),
+              company_name = COALESCE(EXCLUDED.company_name, system_licenses.company_name),
+              contact = COALESCE(EXCLUDED.contact, system_licenses.contact),
+              city = COALESCE(EXCLUDED.city, system_licenses.city),
+              address = COALESCE(EXCLUDED.address, system_licenses.address),
+              users_data = CASE
+                WHEN EXCLUDED.users_data IS NOT NULL AND EXCLUDED.users_data <> '[]' THEN EXCLUDED.users_data
+                ELSE system_licenses.users_data
+              END,
+              devices_data = CASE
+                WHEN EXCLUDED.devices_data IS NOT NULL AND EXCLUDED.devices_data <> '[]' THEN EXCLUDED.devices_data
+                ELSE system_licenses.devices_data
+              END,
+              status = CASE
+                WHEN system_licenses.status = 'pending' AND ${isExistingClient} THEN 'active'
+                ELSE system_licenses.status
+              END,
+              notes = COALESCE(system_licenses.notes, EXCLUDED.notes),
+              last_online_at = NOW()
+            RETURNING *;
+          `
+          const rec = rows[0] || null
+          if (rec && rec.status === 'active' && rec.expires_at) {
+            const expiryTime = new Date(rec.expires_at).getTime()
+            if (expiryTime <= Date.now()) {
+              rec.status = 'expired'
+              await sql`UPDATE system_licenses SET status = 'expired' WHERE id = ${rec.id}`
+            }
+          }
+          return rec
+        })
+      } catch (directDbErr) {
+        console.warn('Direct Neon DB query failed:', directDbErr.message)
+      }
+    }
+
     if (!record) {
+      // Check if we already have a valid local offline license
+      const local = checkLocalLicense()
+      if (local && local.ok) {
+        return local
+      }
+
       return {
         ok: false,
-        status: 'error',
-        message: 'Could not retrieve license record from server',
+        status: 'pending',
+        message: 'Could not connect to license server. Please verify your internet connection.',
         ...sysInfo,
       }
     }

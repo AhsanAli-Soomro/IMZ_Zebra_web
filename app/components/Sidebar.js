@@ -41,8 +41,13 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
       } catch {}
     }
 
-    // Background sync with Neon cloud
-    async function syncLicense() {
+    // Background sync with Neon cloud / License Server API
+    let isSyncing = false
+
+    async function syncLicense(options = {}) {
+      if (isSyncing) return
+      isSyncing = true
+
       try {
         let machineInfo = {}
         if (typeof window !== 'undefined' && window.electronAPI?.getMachineInfo) {
@@ -55,6 +60,7 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
           hostname: machineInfo?.hostname,
           os_info: machineInfo?.osInfo,
           activation_key: machineInfo?.activationKey,
+          ping_only: Boolean(options.ping_only),
           ...machineInfo,
         }
 
@@ -65,6 +71,8 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
         })
         const data = await res.json()
         if (data && data.ok) {
+          window.localStorage.setItem('zebra_last_sync_time', String(Date.now()))
+
           if (data.allow_updates !== undefined) {
             window.localStorage.setItem('zebra_allow_updates', String(data.allow_updates))
           }
@@ -93,24 +101,36 @@ export default function Sidebar({ active, setActive, isOpen, onNavigate }) {
           }
         }
       } catch (err) {
-        console.warn('Sidebar license sync notice:', err.message)
+        console.warn('Sidebar license sync notice (working offline):', err.message)
+      } finally {
+        isSyncing = false
       }
     }
 
-    syncLicense()
+    // 1. Initial startup sync
+    syncLicense({ ping_only: false })
 
-    // 1. Auto-sync the moment computer reconnects to the internet
+    // 2. Auto-sync on internet reconnect with 1-hour cooldown
+    const RECONNECT_COOLDOWN_MS = 60 * 60 * 1000 // 1 hour cooldown
     const handleOnline = () => {
-      syncLicense()
+      const lastSync = Number(window.localStorage.getItem('zebra_last_sync_time') || 0)
+      if (Date.now() - lastSync > RECONNECT_COOLDOWN_MS) {
+        syncLicense({ ping_only: true })
+      }
     }
     if (typeof window !== 'undefined') {
       window.addEventListener('online', handleOnline)
     }
 
-    // 2. Periodic heartbeat telemetry sync (every 15 minutes)
+    // 3. Periodic heartbeat telemetry sync (every 24 hours with jitter)
+    const HEARTBEAT_INTERVAL_MS = 24 * 60 * 60 * 1000 // 24 hours
     const syncInterval = setInterval(() => {
-      syncLicense()
-    }, 15 * 60 * 1000)
+      // Add random jitter up to 5 minutes to avoid synchronized bursts across clients
+      const jitterMs = Math.floor(Math.random() * 300000)
+      setTimeout(() => {
+        syncLicense({ ping_only: true })
+      }, jitterMs)
+    }, HEARTBEAT_INTERVAL_MS)
 
     return () => {
       if (typeof window !== 'undefined') {
