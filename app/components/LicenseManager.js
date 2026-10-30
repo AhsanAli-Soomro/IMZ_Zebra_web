@@ -2453,7 +2453,7 @@ export default function LicenseManager() {
                       setGeminiApiKeyInput(e.target.value)
                       setGeminiTestStatus(null)
                     }}
-                    placeholder="AQ.Ab8RN6... ya AIzaSy..."
+                    placeholder="AIzaSy... (Gemini API Key)"
                     className="w-full px-3 py-2 pr-10 rounded-xl border border-gray-300 font-mono text-xs focus:ring-2 focus:ring-indigo-500"
                   />
                   {geminiApiKeyInput && (
