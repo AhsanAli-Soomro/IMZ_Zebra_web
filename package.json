@@ -1,8 +1,8 @@
 {
-  "name": "zebra-ims",
+  "name": "habib-rice-corporation",
   "version": "0.1.7",
   "private": true,
-  "description": "Zebra IMS desktop application",
+  "description": "Habib Rice Corporation IMS desktop application",
   "author": "Ahsan Ali Soomro",
   "main": "electron/main.js",
   "scripts": {
@@ -27,9 +27,9 @@
     "build:apk": "cd admin-mobile/android && export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home && ./gradlew assembleDebug && cp app/build/outputs/apk/debug/app-debug.apk ../../ZebraAdmin.apk && echo 'APK built at ZebraAdmin.apk'"
   },
   "build": {
-    "appId": "com.ahsansoomro.zebraims",
-    "productName": "Zebra IMS",
-    "artifactName": "Zebra-IMS-Setup-${version}.${ext}",
+    "appId": "com.habibrice.corporation",
+    "productName": "Habib Rice Corporation",
+    "artifactName": "Habib-Rice-Corporation-Setup-${version}.${ext}",
     "afterPack": "scripts/after-pack.js",
     "directories": {
       "output": "dist"
@@ -94,8 +94,8 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "shortcutName": "Zebra IMS",
-      "uninstallDisplayName": "Zebra IMS",
+      "shortcutName": "Habib Rice Corporation",
+      "uninstallDisplayName": "Habib Rice Corporation",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "deleteAppDataOnUninstall": false,

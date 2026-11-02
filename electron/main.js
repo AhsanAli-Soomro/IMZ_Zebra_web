@@ -726,9 +726,45 @@ ipcMain.handle('network:get-local-ip', async () => {
 function ensureDatabaseExists() {
   const userDataPath = app.getPath('userData')
   const targetDbPath = path.join(userDataPath, 'ims.sqlite')
+  const subfolderDbPath = path.join(userDataPath, 'database', 'ims.sqlite')
 
   if (!fs.existsSync(userDataPath)) {
     fs.mkdirSync(userDataPath, { recursive: true })
+  }
+
+  // 1. Direct check: current userDataPath has an existing database
+  if (fs.existsSync(targetDbPath) && fs.statSync(targetDbPath).size > 40960) {
+    console.log('Using existing DB:', targetDbPath)
+    return targetDbPath
+  }
+
+  if (fs.existsSync(subfolderDbPath) && fs.statSync(subfolderDbPath).size > 40960) {
+    console.log('Using existing DB in subfolder:', subfolderDbPath)
+    return subfolderDbPath
+  }
+
+  // 2. Cross-directory check: check other AppData locations for real client database
+  const appData = process.env.APPDATA || path.dirname(userDataPath)
+  const candidateDirs = [
+    path.join(appData, 'Habib Rice Corporation'),
+    path.join(appData, 'habib-rice-corporation'),
+    path.join(appData, 'Habib Rice Corporation', 'database'),
+    path.join(appData, 'habib-rice-corporation', 'database'),
+    path.join(appData, 'Zebra IMS'),
+    path.join(appData, 'zebra-ims'),
+  ]
+
+  for (const candidateDir of candidateDirs) {
+    if (candidateDir.toLowerCase() === userDataPath.toLowerCase()) continue
+    const candidateDb = candidateDir.endsWith('.sqlite') ? candidateDir : path.join(candidateDir, 'ims.sqlite')
+    if (fs.existsSync(candidateDb) && fs.statSync(candidateDb).size > 40960) {
+      console.log('Found existing real client DB at:', candidateDb)
+      if (!fs.existsSync(targetDbPath) || fs.statSync(targetDbPath).size <= 40960) {
+        fs.copyFileSync(candidateDb, targetDbPath)
+        console.log('Migrated client DB from', candidateDb, 'to', targetDbPath)
+        return targetDbPath
+      }
+    }
   }
 
   if (fs.existsSync(targetDbPath)) {
@@ -761,6 +797,18 @@ async function startApp() {
   isStarting = true
 
   try {
+    // Clean up accidental duplicate Zebra IMS desktop shortcut if left over
+    try {
+      const desktopPath = app.getPath('desktop')
+      const accidentalShortcut = path.join(desktopPath, 'Zebra IMS.lnk')
+      if (fs.existsSync(accidentalShortcut)) {
+        fs.unlinkSync(accidentalShortcut)
+        console.log('Cleaned up accidental duplicate Zebra IMS shortcut from desktop')
+      }
+    } catch (cleanupErr) {
+      console.warn('Notice cleaning duplicate shortcut:', cleanupErr.message)
+    }
+
     const isDev = !app.isPackaged
     const netCfg = getNetworkConfig()
 
