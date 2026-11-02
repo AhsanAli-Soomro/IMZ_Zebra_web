@@ -686,13 +686,16 @@ ipcMain.handle('shortcut:create-client', async (_event, payload) => {
         })
       }
 
-      // Remove default generic shortcut if different name
-      if (safeName.toLowerCase() !== 'zebra ims') {
-        const defaultShortcutPath = path.join(desktopDir, 'Zebra IMS.lnk')
-        if (fs.existsSync(defaultShortcutPath)) {
-          try {
-            fs.unlinkSync(defaultShortcutPath)
-          } catch (e) {}
+      // Clean up any initial default/template shortcuts if company name is different
+      const legacyShortcuts = ['Zebra IMS.lnk', 'Habib Rice Corporation.lnk']
+      for (const legacyName of legacyShortcuts) {
+        if (safeName.toLowerCase() !== legacyName.replace('.lnk', '').toLowerCase()) {
+          const oldShortcut = path.join(desktopDir, legacyName)
+          if (fs.existsSync(oldShortcut)) {
+            try {
+              fs.unlinkSync(oldShortcut)
+            } catch (e) {}
+          }
         }
       }
 
